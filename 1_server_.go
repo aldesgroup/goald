@@ -8,7 +8,7 @@ import (
 	"log"
 	"net/http"
 
-	r "github.com/julienschmidt/httprouter"
+	"github.com/julienschmidt/httprouter"
 )
 
 // TODO add version to BO, isFieldValid (& links ?), patching methods, etc
@@ -36,12 +36,12 @@ func InitServer(serverConfig IServerConfig) ServerContext {
 	// new server
 	server := &server{config: serverConfig}
 
-	// init the router, configuring & adding the endpoints
-	server.router = r.New()
+	// init the router, configuring & adding the REST API endpoints
+	server.router = httprouter.New()
 	server.router.RedirectTrailingSlash = false
 	apiPath := server.config.getCommonConfig().HTTP.ApiPath
-	for _, ep := range restRegistry.endpoints {
-		server.router.Handle(ep.getMethod(), apiPath+ep.getFullPath(), server.handleFor(ep))
+	for _, endpoint := range restRegistry.endpoints {
+		server.router.Handle(endpoint.getMethod(), apiPath+endpoint.getFullPath(), server.handleFor(endpoint))
 	}
 
 	// running the app in code generation mode, i.e. no server started here - should only be used by devs
@@ -88,8 +88,8 @@ func (thisServer *server) Start() {
 	}
 }
 
-func (thisServer *server) handleFor(ep iEndpoint) r.Handle {
-	return func(w http.ResponseWriter, req *http.Request, params r.Params) {
+func (thisServer *server) handleFor(ep iEndpoint) httprouter.Handle {
+	return func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 		thisServer.ServeEndpoint(ep, w, req, params)
 	}
 }
