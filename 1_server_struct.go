@@ -15,18 +15,18 @@ type server struct {
 }
 
 // Implementing the interface ServerContext
-func (thisServer *server) CustomConfig() ICustomConfig {
-	return thisServer.config.GetCustomConfig()
+func (thisServer *server) CustomPart() ICustomConfig {
+	return thisServer.config.CustomPart()
 }
 
 // Shortcut; true if the 'Env' config item is "dev"
 func (thisServer *server) IsDev() bool {
-	return thisServer.config.getCommonConfig().envAsType == envTypeDEV
+	return thisServer.config.commonPart().envAsType == envTypeDEV
 }
 
 // Shortcut; true if the 'Env' config item is "prod"
 func (thisServer *server) IsProd() bool {
-	return thisServer.config.getCommonConfig().envAsType == envTypePROD
+	return thisServer.config.commonPart().envAsType == envTypePROD
 }
 
 // ------------------------------------------------------------------------------------------------

@@ -109,7 +109,7 @@ const registryFileTemplate = `// Generated file, do not edit!
 package %s
 
 import (
-	g "git-ext.aldes.com/j.wan/arch-poc/goald"
+	g "github.com/aldesgroup/goald"
 )
 
 func init() {

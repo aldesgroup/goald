@@ -5,8 +5,11 @@ package goald
 
 import (
 	"flag"
+	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/julienschmidt/httprouter"
 )
@@ -17,6 +20,7 @@ import (
 // Initialisation
 // ------------------------------------------------------------------------------------------------
 
+// This function should be called in each Goald-based app
 func InitServer(serverConfig IServerConfig) ServerContext {
 	// reading the program's arguments
 	var codegen int     // if > 0, the server cannot be started, but code is generated instead
@@ -36,13 +40,11 @@ func InitServer(serverConfig IServerConfig) ServerContext {
 	// new server
 	server := &server{config: serverConfig}
 
-	// init the router, configuring & adding the REST API endpoints
-	server.router = httprouter.New()
-	server.router.RedirectTrailingSlash = false
-	apiPath := server.config.getCommonConfig().HTTP.ApiPath
-	for _, endpoint := range restRegistry.endpoints {
-		server.router.Handle(endpoint.getMethod(), apiPath+endpoint.getFullPath(), server.handleFor(endpoint))
-	}
+	// init the logger
+	slog.SetLogLoggerLevel(slog.LevelDebug) // TODO configure
+
+	// init the router
+	server.initRoutes()
 
 	// running the app in code generation mode, i.e. no server started here - should only be used by devs
 	if codegen > 0 {
@@ -55,7 +57,7 @@ func InitServer(serverConfig IServerConfig) ServerContext {
 	}
 
 	// initialising the DBs
-	for _, dbConfig := range serverConfig.getCommonConfig().Databases {
+	for _, dbConfig := range serverConfig.commonPart().Databases {
 		initAndRegisterDB(dbConfig)
 	}
 
@@ -65,6 +67,49 @@ func InitServer(serverConfig IServerConfig) ServerContext {
 	}
 
 	return server
+}
+
+// ------------------------------------------------------------------------------------------------
+// Initialising the routes
+// ------------------------------------------------------------------------------------------------
+
+func (thisServer *server) initRoutes() {
+	// no HTTP configured? Let's WARN about it
+	if thisServer.config.commonPart().HTTP == nil {
+		panicf("No \"HTTP\" section configured!")
+	}
+
+	// new router
+	thisServer.router = httprouter.New()
+	thisServer.router.RedirectTrailingSlash = false
+
+	// configuring & adding the REST API endpoints - should we have to serve an API
+	if apiPath := thisServer.config.commonPart().HTTP.ApiPath; apiPath != "" {
+		for _, endpoint := range restRegistry.endpoints {
+			slog.Info(fmt.Sprintf("Serving: %s %s", endpoint.getMethod(), apiPath+endpoint.getFullPath()))
+			thisServer.router.Handle(endpoint.getMethod(), apiPath+endpoint.getFullPath(), thisServer.handleFor(endpoint))
+		}
+	}
+
+	// configuring the static routes
+	for _, route := range thisServer.config.commonPart().HTTP.StaticRoutes {
+		if fileToServe := route.ServeFile; fileToServe != "" {
+			thisServer.router.HandlerFunc(http.MethodGet, route.For, func(w http.ResponseWriter, r *http.Request) { // e.g.: "/"
+				slog.Debug(fmt.Sprintf("Serving file %s for %s", fileToServe, r.URL.Path))
+				http.ServeFile(w, r, fileToServe) // e.g. serving "webapp/dist/index.html"
+			})
+		} else {
+			path := route.For
+			if strings.HasSuffix(path, "*") {
+				path += "filepath"
+			}
+
+			thisServer.router.HandlerFunc(http.MethodGet, path, func(w http.ResponseWriter, r *http.Request) {
+				slog.Debug(fmt.Sprintf("Serving file %s from %s", r.URL.Path, route.ServeDir))
+				http.ServeFile(w, r, route.ServeDir+r.URL.Path) // e.g. serving index.html
+			})
+		}
+	}
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -82,8 +127,11 @@ func (thisServer *server) Start() {
 
 	// TODO set router PanicHandler
 
-	// listening to HTTP requests (blocking process) // TODO use config
-	if errListen := http.ListenAndServe(":55555", thisServer.router); errListen != nil && errListen != http.ErrServerClosed {
+	// listening to HTTP requests (blocking process)
+	port := thisServer.config.commonPart().HTTP.Port
+	addr := fmt.Sprintf(":%d", port)
+	slog.Info(fmt.Sprintf("Serving at: http://localhost:%d/", port))
+	if errListen := http.ListenAndServe(addr, thisServer.router); errListen != nil && errListen != http.ErrServerClosed {
 		panicErrf(errListen, "Could not start the server!")
 	}
 }

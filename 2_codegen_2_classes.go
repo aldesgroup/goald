@@ -18,7 +18,7 @@ const classTEMPLATE = `package class
 import (
 	"sync"
 
-	g "git-ext.aldes.com/j.wan/arch-poc/goald"
+	g "github.com/aldesgroup/goald"
 )
 
 // static, reflect-free access to the definition of the $$Upper$$ class

@@ -16,11 +16,11 @@ import (
 
 type IServerConfig interface {
 	ICommonConfig
-	GetCustomConfig() ICustomConfig // the applicative, custom part of the config
+	CustomPart() ICustomConfig // the applicative, custom part of the config
 }
 
 type ICommonConfig interface {
-	getCommonConfig() *serverConfig // the common, generic part of the config
+	commonPart() *serverConfig // the common, generic part of the config
 }
 
 type ICustomConfig interface {
@@ -43,7 +43,15 @@ type serverConfig struct {
 type DatabaseID string
 
 type httpConfig struct {
-	ApiPath string
+	Port         int
+	ApiPath      string
+	StaticRoutes []*staticRouteConfig
+}
+
+type staticRouteConfig struct {
+	For       string
+	ServeFile string
+	ServeDir  string
 }
 
 type dbConfig struct {
@@ -74,16 +82,15 @@ func readAndCheckConfig(fromPath string, intoConfigObj IServerConfig) {
 		"Could not unmarshal the config file at path '%s'", fromPath)
 
 	// controlling the common config
-	config := intoConfigObj.getCommonConfig()
+	config := intoConfigObj.commonPart()
 
 	// Checking the env type
 	if config.envAsType = envTypeFrom(config.Env); config.envAsType == 0 {
 		panicf("the 'Env' config item (\"%s\") is not set, or not one of these values: dev, test, prod",
 			config.Env)
 	}
-
 }
 
-func (thisConf *serverConfig) getCommonConfig() *serverConfig {
+func (thisConf *serverConfig) commonPart() *serverConfig {
 	return thisConf
 }

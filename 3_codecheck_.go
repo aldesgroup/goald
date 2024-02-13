@@ -27,6 +27,10 @@ func (thisServer *server) checkClass(className string, boClass IBusinessObjectCl
 		panicf("The class name '%s' should be pascal-cased, i.e. %s", className, ToPascal(className))
 	}
 
+	if boClass.base().isPersisted() && boClass.GetInDB() == nil {
+		panicf("Class '%s' should be SetNotPersisted, or associated with a DB", className)
+	}
+
 	// checks for the persistency requirements
 	if boClass.base().isPersisted() {
 

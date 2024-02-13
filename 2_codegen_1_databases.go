@@ -54,12 +54,12 @@ func (thisServer *server) generateDatabasesList(srcdir string) {
 import (
 	"sync"
 
-	g "git-ext.aldes.com/j.wan/arch-poc/goald"
+	g "github.com/aldesgroup/goald"
 )
 
 `
 
-	for _, dbConfig := range thisServer.config.getCommonConfig().Databases {
+	for _, dbConfig := range thisServer.config.commonPart().Databases {
 		dbParagraph := strings.ReplaceAll(dbTEMPLATE, "$$dbID$$", PascalToCamel(string(dbConfig.DbID)))
 		dbParagraph = strings.ReplaceAll(dbParagraph, "$$DbID$$", ToPascal(string(dbConfig.DbID)))
 		dbParagraph = strings.ReplaceAll(dbParagraph, "$$realDbID$$", string(dbConfig.DbID))
