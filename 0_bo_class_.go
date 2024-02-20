@@ -5,6 +5,9 @@ package goald
 
 import "reflect"
 
+// TODO endpoints should be plural
+// TODO pagination all the way
+
 // ------------------------------------------------------------------------------------------------
 // Business object classes
 // ------------------------------------------------------------------------------------------------
