@@ -7,6 +7,7 @@ import "reflect"
 
 // TODO endpoints should be plural
 // TODO pagination all the way
+// TODO generate stuff for enums ?
 
 // ------------------------------------------------------------------------------------------------
 // Business object classes
