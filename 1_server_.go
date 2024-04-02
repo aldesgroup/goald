@@ -38,10 +38,13 @@ func InitServer(serverConfig IServerConfig) ServerContext {
 	readAndCheckConfig(confPath, serverConfig)
 
 	// new server
-	server := &server{config: serverConfig}
+	server := &server{config: serverConfig,
+		instance: RandomString(3), // TODO remove ?
+	}
 
 	// init the logger
 	slog.SetLogLoggerLevel(slog.LevelDebug) // TODO configure
+	slog.Info(fmt.Sprintf("Instance: %s", server.instance))
 
 	// init the router
 	server.initRoutes()
@@ -84,11 +87,14 @@ func (thisServer *server) initRoutes() {
 	thisServer.router.RedirectTrailingSlash = false
 
 	// configuring & adding the REST API endpoints - should we have to serve an API
-	if apiPath := thisServer.config.commonPart().HTTP.ApiPath; apiPath != "" {
+	apiPath := thisServer.config.commonPart().HTTP.ApiPath
+	if apiPath != "" {
 		for _, endpoint := range restRegistry.endpoints {
 			slog.Info(fmt.Sprintf("Serving: %s %s", endpoint.getMethod(), apiPath+endpoint.getFullPath()))
 			thisServer.router.Handle(endpoint.getMethod(), apiPath+endpoint.getFullPath(), thisServer.handleFor(endpoint))
 		}
+	} else {
+		panicf("No path provided for the API!")
 	}
 
 	// configuring the static routes

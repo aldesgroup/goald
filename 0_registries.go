@@ -58,7 +58,7 @@ func Register(bObj IBusinessObject, lastModification string) {
 // The registry for all the app's business object classes
 // ------------------------------------------------------------------------------------------------
 
-var classRegistry_ = struct {
+var classRegistry = struct {
 	classes map[string]IBusinessObjectClass
 	mx      sync.Mutex
 }{
@@ -67,7 +67,7 @@ var classRegistry_ = struct {
 
 // registering happens in the "class" package, gence the public function
 func RegisterClass(name string, class IBusinessObjectClass) {
-	classRegistry_.mx.Lock()
+	classRegistry.mx.Lock()
 
 	// setting the class name
 	class.base().className = name
@@ -82,17 +82,17 @@ func RegisterClass(name string, class IBusinessObjectClass) {
 	for _, relationship := range class.base().relationships {
 		relationship.setOwner(class)
 	}
-	classRegistry_.classes[name] = class
-	classRegistry_.mx.Unlock()
+	classRegistry.classes[name] = class
+	classRegistry.mx.Unlock()
 }
 
 func ClassForName(name string) IBusinessObjectClass {
 	// not using the MX for now, but will have to do if there's any possibility for race condition
-	return classRegistry_.classes[name]
+	return classRegistry.classes[name]
 }
 
 func getAllClasses() map[string]IBusinessObjectClass {
-	return classRegistry_.classes
+	return classRegistry.classes
 }
 
 // func GetClass[BOTYPE IBusinessObject]() IBusinessObjectClass {

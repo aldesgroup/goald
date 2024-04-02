@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"os"
 
-	"github.com/tidwall/jsonc"
+	"sigs.k8s.io/yaml"
 )
 
 // ------------------------------------------------------------------------------------------------
@@ -16,7 +16,7 @@ import (
 
 type IServerConfig interface {
 	ICommonConfig
-	CustomPart() ICustomConfig // the applicative, custom part of the config
+	CustomConfig() ICustomConfig // the applicative, custom part of the config
 }
 
 type ICommonConfig interface {
@@ -73,12 +73,18 @@ type dbConfig struct {
 
 func readAndCheckConfig(fromPath string, intoConfigObj IServerConfig) {
 	// Reading the config file into bytes
-	fileBytes, errRead := os.ReadFile(fromPath)
+	yamlBytes, errRead := os.ReadFile(fromPath)
 	panicErrf(errRead, "Could not read config file at path '%s'", fromPath)
 
-	// Unmarshalling the JSONC file
+	// YAML -> JSON transformation, because JSON unmarshalling is better
+	jsonBytes, errJson := yaml.YAMLToJSON(yamlBytes)
+	panicErrf(errJson, "Could not convert YAML to JSON '%s'", fromPath)
+
+	println(string(jsonBytes))
+
+	// Unmarshalling the YAML file
 	panicErrf(errRead, "Could not read config file at path '%s'", fromPath)
-	panicErrf(json.Unmarshal(jsonc.ToJSON(fileBytes), intoConfigObj),
+	panicErrf(json.Unmarshal(jsonBytes, intoConfigObj),
 		"Could not unmarshal the config file at path '%s'", fromPath)
 
 	// controlling the common config

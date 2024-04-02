@@ -2,6 +2,7 @@ package goald
 
 import (
 	"bytes"
+	"math/rand"
 	"strings"
 	"unicode"
 )
@@ -76,4 +77,20 @@ func ToPascal(s string) string {
 	}
 
 	return string(unicode.ToUpper(rune(s[0]))) + s[1:]
+}
+
+const charSet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+// RandomString generates a random string of the given length
+func RandomString(length int) string {
+	// Create a slice to store the characters of the random string
+	randomString := make([]byte, length)
+
+	// Populate the slice with random characters
+	for i := 0; i < length; i++ {
+		randomString[i] = charSet[rand.Intn(len(charSet))]
+	}
+
+	// Convert the slice to a string and return
+	return string(randomString)
 }

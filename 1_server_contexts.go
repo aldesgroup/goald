@@ -10,7 +10,7 @@ package goald
 // ------------------------------------------------------------------------------------------------
 // AppContext contains the minimal info set that should be accessible in all the layers of the app
 type AppContext interface {
-	CustomPart() ICustomConfig // returns the app's custom part of the config
+	CustomConfig() ICustomConfig // returns the app's custom part of the config
 }
 
 type appContextImpl struct {

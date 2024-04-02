@@ -10,13 +10,14 @@ import r "github.com/julienschmidt/httprouter"
 // ------------------------------------------------------------------------------------------------
 
 type server struct {
-	config IServerConfig
-	router *r.Router
+	instance string // TODO remove
+	config   IServerConfig
+	router   *r.Router
 }
 
 // Implementing the interface ServerContext
-func (thisServer *server) CustomPart() ICustomConfig {
-	return thisServer.config.CustomPart()
+func (thisServer *server) CustomConfig() ICustomConfig {
+	return thisServer.config.CustomConfig()
 }
 
 // Shortcut; true if the 'Env' config item is "dev"
