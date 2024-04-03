@@ -24,14 +24,14 @@ func $$DbID$$() *g.DB {
 }
 `
 
-const dbFOLDER = "db"
+const dbFOLDER = "generated/db"
 const dbFILE = "db_list.go"
 
 func (thisServer *server) generateDatabasesList(srcdir string) {
 	// checking the class folder exist, or creating it on the way
 	dbDir := path.Join(srcdir, dbFOLDER)
 	if !DirExists(dbDir) {
-		panicErrf(os.Mkdir(dbDir, 0o777), "Could not create the db folder '%s'", dbDir)
+		panicErrf(os.MkdirAll(dbDir, 0o777), "Could not create the db folder '%s'", dbDir)
 	}
 
 	// creating the file
@@ -49,7 +49,10 @@ func (thisServer *server) generateDatabasesList(srcdir string) {
 	}()
 
 	// starting to build the file content, with the same context
-	content := `package db
+	content := `package db`
+
+	if len(thisServer.config.commonPart().Databases) > 0 {
+		content += `
 
 import (
 	"sync"
@@ -58,6 +61,7 @@ import (
 )
 
 `
+	}
 
 	for _, dbConfig := range thisServer.config.commonPart().Databases {
 		dbParagraph := strings.ReplaceAll(dbTEMPLATE, "$$dbID$$", PascalToCamel(string(dbConfig.DbID)))

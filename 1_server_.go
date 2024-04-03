@@ -29,7 +29,7 @@ func InitServer(serverConfig IServerConfig) ServerContext {
 	var migrate bool    // if true, then the configured databases are auto-migrated to fit the BOs' persistency requirements
 
 	flag.IntVar(&codegen, "codegen", 0, "if > 0, runs code generation and exits; 1 = objects, 2 = classes")
-	flag.StringVar(&srcdir, "srcdir", "go", "where to find all the Go code, from the project's root")
+	flag.StringVar(&srcdir, "srcdir", "api", "where to find all the Go code, from the project's root")
 	flag.StringVar(&confPath, "config", "", "the path to the config file")
 	flag.BoolVar(&migrate, "migrate", false, "activates the auto-migration of the configured databases")
 	flag.Parse()

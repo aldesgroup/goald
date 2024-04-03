@@ -14,7 +14,7 @@ import (
 )
 
 const classTEMPLATE = `package class
- 
+
 import (
 	"sync"
 
@@ -35,7 +35,7 @@ func $$Upper$$() *$$lower$$Class {
 var $$lower$$ *$$lower$$Class
 var $$lower$$Once sync.Once
 
-// fully describing each of this class' properties & relationships 
+// fully describing each of this class' properties & relationships
 func new$$Upper$$Class() *$$lower$$Class {
 $$propinit$$
 
@@ -55,10 +55,10 @@ func init() {
 // accessing all the $$Upper$$ class' properties and relationships
 
 $$accessors$$
- 
+
 `
 
-const classFOLDER = "class"
+const classFOLDER = "generated/class"
 const classFILExSUFFIX = "_cls.go"
 const classFILExSUFFIXxLEN = len(classFILExSUFFIX)
 const classNAMExSUFFIX = "Class"
@@ -74,7 +74,7 @@ func (thisServer *server) generateObjectClasses(srcdir string) {
 	// checking the class folder exist, or creating it on the way
 	classDir := path.Join(srcdir, classFOLDER)
 	if !DirExists(classDir) {
-		panicErrf(os.Mkdir(classDir, 0o777), "Could not create the class folder '%s'", classDir)
+		panicErrf(os.MkdirAll(classDir, 0o777), "Could not create the class folder '%s'", classDir)
 	}
 
 	// we'll gather all the existing class files
