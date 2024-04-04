@@ -21,7 +21,7 @@ import (
 // ------------------------------------------------------------------------------------------------
 
 // This function should be called in each Goald-based app
-func InitServer(serverConfig IServerConfig) ServerContext {
+func NewServer() ServerContext {
 	// reading the program's arguments
 	var codegen int     // if > 0, the server cannot be started, but code is generated instead
 	var srcdir string   // if codegen > 0, this is where to find the go source code
@@ -35,19 +35,16 @@ func InitServer(serverConfig IServerConfig) ServerContext {
 	flag.Parse()
 
 	// reading the config file
-	readAndCheckConfig(confPath, serverConfig)
+	serverConfig := readAndCheckConfig(confPath)
 
 	// new server
-	server := &server{config: serverConfig,
+	server := &server{
+		config:   serverConfig,
 		instance: RandomString(3), // TODO remove ?
 	}
 
 	// init the logger
 	slog.SetLogLoggerLevel(slog.LevelDebug) // TODO configure
-	slog.Info(fmt.Sprintf("Instance: %s", server.instance))
-
-	// init the router
-	server.initRoutes()
 
 	// running the app in code generation mode, i.e. no server started here - should only be used by devs
 	if codegen > 0 {
@@ -59,6 +56,9 @@ func InitServer(serverConfig IServerConfig) ServerContext {
 		server.runCodeChecks()
 	}
 
+	// init the router
+	server.initRoutes()
+
 	// initialising the DBs
 	for _, dbConfig := range serverConfig.commonPart().Databases {
 		initAndRegisterDB(dbConfig)
@@ -68,6 +68,9 @@ func InitServer(serverConfig IServerConfig) ServerContext {
 	if migrate {
 		autoMigrateDBs()
 	}
+
+	// bit of logging // TODO remove
+	slog.Info(fmt.Sprintf("Instance: %s", server.instance))
 
 	return server
 }

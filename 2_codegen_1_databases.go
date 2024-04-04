@@ -4,10 +4,9 @@
 package goald
 
 import (
-	"log"
-	"os"
-	"path"
+	"fmt"
 	"strings"
+	"time"
 )
 
 const dbTEMPLATE = `// Access to the configured "$$realDbID$$" database
@@ -24,29 +23,11 @@ func $$DbID$$() *g.DB {
 }
 `
 
-const dbFOLDER = "generated/db"
+const dbFOLDER = "_generated/db"
 const dbFILE = "db_list.go"
 
 func (thisServer *server) generateDatabasesList(srcdir string) {
-	// checking the class folder exist, or creating it on the way
-	dbDir := path.Join(srcdir, dbFOLDER)
-	if !DirExists(dbDir) {
-		panicErrf(os.MkdirAll(dbDir, 0o777), "Could not create the db folder '%s'", dbDir)
-	}
-
-	// creating the file
-	fileName := path.Join(dbDir, dbFILE)
-
-	file, errCreate := os.Create(fileName)
-	if errCreate != nil {
-		panicf("Could not create file %s; cause: %s", fileName, errCreate)
-	}
-
-	defer func() {
-		if errClose := file.Close(); errClose != nil {
-			log.Fatalf("Could not properly close file %s; cause: %s", fileName, errClose)
-		}
-	}()
+	start := time.Now()
 
 	// starting to build the file content, with the same context
 	content := `package db`
@@ -71,7 +52,6 @@ import (
 	}
 
 	// writing to file
-	if _, errWrite := file.WriteString(content); errWrite != nil {
-		panicErrf(errWrite, "Could not write file '%s'", fileName)
-	}
+	WriteToFile(content, srcdir, dbFOLDER, dbFILE)
+	println(fmt.Sprintf("DB list generated in %s", time.Since(start)))
 }

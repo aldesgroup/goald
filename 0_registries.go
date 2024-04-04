@@ -19,15 +19,14 @@ type businessObjectEntry struct {
 	name     string
 	lastMod  time.Time
 	bObjType reflect.Type
+	pkgPath  string
 }
 
 var boRegistry = &struct {
-	content map[string]*businessObjectEntry            // all the business objects!
-	folders map[string]map[string]*businessObjectEntry // gathered by folders
-	mx      sync.Mutex
+	content map[string]*businessObjectEntry // all the business objects!
+	mx sync.Mutex
 }{
 	content: make(map[string]*businessObjectEntry),
-	folders: make(map[string]map[string]*businessObjectEntry),
 }
 
 // registering happens in all the applicative packages, gence the public function
@@ -45,13 +44,6 @@ func Register(bObj IBusinessObject, lastModification string) {
 
 	// registering the business object type globally
 	boRegistry.content[entry.name] = entry
-
-	if boRegistry.folders[entry.bObjType.PkgPath()] == nil {
-		boRegistry.folders[entry.bObjType.PkgPath()] = map[string]*businessObjectEntry{}
-	}
-
-	// registering the business object type with its package
-	boRegistry.folders[entry.bObjType.PkgPath()][entry.name] = entry
 }
 
 // ------------------------------------------------------------------------------------------------

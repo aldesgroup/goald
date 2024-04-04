@@ -64,14 +64,24 @@ type dbConfig struct {
 }
 
 // ------------------------------------------------------------------------------------------------
-// Useful other types & constants
+// Config reading
 // ------------------------------------------------------------------------------------------------
 
-// ------------------------------------------------------------------------------------------------
-// Base implems
-// ------------------------------------------------------------------------------------------------
+var configObj IServerConfig
 
-func readAndCheckConfig(fromPath string, intoConfigObj IServerConfig) {
+func RegisterConfig(cfgObj IServerConfig) {
+	// doing this only once
+	if configObj == nil {
+		configObj = cfgObj
+	}
+}
+
+func readAndCheckConfig(fromPath string) IServerConfig {
+	// Do we have a configuration object ready?
+	if configObj == nil {
+		panicf("No configuration object (implementing IServerConfig) has been registered!")
+	}
+
 	// Reading the config file into bytes
 	yamlBytes, errRead := os.ReadFile(fromPath)
 	panicErrf(errRead, "Could not read config file at path '%s'", fromPath)
@@ -80,21 +90,21 @@ func readAndCheckConfig(fromPath string, intoConfigObj IServerConfig) {
 	jsonBytes, errJson := yaml.YAMLToJSON(yamlBytes)
 	panicErrf(errJson, "Could not convert YAML to JSON '%s'", fromPath)
 
-	println(string(jsonBytes))
-
 	// Unmarshalling the YAML file
 	panicErrf(errRead, "Could not read config file at path '%s'", fromPath)
-	panicErrf(json.Unmarshal(jsonBytes, intoConfigObj),
+	panicErrf(json.Unmarshal(jsonBytes, configObj),
 		"Could not unmarshal the config file at path '%s'", fromPath)
 
 	// controlling the common config
-	config := intoConfigObj.commonPart()
+	config := configObj.commonPart()
 
 	// Checking the env type
 	if config.envAsType = envTypeFrom(config.Env); config.envAsType == 0 {
 		panicf("the 'Env' config item (\"%s\") is not set, or not one of these values: dev, test, prod",
 			config.Env)
 	}
+
+	return configObj
 }
 
 func (thisConf *serverConfig) commonPart() *serverConfig {

@@ -37,7 +37,7 @@ var $$lower$$Once sync.Once
 
 // fully describing each of this class' properties & relationships
 func new$$Upper$$Class() *$$lower$$Class {
-$$propinit$$
+	$$propinit$$
 
 	return newClass
 }
@@ -58,7 +58,7 @@ $$accessors$$
 
 `
 
-const classFOLDER = "generated/class"
+const classFOLDER = "_generated/class"
 const classFILExSUFFIX = "_cls.go"
 const classFILExSUFFIXxLEN = len(classFILExSUFFIX)
 const classNAMExSUFFIX = "Class"
@@ -71,11 +71,8 @@ func (thisServer *server) generateObjectClasses(srcdir string) {
 		filename string
 	}
 
-	// checking the class folder exist, or creating it on the way
+	// where the class files will be generated
 	classDir := path.Join(srcdir, classFOLDER)
-	if !DirExists(classDir) {
-		panicErrf(os.MkdirAll(classDir, 0o777), "Could not create the class folder '%s'", classDir)
-	}
 
 	// we'll gather all the existing class files
 	existingClassFiles := map[string]*classFile{}
@@ -128,20 +125,6 @@ type classGenPropertyInfo struct {
 }
 
 func generateObjectClass(classDir string, bObjEntry *businessObjectEntry) {
-	// creating the file
-	fileName := path.Join(classDir, PascalToSnake(bObjEntry.name)+classFILExSUFFIX)
-
-	file, errCreate := os.Create(fileName)
-	if errCreate != nil {
-		panicf("Could not create file %s; cause: %s", fileName, errCreate)
-	}
-
-	defer func() {
-		if errClose := file.Close(); errClose != nil {
-			log.Fatalf("Could not properly close file %s; cause: %s", fileName, errClose)
-		}
-	}()
-
 	// starting to build the file content, with the same context
 	context := &classGenContext{propertiesMap: map[string]*classGenPropertyInfo{}}
 
@@ -159,9 +142,7 @@ func generateObjectClass(classDir string, bObjEntry *businessObjectEntry) {
 	content = strings.Replace(content, "$$accessors$$", buildAccessors(bObjEntry, context), 1)
 
 	// writing to file
-	if _, errWrite := file.WriteString(content); errWrite != nil {
-		panicErrf(errWrite, "Could not write file '%s'", fileName)
-	}
+	WriteToFile(content, classDir, PascalToSnake(bObjEntry.name)+classFILExSUFFIX)
 }
 
 func buildPropDecl(bObjEntry *businessObjectEntry, context *classGenContext) (result string) {
@@ -173,9 +154,9 @@ func buildPropDecl(bObjEntry *businessObjectEntry, context *classGenContext) (re
 	}
 
 	if context.superType = superClassField.Type; context.superType == typeBUSINESSxOBJECT {
-		result += "\tg.IBusinessObjectClass"
+		result += "g.IBusinessObjectClass"
 	} else {
-		result += PascalToCamel(superClassField.Type.Name()) + classNAMExSUFFIX
+		result += "" + PascalToCamel(superClassField.Type.Name()) + classNAMExSUFFIX
 	}
 
 	// browsing the entity's properties
@@ -202,9 +183,9 @@ func buildPropDecl(bObjEntry *businessObjectEntry, context *classGenContext) (re
 			context.propertiesMap[field.Name] = &classGenPropertyInfo{propType, multiple, targetType}
 
 			if propType == PropertyTypeRELATIONSHIP {
-				result += newline + PascalToCamel(field.Name) + " *g.Relationship"
+				result += newline + "" + PascalToCamel(field.Name) + " *g.Relationship"
 			} else {
-				result += newline + PascalToCamel(field.Name) + " *g." + getFieldForType(propType)
+				result += newline + "" + PascalToCamel(field.Name) + " *g." + getFieldForType(propType)
 			}
 		}
 	}
@@ -270,7 +251,7 @@ func buildPropInit(bObjEntry *businessObjectEntry, context *classGenContext) str
 				getFieldForType(propInfo.propType), "newClass", propName, multiple)
 		}
 
-		propLines = append(propLines, propLine)
+		propLines = append(propLines, propLine+"")
 	}
 
 	// assembling the whole paragraph

@@ -25,7 +25,7 @@ func (thisServer *server) runCodeGen(srcdir string, level codeGenLevel) {
 		thisServer.generateDatabasesList(srcdir)
 
 		// we're making all the business objects reachable with the `reflect` package this way
-		thisServer.generateObjectRegistries(srcdir, ".", map[string]bool{})
+		thisServer.generateObjectRegistry(srcdir, ".", map[string]*businessObjectEntry{}, time.Now())
 
 		log.Printf("done generating the DB & BO registries in %s", time.Since(start))
 		os.Exit(0)
