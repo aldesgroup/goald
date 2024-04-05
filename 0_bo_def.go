@@ -73,7 +73,7 @@ func (thisBO *BusinessObject) ChangeAfterInsert(BloContext) error  { return nil 
 
 // IEnum must be implemented by every enum type
 type IEnum interface {
-	fmt.Stringer // each enum value has a label
+	fmt.Stringer // each enum value has a default label
 	Val() int
 	Values() map[int]string
 }

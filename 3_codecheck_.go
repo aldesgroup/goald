@@ -7,6 +7,8 @@ package goald
 import (
 	"log"
 	"time"
+
+	"github.com/aldesgroup/goald/features/utils"
 )
 
 func (thisServer *server) runCodeChecks() {
@@ -23,12 +25,12 @@ func (thisServer *server) checkClass(className string, boClass IBusinessObjectCl
 	nbChildToParentRelationships := 0
 
 	// class-level controls
-	if className != ToPascal(className) {
-		panicf("The class name '%s' should be pascal-cased, i.e. %s", className, ToPascal(className))
+	if className != utils.ToPascal(className) {
+		utils.Panicf("The class name '%s' should be pascal-cased, i.e. %s", className, utils.ToPascal(className))
 	}
 
 	if boClass.base().isPersisted() && boClass.GetInDB() == nil {
-		panicf("Class '%s' should be SetNotPersisted, or associated with a DB", className)
+		utils.Panicf("Class '%s' should be SetNotPersisted, or associated with a DB", className)
 	}
 
 	// checks for the persistency requirements
@@ -39,7 +41,7 @@ func (thisServer *server) checkClass(className string, boClass IBusinessObjectCl
 			switch field := field.(type) {
 			case *StringField:
 				if field.name != "ID" && field.size == 0 {
-					panicf("Field '%s.%s' should have a max size set", className, field.name)
+					utils.Panicf("Field '%s.%s' should have a max size set", className, field.name)
 				}
 			}
 		}
@@ -47,7 +49,7 @@ func (thisServer *server) checkClass(className string, boClass IBusinessObjectCl
 		// checking the relationships
 		for _, relationship := range boClass.base().relationships {
 			if relationship.relationType == 0 {
-				panicf("Relationship '%s.%s' should have a defined type, with SetChildToParent(), "+
+				utils.Panicf("Relationship '%s.%s' should have a defined type, with SetChildToParent(), "+
 					"SetSourceToTarget() or SetOneWay()", className, relationship.name)
 			}
 
@@ -56,11 +58,11 @@ func (thisServer *server) checkClass(className string, boClass IBusinessObjectCl
 			}
 
 			if nbChildToParentRelationships > 1 {
-				panicf("There cannot be more than one child to parent relationship in '%s'", className)
+				utils.Panicf("There cannot be more than one child to parent relationship in '%s'", className)
 			}
 
 			if relationship.relationType == relationshipTypePARENTxTOxCHILDREN && !relationship.multiple {
-				panicf("We do not handle 1-1 child-parent relationship for now. "+
+				utils.Panicf("We do not handle 1-1 child-parent relationship for now. "+
 					"Please re-design relationship '%s.%s'", className, relationship.name)
 			}
 		}

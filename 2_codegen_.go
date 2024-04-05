@@ -7,6 +7,8 @@ import (
 	"log"
 	"os"
 	"time"
+
+	"github.com/aldesgroup/goald/features/utils"
 )
 
 type codeGenLevel int
@@ -44,6 +46,6 @@ func (thisServer *server) runCodeGen(srcdir string, level codeGenLevel) {
 		os.Exit(0)
 
 	default:
-		panicf("Not handling to code generation level: %d", level)
+		utils.Panicf("Not handling to code generation level: %d", level)
 	}
 }

@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"sync"
 	"time"
+
+	"github.com/aldesgroup/goald/features/utils"
 )
 
 // ------------------------------------------------------------------------------------------------
@@ -24,7 +26,7 @@ type businessObjectEntry struct {
 
 var boRegistry = &struct {
 	content map[string]*businessObjectEntry // all the business objects!
-	mx sync.Mutex
+	mx      sync.Mutex
 }{
 	content: make(map[string]*businessObjectEntry),
 }
@@ -34,8 +36,8 @@ func Register(bObj IBusinessObject, lastModification string) {
 	boRegistry.mx.Lock()
 	defer boRegistry.mx.Unlock()
 
-	date, errParse := time.Parse(dateFormatSECONDS, lastModification)
-	panicErrf(errParse, "'%s' has an invalid date format (which is: 2006-01-02 15:04:05)", lastModification)
+	date, errParse := time.Parse(utils.DateFormatSECONDS, lastModification)
+	utils.PanicErrf(errParse, "'%s' has an invalid date format (which is: 2006-01-02 15:04:05)", lastModification)
 
 	entry := &businessObjectEntry{}
 	entry.bObjType = reflect.TypeOf(bObj).Elem()

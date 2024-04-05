@@ -33,7 +33,7 @@ This is just a quick introduction, view the [GoDoc](http://godoc.org/github.com/
 Let's start with a trivial example:
 
 ```go
-package main
+package goald
 
 import (
     "fmt"
@@ -216,7 +216,7 @@ func main() {
 Another quick example: Basic Authentication (RFC 2617) for handles:
 
 ```go
-package main
+package goald
 
 import (
 	"fmt"

@@ -3,6 +3,8 @@ package goald
 import (
 	"fmt"
 	"log"
+
+	"github.com/aldesgroup/goald/features/utils"
 )
 
 // // kindMaxLength defined the max length we allow for __REPLACE__ kinds
@@ -96,7 +98,7 @@ func createMissingTables(db *DB, existingClasses map[string]IBusinessObjectClass
 		// requiredTableNames = append(requiredTableNames, __REPLACE__Schema.GetTable(dbContext))
 
 		// adding the table if it does not exist yet
-		if !InSlice[string](existingTables, boClass.getTableName()) {
+		if !utils.InSlice[string](existingTables, boClass.getTableName()) {
 			createMissingTable(db, boClass)
 		}
 	}

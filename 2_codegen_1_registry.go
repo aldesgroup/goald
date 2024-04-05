@@ -14,6 +14,8 @@ import (
 	"runtime/debug"
 	"strings"
 	"time"
+
+	"github.com/aldesgroup/goald/features/utils"
 )
 
 const sourceFILExSUFFIX = "__.go"
@@ -27,7 +29,7 @@ func (thisServer *server) generateObjectRegistry(srcdir, currentPath string, ent
 
 	// reading the current directory
 	dirEntries, errDir := os.ReadDir(readingPath)
-	panicErrf(errDir, "could not read '%s'", readingPath)
+	utils.PanicErrf(errDir, "could not read '%s'", readingPath)
 
 	// going through the resources found withing the current directory
 	for _, entry := range dirEntries {
@@ -43,18 +45,18 @@ func (thisServer *server) generateObjectRegistry(srcdir, currentPath string, ent
 				// getting the business object entry for the egustry, from the current file
 				if bObjEntry := getEntryFromFile(srcdir, currentPath, entry.Name()); bObjEntry != nil {
 					// checking the biz obj / file naming
-					if PascalToSnake(bObjEntry.name)+sourceFILExSUFFIX != entry.Name() {
-						panicf("The business object's name should be the file name Pascal-cased, i.e. we should have: "+
+					if utils.PascalToSnake(bObjEntry.name)+sourceFILExSUFFIX != entry.Name() {
+						utils.Panicf("The business object's name should be the file name Pascal-cased, i.e. we should have: "+
 							"%s in file %s, "+
 							"or %s in file %s",
-							bObjEntry.name, PascalToSnake(bObjEntry.name)+sourceFILExSUFFIX,
-							SnakeToPascal(strings.Replace(entry.Name(), sourceFILExSUFFIX, "", 1)), entry.Name(),
+							bObjEntry.name, utils.PascalToSnake(bObjEntry.name)+sourceFILExSUFFIX,
+							utils.SnakeToPascal(strings.Replace(entry.Name(), sourceFILExSUFFIX, "", 1)), entry.Name(),
 						)
 					}
 
 					// checking the unicity of each biz obj name
 					if entriesInCode[bObjEntry.name] != nil {
-						panicf("We can't have 2 business objects with the same name '%s'."+
+						utils.Panicf("We can't have 2 business objects with the same name '%s'."+
 							" This would lead to the same REST path. You have to rename one.", bObjEntry.name)
 					} else {
 						entriesInCode[bObjEntry.name] = bObjEntry
@@ -67,12 +69,12 @@ func (thisServer *server) generateObjectRegistry(srcdir, currentPath string, ent
 	// if we're at root here, this means we've browsed through all the code already,
 	// and can now decide to (re-)generate the object registry - or not
 	if currentPath == "." {
-		writeRegistryFileIfNeeded(srcdir, entriesInCode, start)
+		writeRegistryFileIfNeeded(srcdir, "", entriesInCode, start)
 	}
 }
 
 const registryFileTemplate = `// Generated file, do not edit!
-package main
+package %s
 
 import (
 	g "github.com/aldesgroup/goald"
@@ -84,7 +86,7 @@ func init() {
 }
 `
 
-func writeRegistryFileIfNeeded(srcdir string, entriesInCode map[string]*businessObjectEntry, start time.Time) {
+func writeRegistryFileIfNeeded(srcdir, genPackage string, entriesInCode map[string]*businessObjectEntry, start time.Time) {
 	// do we need to regenerate the object registry at the current path?
 	needRegen := false
 	// let's check the current entries, the ones coded right now
@@ -126,10 +128,10 @@ func writeRegistryFileIfNeeded(srcdir string, entriesInCode map[string]*business
 		imported := map[string]bool{}
 
 		// going over all the business object entries
-		for _, bObjEntry := range GetSortedValues[string, *businessObjectEntry](entriesInCode) {
+		for _, bObjEntry := range utils.GetSortedValues[string, *businessObjectEntry](entriesInCode) {
 			// adding 1 registration line per business object
 			registrationLines = append(registrationLines, fmt.Sprintf("%sg.Register(&%s.%s{}, \"%s\")", "\t",
-				path.Base(bObjEntry.pkgPath), bObjEntry.name, bObjEntry.lastMod.Add(oneSECOND).Format(dateFormatSECONDS)))
+				path.Base(bObjEntry.pkgPath), bObjEntry.name, bObjEntry.lastMod.Add(utils.OneSECOND).Format(utils.DateFormatSECONDS)))
 
 			// adding the corresponding import
 			if !imported[bObjEntry.pkgPath] {
@@ -138,9 +140,13 @@ func writeRegistryFileIfNeeded(srcdir string, entriesInCode map[string]*business
 			}
 		}
 		// writing to the file
+		generationPkg := genPackage
+		if generationPkg == "" {
+			generationPkg = "main"
+		}
 
-		WriteToFile(
-			fmt.Sprintf(registryFileTemplate, strings.Join(imports, newline), strings.Join(registrationLines, newline)),
+		utils.WriteToFile(
+			fmt.Sprintf(registryFileTemplate, generationPkg, strings.Join(imports, newline), strings.Join(registrationLines, newline)),
 			srcdir, sourceREGISTRYxNAME,
 		)
 
@@ -152,11 +158,11 @@ func getEntryFromFile(srcdir, entryPath, entryName string) (entry *businessObjec
 	filename := path.Join(srcdir, entryPath, entryName)
 
 	stat, errStat := os.Stat(filename)
-	panicErrf(errStat, "Could not check the modification time for file '%s'", filename)
+	utils.PanicErrf(errStat, "Could not check the modification time for file '%s'", filename)
 
 	// parsing the file to get the AST (Abstract Syntax Tree)
 	file, errParse := parser.ParseFile(token.NewFileSet(), filename, nil, 0)
-	panicErrf(errParse, "Error while parsing '%s'", filename)
+	utils.PanicErrf(errParse, "Error while parsing '%s'", filename)
 
 	// going through the declarations in the file
 	for _, node := range file.Decls {
@@ -178,7 +184,7 @@ func getEntryFromFile(srcdir, entryPath, entryName string) (entry *businessObjec
 								pkgPath: path.Join(getCurrentModule(), entryPath),
 							}
 						} else {
-							panicf("More than one struct declared in the BusinessObject file '%s'!", filename)
+							utils.Panicf("More than one struct declared in the BusinessObject file '%s'!", filename)
 						}
 					}
 				}
@@ -195,7 +201,7 @@ func getCurrentModule() string {
 	if currentModule == "" {
 		bi, ok := debug.ReadBuildInfo()
 		if !ok {
-			panicf("Could not read the build infos!")
+			utils.Panicf("Could not read the build infos!")
 		}
 
 		currentModule = bi.Main.Path

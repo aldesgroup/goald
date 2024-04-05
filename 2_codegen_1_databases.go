@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/aldesgroup/goald/features/utils"
 )
 
 const dbTEMPLATE = `// Access to the configured "$$realDbID$$" database
@@ -42,16 +44,16 @@ import (
 )
 
 `
-	}
 
-	for _, dbConfig := range thisServer.config.commonPart().Databases {
-		dbParagraph := strings.ReplaceAll(dbTEMPLATE, "$$dbID$$", PascalToCamel(string(dbConfig.DbID)))
-		dbParagraph = strings.ReplaceAll(dbParagraph, "$$DbID$$", ToPascal(string(dbConfig.DbID)))
-		dbParagraph = strings.ReplaceAll(dbParagraph, "$$realDbID$$", string(dbConfig.DbID))
-		content += dbParagraph + newline
-	}
+		for _, dbConfig := range thisServer.config.commonPart().Databases {
+			dbParagraph := strings.ReplaceAll(dbTEMPLATE, "$$dbID$$", utils.PascalToCamel(string(dbConfig.DbID)))
+			dbParagraph = strings.ReplaceAll(dbParagraph, "$$DbID$$", utils.ToPascal(string(dbConfig.DbID)))
+			dbParagraph = strings.ReplaceAll(dbParagraph, "$$realDbID$$", string(dbConfig.DbID))
+			content += dbParagraph + newline
+		}
 
-	// writing to file
-	WriteToFile(content, srcdir, dbFOLDER, dbFILE)
-	println(fmt.Sprintf("DB list generated in %s", time.Since(start)))
+		// writing to file
+		utils.WriteToFile(content, srcdir, dbFOLDER, dbFILE)
+		println(fmt.Sprintf("DB list generated in %s", time.Since(start)))
+	}
 }

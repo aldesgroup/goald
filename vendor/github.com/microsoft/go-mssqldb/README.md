@@ -59,14 +59,14 @@ Other supported formats are listed below.
   * true - Server certificate is not checked. Default is true if encrypt is not specified. If trust server certificate is true, driver accepts any certificate presented by the server and any host name in that certificate. In this mode, TLS is susceptible to man-in-the-middle attacks. This should be used only for testing.
 * `certificate` - The file that contains the public key certificate of the CA that signed the SQL Server certificate. The specified certificate overrides the go platform specific CA certificates. Currently, certificates of PEM type are supported.
 * `hostNameInCertificate` - Specifies the Common Name (CN) in the server certificate. Default value is the server host.
-* `tlsmin` - Specifies the minimum TLS version for negotiating encryption with the server. Recognized values are `1.0`, `1.1`, `1.2`, `1.3`. If not set to a recognized value the default value for the `tls` package will be used. The default is currently `1.2`. 
+* `tlsmin` - Specifies the minimum TLS version for negotiating encryption with the server. Recognized values are `1.0`, `1.1`, `1.2`, `1.3`. If not set to a recognized value the default value for the `tls` package will be used. The default is currently `1.2`.
 * `ServerSPN` - The kerberos SPN (Service Principal Name) for the server. Default is MSSQLSvc/host:port.
 * `Workstation ID` - The workstation name (default is the host name)
 * `ApplicationIntent` - Can be given the value `ReadOnly` to initiate a read-only connection to an Availability Group listener. The `database` must be specified when connecting with `Application Intent` set to `ReadOnly`.
 * `protocol` - forces use of a protocol. Make sure the corresponding package is imported.
 * `columnencryption` or `column encryption setting` - a boolean value indicating whether Always Encrypted should be enabled on the connection.
 * `multisubnetfailover`
-  * `true` (Default) Client attempt to connect to all IPs simultaneously. 
+  * `true` (Default) Client attempt to connect to all IPs simultaneously.
   * `false` Client attempts to connect to IPs in serial.
 
 ### Connection parameters for namedpipe package
@@ -92,10 +92,10 @@ The `admin` protocol will not be used for dialing unless the connection string e
 
 ### Kerberos Active Directory authentication outside Windows
 
-To connect with kerberos authentication from a Linux server you can use the optional krb5 package. 
-Imported krb alongside the main driver 
+To connect with kerberos authentication from a Linux server you can use the optional krb5 package.
+Imported krb alongside the main driver
 ```
-package main
+package goald
 
 import (
     ...
@@ -118,7 +118,7 @@ The package supports authentication via 3 methods.
 
 * Credential Cache - Specify the krb5.conf file path and credential cache file path.
 
-      authenticator=krb5;server=DatabaseServerName;database=DBName;krb5-configfile=/etc/krb5.conf;krb5-credcachefile=~/MyUserNameCachedCreds 
+      authenticator=krb5;server=DatabaseServerName;database=DBName;krb5-configfile=/etc/krb5.conf;krb5-credcachefile=~/MyUserNameCachedCreds
 
 * Raw credentials - Specity krb5.confg, Username, Password and Realm.
 
@@ -131,10 +131,10 @@ The package supports authentication via 3 methods.
 * `krb5-realm` (required with keytab and raw credentials) - Domain name for kerberos authentication. Omit this parameter if the realm is part of the user name like `username@REALM`.
 * `krb5-keytabfile` - path to Keytab file. Can also be set using environment variable `KRB5_KTNAME`. If no parameter or environment variable is set, the `DefaultClientKeytabName` value from the krb5 config file is used.
 * `krb5-credcachefile` - path to Credential cache. Can also be set using environment variable `KRBCCNAME`.
-* `krb5-dnslookupkdc` - Optional parameter in all contexts. Set to lookup KDCs in DNS. Boolean. Default is true. 
+* `krb5-dnslookupkdc` - Optional parameter in all contexts. Set to lookup KDCs in DNS. Boolean. Default is true.
 * `krb5-udppreferencelimit` - Optional parameter in all contexts. 1 means to always use tcp. MIT krb5 has a default value of 1465, and it prevents user setting more than 32700. Integer. Default is 1.
-  
-For further information on usage: 
+
+For further information on usage:
   * <https://web.mit.edu/kerberos/krb5-1.12/doc/admin/conf_files/krb5_conf.html>
   * <https://web.mit.edu/kerberos/krb5-1.12/doc/basic/index.html>
 
@@ -155,7 +155,7 @@ For further information on usage:
 
     query := url.Values{}
     query.Add("app name", "MyAppName")
-    
+
     u := &url.URL{
     	Scheme:   "sqlserver",
     	User:     url.UserPassword(username, password),
@@ -381,11 +381,11 @@ are supported:
 * "github.com/golang-sql/civil".Time -> time
 * mssql.TVP -> Table Value Parameter (TDS version dependent)
 
-Using an `int` parameter will send a 4 byte value (int) from a 32bit app and an 8 byte value (bigint) from a 64bit app. 
+Using an `int` parameter will send a 4 byte value (int) from a 32bit app and an 8 byte value (bigint) from a 64bit app.
 To make sure your integer parameter matches the size of the SQL parameter, use the appropriate sized type like `int32` or `int8`.
 
 ```go
-// If this is passed directly as a parameter, 
+// If this is passed directly as a parameter,
 // the SQL parameter generated would be nvarchar
 name := "Bob"
 // If the user_name is defined as varchar,
@@ -427,7 +427,7 @@ If the correct key provider is included in your application, decryption of encry
 
 Encryption of parameters passed to `Exec` and `Query` variants requires an extra round trip per query to fetch the encryption metadata. If the error returned by a query attempt indicates a type mismatch between the parameter and the destination table, most likely your input type is not a strict match for the SQL Server data type of the destination. You may be using a Go `string` when you need to use one of the driver-specific aliases like `VarChar` or `NVarCharMax`.
 
-*** NOTE *** - Currently `char` and `varchar` types do not include a collation parameter component so can't be used for inserting encrypted values. Also, using a nullable sql package type like `sql.NullableInt32` to pass a `NULL` value for an encrypted column will not work unless the encrypted column type is `nvarchar`. 
+*** NOTE *** - Currently `char` and `varchar` types do not include a collation parameter component so can't be used for inserting encrypted values. Also, using a nullable sql package type like `sql.NullableInt32` to pass a `NULL` value for an encrypted column will not work unless the encrypted column type is `nvarchar`.
 https://github.com/microsoft/go-mssqldb/issues/129
 https://github.com/microsoft/go-mssqldb/issues/130
 

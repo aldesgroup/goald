@@ -18,6 +18,7 @@ type appContextImpl struct {
 
 // ------------------------------------------------------------------------------------------------
 // ServerContext is a particular App Context used at app startup
+// Implemented by the `server` struct
 type ServerContext interface {
 	AppContext
 	Start()

@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/aldesgroup/goald/hstatus"
+	"github.com/aldesgroup/goald/features/hstatus"
 )
 
 // ------------------------------------------------------------------------------------------------

@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"reflect"
 
-	"github.com/aldesgroup/goald/hstatus"
+	"github.com/aldesgroup/goald/features/hstatus"
 	r "github.com/julienschmidt/httprouter"
 )
 

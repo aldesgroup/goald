@@ -1,4 +1,4 @@
-package goald
+package utils
 
 import (
 	"bytes"

@@ -3,7 +3,11 @@
 // ------------------------------------------------------------------------------------------------
 package goald
 
-import "reflect"
+import (
+	"reflect"
+
+	"github.com/aldesgroup/goald/features/utils"
+)
 
 // TODO endpoints should be plural
 // TODO pagination all the way
@@ -83,7 +87,7 @@ func (boClass *businessObjectClass) ID() IField {
 
 func (boClass *businessObjectClass) getTableName() string {
 	if boClass.tableName == "" {
-		boClass.tableName = PascalToSnake(boClass.className)
+		boClass.tableName = utils.PascalToSnake(boClass.className)
 	}
 
 	return boClass.tableName
@@ -131,7 +135,7 @@ func (prop *BusinessObjectProperty) getName() string {
 
 func (prop *BusinessObjectProperty) getColumnName() string {
 	if prop.columnName == "" {
-		prop.columnName = PascalToSnake(prop.name)
+		prop.columnName = utils.PascalToSnake(prop.name)
 		if prop.pType == PropertyTypeRELATIONSHIP {
 			prop.columnName += "_id"
 		}
@@ -198,7 +202,7 @@ type realField struct {
 	// decimals int // number of digits after the decimal points, e.g. 2 in 9876.06
 }
 
-// func (rf *realField) SetFormat(digits, decimals int) *realField {
+// func (rf *realField) SetForma/home/jwan/Git/emeraldrt(digits, decimals int) *realField {
 // 	rf.digits = digits
 // 	rf.decimals = decimals
 // 	return rf

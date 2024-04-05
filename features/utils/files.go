@@ -1,4 +1,4 @@
-package goald
+package utils
 
 import (
 	"log"
@@ -29,13 +29,13 @@ func WriteToFile(content string, filepaths ...string) {
 
 	// creating the missing directory if needed
 	if dir := path.Dir(fileName); path.Base(fileName) != fileName {
-		panicErrf(os.MkdirAll(dir, 0o777), "Could not create directory '%s'", dir)
+		PanicErrf(os.MkdirAll(dir, 0o777), "Could not create directory '%s'", dir)
 	}
 
 	// creating the file
 	file, errCreate := os.Create(fileName)
 	if errCreate != nil {
-		panicf("Could not create file %s; cause: %s", fileName, errCreate)
+		Panicf("Could not create file %s; cause: %s", fileName, errCreate)
 	}
 
 	// ensuring we've got no leak
@@ -47,6 +47,6 @@ func WriteToFile(content string, filepaths ...string) {
 
 	// writing to file
 	if _, errWrite := file.WriteString(content); errWrite != nil {
-		panicErrf(errWrite, "Could not write file '%s'", fileName)
+		PanicErrf(errWrite, "Could not write file '%s'", fileName)
 	}
 }

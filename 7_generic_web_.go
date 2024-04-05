@@ -7,7 +7,7 @@ package goald
 import (
 	"fmt"
 
-	"github.com/aldesgroup/goald/hstatus"
+	"github.com/aldesgroup/goald/features/hstatus"
 )
 
 func GenericHandleCreate[BOTYPE IBusinessObject]() *oneForOneEndpoint[BOTYPE, BOTYPE] {

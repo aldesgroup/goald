@@ -1,22 +1,6 @@
 package goald
 
-import (
-	"fmt"
-)
-
-// ------------------------------------------------------------------------------------------------
-// Panics
-// ------------------------------------------------------------------------------------------------
-
-func panicf(str string, params ...any) {
-	panic(fmt.Sprintf(str, params...))
-}
-
-func panicErrf(err error, str string, params ...any) {
-	if err != nil {
-		panic(fmt.Sprintf(str, params...) + fmt.Sprintf("; cause: %s", err))
-	}
-}
+import "fmt"
 
 // ------------------------------------------------------------------------------------------------
 // Easier error wrapping

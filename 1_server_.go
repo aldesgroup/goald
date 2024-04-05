@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/aldesgroup/goald/features/utils"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -23,15 +24,17 @@ import (
 // This function should be called in each Goald-based app
 func NewServer() ServerContext {
 	// reading the program's arguments
-	var codegen int     // if > 0, the server cannot be started, but code is generated instead
-	var srcdir string   // if codegen > 0, this is where to find the go source code
 	var confPath string // the path to the config file
+	var srcdir string   // if codegen > 0, this is where to find the go source code
 	var migrate bool    // if true, then the configured databases are auto-migrated to fit the BOs' persistency requirements
+	var codegen int     // if > 0, the server cannot be started, but code is generated instead
+	var libmode bool    // if true, then the current project is a library, not an application
 
-	flag.IntVar(&codegen, "codegen", 0, "if > 0, runs code generation and exits; 1 = objects, 2 = classes")
-	flag.StringVar(&srcdir, "srcdir", "api", "where to find all the Go code, from the project's root")
 	flag.StringVar(&confPath, "config", "", "the path to the config file")
+	flag.StringVar(&srcdir, "srcdir", "api", "where to find all the Go code, from the project's root")
 	flag.BoolVar(&migrate, "migrate", false, "activates the auto-migration of the configured databases")
+	flag.IntVar(&codegen, "codegen", 0, "if > 0, runs code generation and exits; 1 = objects, 2 = classes")
+	flag.BoolVar(&libmode, "libmode", false, "activates the library mode, for code generation notably")
 	flag.Parse()
 
 	// reading the config file
@@ -40,7 +43,7 @@ func NewServer() ServerContext {
 	// new server
 	server := &server{
 		config:   serverConfig,
-		instance: RandomString(3), // TODO remove ?
+		instance: utils.RandomString(3), // TODO remove ?
 	}
 
 	// init the logger
@@ -82,7 +85,7 @@ func NewServer() ServerContext {
 func (thisServer *server) initRoutes() {
 	// no HTTP configured? Let's WARN about it
 	if thisServer.config.commonPart().HTTP == nil {
-		panicf("No \"HTTP\" section configured!")
+		utils.Panicf("No \"HTTP\" section configured!")
 	}
 
 	// new router
@@ -97,7 +100,7 @@ func (thisServer *server) initRoutes() {
 			thisServer.router.Handle(endpoint.getMethod(), apiPath+endpoint.getFullPath(), thisServer.handleFor(endpoint))
 		}
 	} else {
-		panicf("No path provided for the API!")
+		utils.Panicf("No path provided for the API!")
 	}
 
 	// configuring the static routes
@@ -141,7 +144,7 @@ func (thisServer *server) Start() {
 	addr := fmt.Sprintf(":%d", port)
 	slog.Info(fmt.Sprintf("Serving at: http://localhost:%d/", port))
 	if errListen := http.ListenAndServe(addr, thisServer.router); errListen != nil && errListen != http.ErrServerClosed {
-		panicErrf(errListen, "Could not start the server!")
+		utils.PanicErrf(errListen, "Could not start the server!")
 	}
 }
 

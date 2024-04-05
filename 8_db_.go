@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/aldesgroup/goald/features/utils"
 	_ "github.com/microsoft/go-mssqldb"
 )
 
@@ -63,19 +64,19 @@ func openDB(conf *dbConfig) *sql.DB {
 		connStr = fmt.Sprintf("user id=%s;password=%s;port=%s;database=%s",
 			conf.User, password, conf.DbPort, conf.DbName)
 	default:
-		panicf("Unhandled DB type '%s'", conf.DbType)
+		utils.Panicf("Unhandled DB type '%s'", conf.DbType)
 	}
 
 	// Creating the DB object
 	startDB := time.Now()
 	db, errOpen := sql.Open(string(conf.DbType), connStr)
 	if errOpen != nil {
-		panicf("Error opening DB '%s': %s", conf.DbID, errOpen)
+		utils.Panicf("Error opening DB '%s': %s", conf.DbID, errOpen)
 	}
 
 	// Pinging
 	if errPing := db.PingContext(context.Background()); errPing != nil {
-		panicf("Issue while testing the '%s' DB: %s", conf.DbID, errPing)
+		utils.Panicf("Issue while testing the '%s' DB: %s", conf.DbID, errPing)
 	}
 
 	fmt.Printf("Established connection to DB '%s' in %s!\n", conf.DbID, time.Since(startDB))

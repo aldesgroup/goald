@@ -113,7 +113,7 @@ func (thisProperty PropertyType) Values() map[int]string {
 // 	case PropertyTypeRELATIONSHIP:
 // 		return "PropertyTypeRELATIONSHIP"
 // 	default:
-// 		panicf("Unhandle property type %d", thisProperty)
+// 		utils.Panicf("Unhandle property type %d", thisProperty)
 // 		return ""
 // 	}
 // }
