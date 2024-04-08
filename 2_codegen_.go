@@ -18,7 +18,7 @@ const codeGenCLASSES codeGenLevel = 2
 
 // this function shows that our server, when run in dev with the right arguments,
 // can be used as a development server, generating code for us
-func (thisServer *server) runCodeGen(srcdir string, level codeGenLevel) {
+func (thisServer *server) runCodeGen(srcdir string, level codeGenLevel, isLibrary bool) {
 	switch level {
 	case codeGenOBJECTS:
 		start := time.Now()
@@ -27,7 +27,7 @@ func (thisServer *server) runCodeGen(srcdir string, level codeGenLevel) {
 		thisServer.generateDatabasesList(srcdir)
 
 		// we're making all the business objects reachable with the `reflect` package this way
-		thisServer.generateObjectRegistry(srcdir, ".", map[string]*businessObjectEntry{}, time.Now())
+		thisServer.generateObjectRegistry(srcdir, ".", isLibrary, map[string]*businessObjectEntry{}, time.Now())
 
 		log.Printf("done generating the DB & BO registries in %s", time.Since(start))
 		os.Exit(0)

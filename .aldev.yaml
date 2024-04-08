@@ -1,5 +1,7 @@
 appname: goald
 api:
-  dir: .
+  srcdir: .
   config: main/config.yaml
-  relbindir: main
+  build:
+    bindir: main
+    library: True
