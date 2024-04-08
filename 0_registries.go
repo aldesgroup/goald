@@ -21,6 +21,7 @@ type businessObjectEntry struct {
 	name     string
 	lastMod  time.Time
 	bObjType reflect.Type
+	module   string
 	srcPath  string
 }
 
@@ -32,7 +33,7 @@ var boRegistry = &struct {
 }
 
 // registering happens in all the applicative packages, gence the public function
-func Register(bObj IBusinessObject, srcPath string, lastModification string) {
+func Register(bObj IBusinessObject, module, srcPath string, lastModification string) {
 	boRegistry.mx.Lock()
 	defer boRegistry.mx.Unlock()
 
@@ -42,6 +43,7 @@ func Register(bObj IBusinessObject, srcPath string, lastModification string) {
 	entry := &businessObjectEntry{}
 	entry.bObjType = reflect.TypeOf(bObj).Elem()
 	entry.name = entry.bObjType.Name()
+	entry.module = module
 	entry.srcPath = srcPath
 	entry.lastMod = date
 

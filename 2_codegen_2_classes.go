@@ -74,7 +74,7 @@ func (thisServer *server) generateObjectClasses(srcdir string) {
 	}
 
 	// where the class files will be generated
-	classDir := path.Join(srcdir, classFOLDER)
+	classDir := utils.EnsureDir(srcdir, classFOLDER)
 
 	// we'll gather all the existing class files
 	existingClassFiles := map[string]*classFile{}
@@ -94,15 +94,17 @@ func (thisServer *server) generateObjectClasses(srcdir string) {
 
 	// let's see what we have in terms of business objects
 	for name, bObjEntry := range boRegistry.content {
-		// do we need to regen the class file?
-		if existingClass := existingClassFiles[name]; existingClass == nil || existingClass.modTime.Before(bObjEntry.lastMod) ||
-			true { // TODO remove
-			// generating the missing or outdated class
-			generateObjectClass(classDir, bObjEntry)
-		}
+		// considering only the business object of THIS module
+		if bObjEntry.module == getCurrentModuleName() {
+			// do we need to regen the class file?
+			if existingClass := existingClassFiles[name]; existingClass == nil || existingClass.modTime.Before(bObjEntry.lastMod) {
+				// generating the missing or outdated class
+				generateObjectClass(classDir, bObjEntry)
+			}
 
-		// flagging this business object class as NOT unneeded (i.e. needed)
-		delete(existingClassFiles, name)
+			// flagging this business object class as NOT unneeded (i.e. needed)
+			delete(existingClassFiles, name)
+		}
 	}
 
 	// removing the unneeded classes
@@ -145,6 +147,8 @@ func generateObjectClass(classDir string, bObjEntry *businessObjectEntry) {
 
 	// writing to file
 	utils.WriteToFile(content, classDir, utils.PascalToSnake(bObjEntry.name)+classFILExSUFFIX)
+
+	log.Printf("(Re-)generated class %s", bObjEntry.name)
 }
 
 func buildPropDecl(bObjEntry *businessObjectEntry, context *classGenContext) (result string) {

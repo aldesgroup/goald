@@ -150,12 +150,13 @@ func writeRegistryFileIfNeeded(srcdir, currentPath string, isLibrary bool,
 		for _, bObjEntry := range utils.GetSortedValues[string, *businessObjectEntry](entriesInCode) {
 			if isLibrary {
 				// adding 1 registration line per business object
-				registrationLines = append(registrationLines, fmt.Sprintf("%sg.Register(&%s{}, \"%s\", \"%s\")", "\t",
-					bObjEntry.name, bObjEntry.srcPath, bObjEntry.lastMod.Add(utils.OneSECOND).Format(utils.DateFormatSECONDS)))
+				registrationLines = append(registrationLines, fmt.Sprintf("%sg.Register(&%s{}, \"%s\", \"%s\", \"%s\")", "\t",
+					bObjEntry.name, getCurrentModuleName(), bObjEntry.srcPath,
+					bObjEntry.lastMod.Add(utils.OneSECOND).Format(utils.DateFormatSECONDS)))
 			} else {
 				// adding 1 registration line per business object
-				registrationLines = append(registrationLines, fmt.Sprintf("%sg.Register(&%s.%s{}, \"%s\",  \"%s\")", "\t",
-					path.Base(bObjEntry.srcPath), bObjEntry.name, bObjEntry.srcPath,
+				registrationLines = append(registrationLines, fmt.Sprintf("%sg.Register(&%s.%s{}, \"%s\",  \"%s\",  \"%s\")", "\t",
+					path.Base(bObjEntry.srcPath), bObjEntry.name, getCurrentModuleName(), bObjEntry.srcPath,
 					bObjEntry.lastMod.Add(utils.OneSECOND).Format(utils.DateFormatSECONDS)))
 
 				// adding the corresponding import
@@ -184,7 +185,7 @@ func writeRegistryFileIfNeeded(srcdir, currentPath string, isLibrary bool,
 		// writing to the file
 		utils.WriteToFile(content, filename)
 
-		println(fmt.Sprintf("BO registry (%s) generated in %s", filename, time.Since(start)))
+		log.Printf("BO registry (%s) generated in %s", filename, time.Since(start))
 	}
 }
 
@@ -229,8 +230,12 @@ func getEntryFromFile(srcdir, currentPath, entryName string) (entry *businessObj
 	return
 }
 
-var currentModule string
+var (
+	currentModule     string
+	currentModuleName string
+)
 
+// returns this module's path, e.g. "github.com/aldesgroup/goald"
 func getCurrentModule() string {
 	if currentModule == "" {
 		bi, ok := debug.ReadBuildInfo()
@@ -242,4 +247,13 @@ func getCurrentModule() string {
 	}
 
 	return currentModule
+}
+
+// returns this module's name, e.g. "goald"
+func getCurrentModuleName() string {
+	if currentModuleName == "" {
+		currentModuleName = path.Base(getCurrentModule())
+	}
+
+	return currentModuleName
 }

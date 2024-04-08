@@ -4,4 +4,4 @@ api:
   config: main/config.yaml
   build:
     bindir: main
-    library: True
+    # library: True

@@ -22,6 +22,15 @@ func DirExists(dirPath string) bool {
 	return !os.IsNotExist(err) && info.IsDir()
 }
 
+// EnsureDir makes sure the directory with the given path elements exists
+func EnsureDir(pathElem ...string) string {
+	dirname := path.Join(pathElem...)
+
+	PanicErrf(os.MkdirAll(dirname, 0o777), "Could not create directory '%s'", dirname)
+
+	return dirname
+}
+
 // WriteToFile
 func WriteToFile(content string, filepaths ...string) {
 	// creating the file
@@ -29,7 +38,7 @@ func WriteToFile(content string, filepaths ...string) {
 
 	// creating the missing directory if needed
 	if dir := path.Dir(fileName); path.Base(fileName) != fileName {
-		PanicErrf(os.MkdirAll(dir, 0o777), "Could not create directory '%s'", dir)
+		EnsureDir(dir)
 	}
 
 	// creating the file
