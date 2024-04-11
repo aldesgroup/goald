@@ -11,6 +11,7 @@ import (
 
 var (
 	typeBUSINESSxOBJECT   = reflect.TypeOf((*BusinessObject)(nil)).Elem()
+	typeURLxQUERYxOBJECT  = reflect.TypeOf((*URLQueryParams)(nil)).Elem()
 	typeIxBUSINESSxOBJECT = reflect.TypeOf((*IBusinessObject)(nil)).Elem()
 	typeTIME              = reflect.TypeOf((*time.Time)(nil))
 	typeIxENUM            = reflect.TypeOf((*IEnum)(nil)).Elem()

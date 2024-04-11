@@ -49,5 +49,5 @@ func LanguageFrom(value string) Language {
 		}
 	}
 
-	return 0
+	return LanguageUNDEFINED
 }

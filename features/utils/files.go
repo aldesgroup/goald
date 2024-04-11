@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"time"
 )
 
 // ------------------------------------------------------------------------------------------------
@@ -14,6 +15,13 @@ import (
 func FileExists(filePath string) bool {
 	_, err := os.Stat(filePath)
 	return !os.IsNotExist(err)
+}
+
+// Returns the given file's modification time, or panics
+func EnsureModTime(filePath string) time.Time {
+	info, err := os.Stat(filePath)
+	PanicErrf(err, "Could not get modification time for file '%s'", filePath)
+	return info.ModTime()
 }
 
 // DirExists checks if a file exists at the specified path.

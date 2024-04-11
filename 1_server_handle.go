@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"reflect"
+	"strings"
 
 	"github.com/aldesgroup/goald/features/hstatus"
 	r "github.com/julienschmidt/httprouter"
@@ -18,11 +19,6 @@ import (
 // ------------------------------------------------------------------------------------------------
 // Serving the REST endpoints
 // ------------------------------------------------------------------------------------------------
-
-// TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
-// TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
-// TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
-// Search Params as JSON objects => maybe even some BOs ? Or another whole class of objects that can be described automatically
 
 // TODO handle patching BOs with safeguards, like authorizing a limited list of fields (on the class for instance)
 
@@ -81,34 +77,43 @@ func (thisReqCtx *httpRequestContext) serve(ep iEndpoint, w http.ResponseWriter,
 
 	// TODO check auth!
 
-	// checking the input body
-	var bodyInput any
-	if ep.isRequiredInput() {
+	// checking the input
+	var input any
+	if ep.hasBodyOrParamsInput() {
 		var inputErr error
-		if bodyInput, inputErr = retrieveInputData(req, webCtx, ep); inputErr != nil {
-			resp.statusObj = hstatus.BadRequest
-			resp.Message = fmt.Sprintf("Bad input in request body (%s)", inputErr)
+		if ep.isBodyInputRequired() {
+			if input, inputErr = retrieveInputData(req, webCtx, ep); inputErr != nil {
+				resp.statusObj = hstatus.BadRequest
+				resp.Message = fmt.Sprintf("Bad input in request body (%s)", inputErr)
 
-			goto End
+				goto End
+			}
+		} else {
+			if input, inputErr = retrieveURLParams(req, webCtx, ep); inputErr != nil {
+				resp.statusObj = hstatus.BadRequest
+				resp.Message = fmt.Sprintf("Bad URL params (%s)", inputErr)
+
+				goto End
+			}
 		}
 	}
 
 	// TODO do better - some "logging"
-	log.Printf("Body: %s", string(webCtx.inputBody))
+	log.Printf("Body: %s", string(webCtx.inputBodyBytes))
 
 	// calling the endpoint's handler, which depends on its type
-	if ep.isRequiredInput() {
+	if ep.hasBodyOrParamsInput() {
 		if ep.isMultipleOutput() {
 			if ep.isMultipleInput() {
-				resp.ObjectList, resp.statusObj, resp.Message = ep.returnManyForMany(webCtx, bodyInput)
+				resp.ObjectList, resp.statusObj, resp.Message = ep.returnManyForMany(webCtx, input)
 			} else {
-				resp.ObjectList, resp.statusObj, resp.Message = ep.returnManyForOne(webCtx, bodyInput)
+				resp.ObjectList, resp.statusObj, resp.Message = ep.returnManyForOne(webCtx, input)
 			}
 		} else {
 			if ep.isMultipleInput() {
-				resp.Object, resp.statusObj, resp.Message = ep.returnOneForMany(webCtx, bodyInput)
+				resp.Object, resp.statusObj, resp.Message = ep.returnOneForMany(webCtx, input)
 			} else {
-				resp.Object, resp.statusObj, resp.Message = ep.returnOneForOne(webCtx, bodyInput)
+				resp.Object, resp.statusObj, resp.Message = ep.returnOneForOne(webCtx, input)
 			}
 		}
 	} else {
@@ -155,29 +160,29 @@ func (thisReqCtx *httpRequestContext) write(resp *response, w http.ResponseWrite
 	}
 }
 
-// parsing the request's body to
+// parsing the request's body to return the business object - or list of BOs - expected as input
 func retrieveInputData(request *http.Request, webContext *webContextImpl, ep iEndpoint) (any, error) {
 	// Handling unreadable body
-	inputBody, readErr := io.ReadAll(request.Body)
+	inputBodyBytes, readErr := io.ReadAll(request.Body)
 	if readErr != nil {
 		return nil, ErrorC(readErr, "Could not read request body!")
 	}
 
 	// Handling empty body
-	if len(inputBody) == 0 {
+	if len(inputBodyBytes) == 0 {
 		return nil, Error("Request body is empty")
 	}
 
 	// keeping track of the raw body
-	webContext.inputBody = inputBody
+	webContext.inputBodyBytes = inputBodyBytes
 
 	if ep.isMultipleInput() {
 		// Handling array of bObj input: []*package.BObj
-		// explanation:      *           []              *     package.BObj         - removes the starting *
-		bObjSlice := reflect.New(reflect.SliceOf(reflect.PtrTo(ep.getInputType()))).Elem()
+		// explanation:      *           []              *     package.BObj                   - removes the starting *
+		bObjSlice := reflect.New(reflect.SliceOf(reflect.PointerTo(ep.getInputOrParamsType()))).Elem()
 
 		// Unmarshaling *[]*package.BObj as an interface - which is expected by the Unmarshal function
-		if jsonErr := json.Unmarshal(inputBody, bObjSlice.Addr().Interface()); jsonErr != nil {
+		if jsonErr := json.Unmarshal(inputBodyBytes, bObjSlice.Addr().Interface()); jsonErr != nil {
 			return nil, ErrorC(jsonErr, "Could not unmarshall the JSON object array!")
 		}
 
@@ -186,13 +191,70 @@ func retrieveInputData(request *http.Request, webContext *webContextImpl, ep iEn
 
 	} else {
 		// Handling single bObj input: *package.BObj
-		// explanation: *   package.BObj      - needed by the unmarshaling
-		bObj := reflect.New(ep.getInputType()).Interface()
+		// explanation: *   package.BObj             - needed by the unmarshaling
+		bObj := reflect.New(ep.getInputOrParamsType()).Interface()
 
-		if jsonErr := json.Unmarshal(inputBody, bObj); jsonErr != nil {
+		if jsonErr := json.Unmarshal(inputBodyBytes, bObj); jsonErr != nil {
 			return nil, ErrorC(jsonErr, "Could not unmarshall the JSON object!")
 		}
 
 		return bObj, nil
 	}
+}
+
+// parsing the request's URL to build the expected URLQueryParams object
+func retrieveURLParams(request *http.Request, webContext *webContextImpl, ep iEndpoint) (any, error) {
+	urlParams := reflect.New(ep.getInputOrParamsType()).Interface().(IURLQueryParams)
+
+	for _, field := range ClassForName(ep.getInputOrParamsName()).base().fields {
+		urlParams.SetValueAsString(field.getName(), request.URL.Query().Get(field.getName()))
+	}
+
+	values := []string{}
+	for _, field := range ClassForName(ep.getInputOrParamsName()).base().fields {
+		values = append(values, fmt.Sprintf("%s = %s", field.getName(), urlParams.GetValueAsString(field.getName())))
+	}
+
+	return nil, Error("stopping here: " + strings.Join(values, " / "))
+
+	// if len(operation.QueryParams) > 0 {
+	// 	for _, queryParam := range operation.QueryParams {
+	// 		stringParamValue := url.Query().Get(queryParam.Name)
+	// 		if stringParamValue == "" && queryParam.Mandatory {
+	// 			return NewErr("Query parameter '%s' is expected in the URL!", queryParam.Name)
+	// 		}
+
+	// 		if stringParamValue == "" && queryParam.ParamType != PropertyTypeSTRING {
+	// 			stringParamValue = "0" // default value for booleans, integers and real numbers
+	// 		}
+
+	// 		switch queryParam.ParamType {
+	// 		case PropertyTypeBOOL:
+	// 			boolValue, errParse := strconv.ParseBool(stringParamValue)
+	// 			if errParse != nil {
+	// 				return NewErrC(errParse, "Value '%s' is not a valid boolean for query parameter '%s'", stringParamValue, queryParam.Name)
+	// 			}
+
+	// 			wsContext.setQueryParam(queryParam.Name, boolValue)
+	// 		case PropertyTypeINT:
+	// 			intValue, errParse := strconv.Atoi(stringParamValue)
+	// 			if errParse != nil {
+	// 				return NewErrC(errParse, "Value '%s' is not a valid integer for query parameter '%s'", stringParamValue, queryParam.Name)
+	// 			}
+
+	// 			wsContext.setQueryParam(queryParam.Name, intValue)
+	// 		case PropertyTypeREAL64:
+	// 			realValue, errParse := strconv.ParseFloat(stringParamValue, 64)
+	// 			if errParse != nil {
+	// 				return NewErrC(errParse, "Value '%s' is not a valid real number for query parameter '%s'", stringParamValue, queryParam.Name)
+	// 			}
+
+	// 			wsContext.setQueryParam(queryParam.Name, realValue)
+	// 		default:
+	// 			wsContext.setQueryParam(queryParam.Name, stringParamValue)
+	// 		}
+	// 	}
+	// }
+
+	// return nil
 }

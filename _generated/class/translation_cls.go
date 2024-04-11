@@ -1,3 +1,4 @@
+// Generated file, do not edit!
 package class
 
 import (
@@ -9,11 +10,12 @@ import (
 // static, reflect-free access to the definition of the Translation class
 type translationClass struct {
 	g.IBusinessObjectClass
-	lang  *g.EnumField
-	route *g.StringField
-	part  *g.StringField
-	key   *g.StringField
-	value *g.StringField
+	lang    *g.EnumField
+	langStr *g.StringField
+	route   *g.StringField
+	part    *g.StringField
+	key     *g.StringField
+	value   *g.StringField
 }
 
 // this is the main way to refer to the Translation class in the applicative code
@@ -31,6 +33,7 @@ var (
 func newTranslationClass() *translationClass {
 	newClass := &translationClass{IBusinessObjectClass: g.NewClass()}
 	newClass.lang = g.NewEnumField(newClass, "Lang", false)
+	newClass.langStr = g.NewStringField(newClass, "LangStr", false)
 	newClass.route = g.NewStringField(newClass, "Route", false)
 	newClass.part = g.NewStringField(newClass, "Part", false)
 	newClass.key = g.NewStringField(newClass, "Key", false)
@@ -53,6 +56,10 @@ func init() {
 
 func (t *translationClass) Lang() *g.EnumField {
 	return t.lang
+}
+
+func (t *translationClass) LangStr() *g.StringField {
+	return t.langStr
 }
 
 func (t *translationClass) Route() *g.StringField {

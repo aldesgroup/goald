@@ -15,7 +15,8 @@ import (
 	"github.com/aldesgroup/goald/features/utils"
 )
 
-const classTEMPLATE = `package class
+const classTEMPLATE = `// Generated file, do not edit!
+package class
 
 import (
 	"sync"
@@ -66,7 +67,7 @@ const classFILExSUFFIXxLEN = len(classFILExSUFFIX)
 const classNAMExSUFFIX = "Class"
 const newline = "\n"
 
-func (thisServer *server) generateObjectClasses(srcdir string) {
+func (thisServer *server) generateObjectClasses(srcdir string, regen bool) {
 	// a type just used here
 	type classFile struct {
 		modTime  time.Time
@@ -94,10 +95,11 @@ func (thisServer *server) generateObjectClasses(srcdir string) {
 
 	// let's see what we have in terms of business objects
 	for name, bObjEntry := range boRegistry.content {
-		// considering only the business object of THIS module
+		// considering only the business objects of THIS module
 		if bObjEntry.module == getCurrentModuleName() {
 			// do we need to regen the class file?
-			if existingClass := existingClassFiles[name]; existingClass == nil || existingClass.modTime.Before(bObjEntry.lastMod) {
+			if existingClass := existingClassFiles[name]; regen ||
+				existingClass == nil || existingClass.modTime.Before(bObjEntry.lastMod) {
 				// generating the missing or outdated class
 				generateObjectClass(classDir, bObjEntry)
 			}
@@ -161,6 +163,8 @@ func buildPropDecl(bObjEntry *businessObjectEntry, context *classGenContext) (re
 
 	if context.superType = superClassField.Type; context.superType == typeBUSINESSxOBJECT {
 		result += "g.IBusinessObjectClass"
+	} else if context.superType == typeURLxQUERYxOBJECT {
+		result += "g.IURLQueryParamsClass"
 	} else {
 		result += "" + utils.PascalToCamel(superClassField.Type.Name()) + classNAMExSUFFIX
 	}
@@ -230,7 +234,10 @@ func buildPropInit(bObjEntry *businessObjectEntry, context *classGenContext) str
 	classInit := "newClass := &" + className_ + classNAMExSUFFIX + "{%s: %s}"
 	superClassDecl := "IBusinessObjectClass"
 	superClassValue := "g.NewClass()"
-	if context.superType != typeBUSINESSxOBJECT {
+	if context.superType == typeURLxQUERYxOBJECT {
+		superClassDecl = "IURLQueryParamsClass"
+		superClassValue = "g.NewURLQueryParamsClass()"
+	} else if context.superType != typeBUSINESSxOBJECT {
 		superClassDecl = utils.PascalToCamel(context.superType.Name()) + classNAMExSUFFIX
 		superClassValue = "*new" + context.superType.Name() + "Class()"
 	}

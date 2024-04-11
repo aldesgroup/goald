@@ -22,6 +22,10 @@ type IBusinessObject interface {
 	ChangeBeforeInsert(BloContext) error
 	IsValid(BloContext) error
 	ChangeAfterInsert(BloContext) error
+
+	// utils
+	GetValueAsString(propName string) string
+	SetValueAsString(propName, value string) error
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -51,21 +55,17 @@ func (thisBO *BusinessObject) Class() IBusinessObjectClass {
 	return thisBO.class
 }
 
-func (thisBO *BusinessObject) getClassName() string                { return thisBO.className }
-func (thisBO *BusinessObject) setClassName(cn string)              { thisBO.className = cn }
-func (thisBO *BusinessObject) GetID() BObjID                       { return thisBO.ID }
-func (thisBO *BusinessObject) setID(id string)                     { thisBO.ID = BObjID(id) }
-func (thisBO *BusinessObject) GetLabel() string                    { return thisBO.Label }
-func (thisBO *BusinessObject) ChangeBeforeInsert(BloContext) error { return nil }
-func (thisBO *BusinessObject) IsValid(BloContext) error            { return nil }
-func (thisBO *BusinessObject) ChangeAfterInsert(BloContext) error  { return nil }
-
-// func (thisBO BusinessObject) setClassName(cn string)              { thisBO.className = cn }
-// func (thisBO BusinessObject) GetID() BObjID                       { return thisBO.ID }
-// func (thisBO BusinessObject) setID(id string)                     { thisBO.ID = BObjID(id) }
-// func (thisBO BusinessObject) GetLabel() string                    { return thisBO.Label }
-// func (thisBO BusinessObject) ChangeBeforeInsert(BloContext) error { return nil }
-// func (thisBO BusinessObject) IsValid(BloContext) error            { return nil }
+/* default implementations */
+func (thisBO *BusinessObject) getClassName() string                    { return thisBO.className }
+func (thisBO *BusinessObject) setClassName(cn string)                  { thisBO.className = cn }
+func (thisBO *BusinessObject) GetID() BObjID                           { return thisBO.ID }
+func (thisBO *BusinessObject) setID(id string)                         { thisBO.ID = BObjID(id) }
+func (thisBO *BusinessObject) GetLabel() string                        { return thisBO.Label }
+func (thisBO *BusinessObject) ChangeBeforeInsert(BloContext) error     { return nil }
+func (thisBO *BusinessObject) IsValid(BloContext) error                { return nil }
+func (thisBO *BusinessObject) ChangeAfterInsert(BloContext) error      { return nil }
+func (thisBO *BusinessObject) GetValueAsString(propName string) string { return "- not implemented -" }
+func (thisBO *BusinessObject) SetValueAsString(string, string) error   { return Error("not implemented") }
 
 // ------------------------------------------------------------------------------------------------
 // Modelling enum types

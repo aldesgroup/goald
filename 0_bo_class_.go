@@ -119,6 +119,7 @@ type BusinessObjectProperty struct {
 	pType      PropertyType         // the property's type, as detected by the codegen phase
 	multiple   bool                 // the property's multiplicity; false = 1, true = N
 	columnName string               // if this property - field or relationship - is persisted on the owner's table
+	mandatory  bool                 // if true, then this property's value must be non-zero
 }
 
 func (prop *BusinessObjectProperty) ownerClass() IBusinessObjectClass {
@@ -167,6 +168,11 @@ func newField(owner IBusinessObjectClass, name string, multiple bool, pType Prop
 			multiple: multiple,
 		},
 	}
+}
+
+func (f *field) SetMandatory() *field {
+	f.mandatory = true
+	return f
 }
 
 func (f *field) StringValue(bObj IBusinessObject) string {

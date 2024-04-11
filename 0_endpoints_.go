@@ -1,0 +1,258 @@
+// ------------------------------------------------------------------------------------------------
+// The code here is about how we describe endpoints
+// ------------------------------------------------------------------------------------------------
+package goald
+
+import (
+	"net/http"
+	"reflect"
+	"strings"
+
+	"github.com/aldesgroup/goald/features/hstatus"
+)
+
+// ------------------------------------------------------------------------------------------------
+// Base structs & generic methods
+// ------------------------------------------------------------------------------------------------
+type iEndpoint interface {
+	getMethod() string
+	getIDProp() IField
+	getFullPath() string
+	getLabel() string
+	getLoadingType() LoadingType
+	isMultipleOutput() bool
+	hasBodyOrParamsInput() bool
+	isBodyInputRequired() bool
+	isMultipleInput() bool
+	getInputOrParamsType() reflect.Type
+	getInputOrParamsName() string
+	returnOne(webCtx WebContext) (any, hstatus.Code, string)
+	returnMany(webCtx WebContext) (any, hstatus.Code, string)
+	returnOneForOne(webCtx WebContext, input any) (any, hstatus.Code, string)
+	returnOneForMany(webCtx WebContext, inputs any) (any, hstatus.Code, string)
+	returnManyForOne(webCtx WebContext, input any) (any, hstatus.Code, string)
+	returnManyForMany(webCtx WebContext, inputs any) (any, hstatus.Code, string)
+}
+
+// an endpoint object is parametrized by the potential objects of type I,
+// and the output objects of type O, i.e. the resource type
+type endpoint[ResourceType IBusinessObject] struct {
+	method            string       // get, post, put...
+	basePath          string       // the endpoint's base path, which is the lower-cased resource type name
+	actionPath        string       // do we need an additional path for a non-CRUD action, like "reduce" in: "GET /document/reduce/:id"
+	idProp            IField       // if a specific BO is targeted, this has to be through one of its properties
+	fullPath          string       // resulting from the parameter type, action path and id property
+	label             string       // short label to describe the endpoint
+	multipleOutput    bool         // if true, then the endpoint delivers arrays of BOs, rather than a single one
+	loadingType       LoadingType  // how the returned resource(s) are loaded
+	bodyInputRequired bool         // if true, then we expect something in the request body
+	multipleInput     bool         // if true, then we expect an array of BOs in the body, rather than a single one
+	inputOrParamsType reflect.Type // if inputExpected = true, then this is the type of the input
+	inputOrParamsName string       // the name of the input or params type
+}
+
+func (ep *endpoint[ResourceType]) getMethod() string {
+	return ep.method
+}
+
+func (ep *endpoint[ResourceType]) getIDProp() IField {
+	return ep.idProp
+}
+
+func (ep *endpoint[ResourceType]) getFullPath() string {
+	if ep.fullPath == "" {
+		ep.fullPath = "/" + ep.basePath
+		if ep.actionPath != "" {
+			if ep.actionPath[0:1] == "/" {
+				ep.fullPath += ep.actionPath
+			} else {
+				ep.fullPath += "/" + ep.actionPath
+			}
+		}
+		if ep.idProp != nil {
+			ep.fullPath += "/:" + ep.idProp.getName()
+		}
+	}
+
+	return ep.fullPath
+}
+
+func (ep *endpoint[ResourceType]) getLabel() string {
+	return ep.label
+}
+
+func (ep *endpoint[ResourceType]) getLoadingType() LoadingType {
+	return ep.loadingType
+}
+
+func (ep *endpoint[ResourceType]) isMultipleOutput() bool {
+	return ep.multipleOutput
+}
+
+func (ep *endpoint[ResourceType]) hasBodyOrParamsInput() bool {
+	return ep.inputOrParamsType != nil
+}
+
+func (ep *endpoint[ResourceType]) isBodyInputRequired() bool {
+	return ep.bodyInputRequired
+}
+
+func (ep *endpoint[ResourceType]) isMultipleInput() bool {
+	return ep.multipleInput
+}
+
+func (ep *endpoint[ResourceType]) getInputOrParamsType() reflect.Type {
+	return ep.inputOrParamsType
+}
+
+func (ep *endpoint[ResourceType]) getInputOrParamsName() string {
+	return ep.inputOrParamsName
+}
+
+func (ep *endpoint[ResourceType]) returnOne(webCtx WebContext) (any, hstatus.Code, string) {
+	panic("no generic implementation here")
+}
+
+func (ep *endpoint[ResourceType]) returnMany(webCtx WebContext) (any, hstatus.Code, string) {
+	panic("no generic implementation here")
+}
+
+func (ep *endpoint[ResourceType]) returnOneForOne(webCtx WebContext, input any) (any, hstatus.Code, string) {
+	panic("no generic implementation here")
+}
+
+func (ep *endpoint[ResourceType]) returnOneForMany(webCtx WebContext, inputs any) (any, hstatus.Code, string) {
+	panic("no generic implementation here")
+}
+
+func (ep *endpoint[ResourceType]) returnManyForOne(webCtx WebContext, input any) (any, hstatus.Code, string) {
+	panic("no generic implementation here")
+}
+
+func (ep *endpoint[ResourceType]) returnManyForMany(webCtx WebContext, inputs any) (any, hstatus.Code, string) {
+	panic("no generic implementation here")
+}
+
+// ------------------------------------------------------------------------------------------------
+// Endpoint declaration & building
+// ------------------------------------------------------------------------------------------------
+
+// common part of any endpoint
+func newEndpoint[InputOrParamsType, ResourceType IBusinessObject](
+	multipleOutput bool,
+	method string,
+	loadingType LoadingType,
+	bodyInputRequired bool,
+	multipleInput bool,
+	withURLParams bool,
+) *endpoint[ResourceType] {
+
+	var inputOrParamsType reflect.Type
+	if bodyInputRequired || withURLParams {
+		// if the InputType is '*Project', then we're keeping  'Project' here (without the pointer)
+		inputOrParamsType = reflect.TypeOf(*new(InputOrParamsType)).Elem()
+	}
+
+	inputOrParamsName := ""
+	if inputOrParamsType != nil {
+		inputOrParamsName = inputOrParamsType.Name()
+	}
+
+	return &endpoint[ResourceType]{
+		method:            method,
+		basePath:          strings.ToLower(reflect.TypeOf(*new(ResourceType)).Elem().Name()),
+		multipleOutput:    multipleOutput,
+		loadingType:       loadingType,
+		bodyInputRequired: bodyInputRequired,
+		multipleInput:     multipleInput,
+		inputOrParamsType: inputOrParamsType,
+		inputOrParamsName: inputOrParamsName,
+	}
+}
+
+// Allows to add an additional path to the base path: /basepath[/additionalpath][/:targetedPropValue]
+func (thisEndpoint *endpoint[ResourceType]) At(actionPath string) *endpoint[ResourceType] {
+	thisEndpoint.actionPath = actionPath
+
+	return thisEndpoint
+}
+
+// Allows to add a property value to the base path: /basepath[/additionalpath][/:targetedPropValue]
+func (thisEndpoint *endpoint[ResourceType]) TargetWith(idProp IField) *endpoint[ResourceType] {
+	thisEndpoint.idProp = idProp
+
+	return thisEndpoint
+}
+
+// Providing a short description for this endpoint
+func (thisEndpoint *endpoint[ResourceType]) Label(label string) *endpoint[ResourceType] {
+	thisEndpoint.label = label
+
+	return thisEndpoint
+}
+
+// ------------------------------------------------------------------------------------------------
+// Public functions
+// ------------------------------------------------------------------------------------------------
+
+// Declaring an endpoint to return 1 BO instance from a GET request
+func GetOne[ResourceType IBusinessObject](
+	handlerFunc func(webCtx WebContext) (ResourceType, hstatus.Code, string),
+	loadingType LoadingType,
+) *oneForNoneEndpoint[ResourceType] {
+
+	return handleOne[ResourceType](http.MethodGet, handlerFunc, loadingType)
+}
+
+// Declaring an endpoint to delete 1 BO instance with a DELETE request
+func DeleteOne[ResourceType IBusinessObject](
+	handlerFunc func(webCtx WebContext) (ResourceType, hstatus.Code, string),
+) *oneForNoneEndpoint[ResourceType] {
+
+	return handleOne[ResourceType](http.MethodDelete, handlerFunc, "")
+}
+
+// Declaring an endpoint to return N BO instances from a GET request
+func GetMany[ResourceType IBusinessObject](
+	handlerFunc func(webCtx WebContext) ([]ResourceType, hstatus.Code, string),
+	loadingType LoadingType,
+) *manyForNoneEndpoint[ResourceType] {
+
+	return handleMany[ResourceType](http.MethodGet, handlerFunc, loadingType)
+}
+
+// Declaring an endpoint to return 1 BO instance from 1 POSTed BO instance
+func PostOneGetOne[InputType, ResourceType IBusinessObject](
+	handlerFunc func(webCtx WebContext, input InputType) (ResourceType, hstatus.Code, string),
+	loadingType LoadingType,
+) *oneForOneEndpoint[InputType, ResourceType] {
+
+	return handleOneForOne[InputType, ResourceType](http.MethodPost, handlerFunc, loadingType)
+}
+
+// Declaring an endpoint to return 1 BO instance from 1 PUT BO instance
+func PutOne[InputType, ResourceType IBusinessObject](
+	handlerFunc func(webCtx WebContext, input ResourceType) (ResourceType, hstatus.Code, string),
+	loadingType LoadingType,
+) *oneForOneEndpoint[ResourceType, ResourceType] {
+
+	return handleOneForOne[ResourceType, ResourceType](http.MethodPut, handlerFunc, loadingType)
+}
+
+// Declaring an endpoint to return N BO instance from N POSTed BO instances
+func PostManyGetMany[InputType, ResourceType IBusinessObject](
+	handlerFunc func(webCtx WebContext, input []InputType) ([]ResourceType, hstatus.Code, string),
+	loadingType LoadingType,
+) *manyForManyEndpoint[InputType, ResourceType] {
+
+	return handleManyForMany[InputType, ResourceType](http.MethodPost, handlerFunc, loadingType)
+}
+
+// Declaring an endpoint to return N BO instance from query parameters that are described with 1 URLQueryParams
+func GetManyWithParams[ResourceType IBusinessObject, QueryParamsType IURLQueryParams](
+	handlerFunc func(webCtx WebContext, queryParams QueryParamsType) ([]ResourceType, hstatus.Code, string),
+	loadingType LoadingType,
+) *manyForOneEndpoint[QueryParamsType, ResourceType] {
+
+	return handleManyForOne[QueryParamsType, ResourceType](http.MethodGet, handlerFunc, loadingType, false)
+}

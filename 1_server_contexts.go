@@ -74,7 +74,7 @@ type webContextImpl struct {
 	bloContext          BloContext
 	targetRefOrID       string      // the ID or ref, or whatever property value used to clearly identify a resource
 	resourceLoadingType LoadingType // how the  (1 BOs or several) should be loaded
-	inputBody           []byte      // keeping track of the incoming request body
+	inputBodyBytes      []byte      // keeping track of the incoming request body
 }
 
 // type check

@@ -23,13 +23,10 @@ const sourceREGISTRYxNAME = "0_registry.go"
 
 // TODO to have only 1 file, we need to handle the imports, which can be tedious, in particular with nested packages
 
-func (thisServer *server) generateObjectRegistry(srcdir, currentPath string, isLibrary bool,
-	allEntriesInCodeSoFar map[string]*businessObjectEntry, start time.Time) {
+func (thisServer *server) generateObjectRegistry(srcdir, currentPath string, _ bool,
+	allEntriesInCodeSoFar map[string]*businessObjectEntry, regen bool) {
 	// we want all the entities we find in the code to build 1 global registry
 	entriesInCode := allEntriesInCodeSoFar
-	if isLibrary { // ...but in library mode, we generate 1 registry per package
-		entriesInCode = map[string]*businessObjectEntry{}
-	}
 
 	// the path we're currently reading at e.g. go/pkg1/pkg2
 	readingPath := path.Join(srcdir, currentPath)
@@ -44,7 +41,7 @@ func (thisServer *server) generateObjectRegistry(srcdir, currentPath string, isL
 			// not going into the vendor
 			if entry.Name() != "vendor" && entry.Name() != ".git" {
 				// found another directory, let's dive deeper!
-				thisServer.generateObjectRegistry(srcdir, path.Join(currentPath, entry.Name()), isLibrary, entriesInCode, start)
+				thisServer.generateObjectRegistry(srcdir, path.Join(currentPath, entry.Name()), false, entriesInCode, regen)
 			}
 		} else {
 			// found a file... but we're only interested in files containing Business Objects, which must end with sourceFILExSUFFIX
@@ -75,8 +72,8 @@ func (thisServer *server) generateObjectRegistry(srcdir, currentPath string, isL
 
 	// if we're at root here, this means we've browsed through all the code already,
 	// and can now decide to (re-)generate the object registry - or not
-	if currentPath == "." || isLibrary {
-		writeRegistryFileIfNeeded(srcdir, currentPath, isLibrary, entriesInCode, start)
+	if currentPath == "." {
+		writeRegistryFileIfNeeded(srcdir, currentPath, false, entriesInCode, regen)
 	}
 }
 
@@ -94,12 +91,12 @@ func init() {
 `
 
 func writeRegistryFileIfNeeded(srcdir, currentPath string, isLibrary bool,
-	entriesInCode map[string]*businessObjectEntry, start time.Time) {
+	entriesInCode map[string]*businessObjectEntry, regen bool) {
 	// TODO remote
 	println("--- examining folder: " + currentPath)
 
 	// do we need to regenerate the object registry at the current path?
-	needRegen := false
+	needRegen := regen
 
 	// let's check the current entries, the ones coded right now
 	for entryName, entryInCode := range entriesInCode {
@@ -152,12 +149,12 @@ func writeRegistryFileIfNeeded(srcdir, currentPath string, isLibrary bool,
 				// adding 1 registration line per business object
 				registrationLines = append(registrationLines, fmt.Sprintf("%sg.Register(&%s{}, \"%s\", \"%s\", \"%s\")", "\t",
 					bObjEntry.name, getCurrentModuleName(), bObjEntry.srcPath,
-					bObjEntry.lastMod.Add(utils.OneSECOND).Format(utils.DateFormatSECONDS)))
+					bObjEntry.lastMod.Add(time.Second).Format(time.RFC3339)))
 			} else {
 				// adding 1 registration line per business object
 				registrationLines = append(registrationLines, fmt.Sprintf("%sg.Register(&%s.%s{}, \"%s\",  \"%s\",  \"%s\")", "\t",
 					path.Base(bObjEntry.srcPath), bObjEntry.name, getCurrentModuleName(), bObjEntry.srcPath,
-					bObjEntry.lastMod.Add(utils.OneSECOND).Format(utils.DateFormatSECONDS)))
+					bObjEntry.lastMod.Add(time.Second).Format(time.RFC3339)))
 
 				// adding the corresponding import
 				if !imported[bObjEntry.srcPath] {
@@ -184,8 +181,6 @@ func writeRegistryFileIfNeeded(srcdir, currentPath string, isLibrary bool,
 
 		// writing to the file
 		utils.WriteToFile(content, filename)
-
-		log.Printf("BO registry (%s) generated in %s", filename, time.Since(start))
 	}
 }
 

@@ -26,7 +26,7 @@ type businessObjectEntry struct {
 }
 
 var boRegistry = &struct {
-	content map[string]*businessObjectEntry // all the business objects!
+	content map[string]*businessObjectEntry // all the business objects! mapped by the name
 	mx      sync.Mutex
 }{
 	content: make(map[string]*businessObjectEntry),
@@ -37,7 +37,7 @@ func Register(bObj IBusinessObject, module, srcPath string, lastModification str
 	boRegistry.mx.Lock()
 	defer boRegistry.mx.Unlock()
 
-	date, errParse := time.Parse(utils.DateFormatSECONDS, lastModification)
+	date, errParse := time.Parse(time.RFC3339, lastModification)
 	utils.PanicErrf(errParse, "'%s' has an invalid date format (which is: 2006-01-02 15:04:05)", lastModification)
 
 	entry := &businessObjectEntry{}

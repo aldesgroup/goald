@@ -8,8 +8,8 @@ import (
 // Dates
 // ------------------------------------------------------------------------------------------------
 
-const DateFormatSECONDS = "2006-01-02 15:04:05-07"
-const OneSECOND = 1 * time.Second
+// custom time format, on top of the most used RFC3339
+const RFC3339Milli = "2006-01-02T15:04:05.000Z07:00"
 
 func Now() *time.Time {
 	t := time.Now()
