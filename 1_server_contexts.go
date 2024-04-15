@@ -9,19 +9,12 @@ package goald
 
 // ------------------------------------------------------------------------------------------------
 // AppContext contains the minimal info set that should be accessible in all the layers of the app
+// ------------------------------------------------------------------------------------------------
 type AppContext interface {
 	CustomConfig() ICustomConfig // returns the app's custom part of the config
 }
 
 type appContextImpl struct {
-}
-
-// ------------------------------------------------------------------------------------------------
-// ServerContext is a particular App Context used at app startup
-// Implemented by the `server` struct
-type ServerContext interface {
-	AppContext
-	Start()
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -50,6 +43,19 @@ type bloContextImpl struct {
 
 func (thisBloCtx *bloContextImpl) GetDaoContext() DaoContext {
 	return thisBloCtx.daoContext // TODO instantiate
+}
+
+// the server is its own DAo context
+func (thisServer *server) GetDaoContext() DaoContext {
+	return thisServer
+}
+
+// ------------------------------------------------------------------------------------------------
+// ServerContext is a particular Business Logic Context used at app startup
+// Implemented by the `server` struct
+type ServerContext interface {
+	BloContext
+	Start()
 }
 
 // ------------------------------------------------------------------------------------------------

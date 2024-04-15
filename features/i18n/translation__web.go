@@ -4,13 +4,13 @@ import (
 	"fmt"
 
 	g "github.com/aldesgroup/goald"
-	// "github.com/aldesgroup/goald/_generated/class"
+	"github.com/aldesgroup/goald/_generated/class"
 	"github.com/aldesgroup/goald/features/hstatus"
 )
 
 func init() {
 	g.GetManyWithParams[*Translation, *TranslationUrlParams](listTranslations, "").
-		// TargetWith(class.Translation().LangStr()).
+		TargetWith(class.Translation().Lang()).
 		Label("Returns the translations for the given route")
 }
 
@@ -19,14 +19,14 @@ func listTranslations(webCtx g.WebContext, params *TranslationUrlParams) ([]*Tra
 	langStr := webCtx.GetTargetRefOrID()
 
 	// getting the translations for the right language
-	translations, errGet := getTranslations(webCtx.GetBloContext(), langStr, params.Route, params.Part, params.Key)
+	foundTranslations, errGet := getTranslations(webCtx.GetBloContext(), langStr, params.Route, params.Part, params.Key)
 	if errGet != nil {
 		return nil, hstatus.InternalServerError, fmt.Sprintf("Error while searching for translations: %s", errGet)
 	}
-	if len(translations) == 0 {
+	if len(foundTranslations) == 0 {
 		return nil, hstatus.NotFound, fmt.Sprintf("No translation found for lang = %s / route = %s / part = %s / key = %s",
 			langStr, params.Route, params.Part, params.Key)
 	}
 
-	return translations, hstatus.OK, ""
+	return foundTranslations, hstatus.OK, ""
 }

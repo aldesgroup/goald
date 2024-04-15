@@ -33,9 +33,10 @@ func NewCommonConfig() *serverConfig {
 }
 
 type serverConfig struct {
-	Env       string
-	HTTP      *httpConfig
-	Databases []*dbConfig
+	Env         string
+	HTTP        *httpConfig
+	Databases   []*dbConfig
+	DataLoaders map[string]map[string]string
 
 	// technical props
 	envAsType envType

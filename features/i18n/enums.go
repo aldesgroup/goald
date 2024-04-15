@@ -16,6 +16,7 @@ const (
 	LanguageGERMAN    Language = 3
 	LanguageSPANISH   Language = 4
 	LanguageITALIAN   Language = 5
+	LanguageDUTCH     Language = 6
 )
 
 var languages = map[int]string{
@@ -25,6 +26,7 @@ var languages = map[int]string{
 	int(LanguageGERMAN):    "de",
 	int(LanguageSPANISH):   "es",
 	int(LanguageITALIAN):   "it",
+	int(LanguageDUTCH):     "nl",
 }
 
 func (thisLanguage Language) String() string {

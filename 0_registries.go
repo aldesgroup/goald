@@ -5,6 +5,8 @@ package goald
 
 import (
 	"reflect"
+	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -29,7 +31,7 @@ var boRegistry = &struct {
 	content map[string]*businessObjectEntry // all the business objects! mapped by the name
 	mx      sync.Mutex
 }{
-	content: make(map[string]*businessObjectEntry),
+	content: map[string]*businessObjectEntry{},
 }
 
 // registering happens in all the applicative packages, gence the public function
@@ -59,7 +61,7 @@ var classRegistry = struct {
 	classes map[string]IBusinessObjectClass
 	mx      sync.Mutex
 }{
-	classes: make(map[string]IBusinessObjectClass),
+	classes: map[string]IBusinessObjectClass{},
 }
 
 // registering happens in the "class" package, gence the public function
@@ -114,7 +116,7 @@ func registerEndpoint(ep iEndpoint) iEndpoint {
 }
 
 // ------------------------------------------------------------------------------------------------
-// DB registry - there shouldn't be concurrent writes on this, so not need for mutex
+// DB registry
 // ------------------------------------------------------------------------------------------------
 
 var dbRegistry = &struct {
@@ -154,4 +156,24 @@ func GetDB(dbID DatabaseID) *DB {
 	}
 
 	return db
+}
+
+// ------------------------------------------------------------------------------------------------
+// Data loaders
+// ------------------------------------------------------------------------------------------------
+
+var dataLoaderRegistry = &struct {
+	loaders map[string]dataLoader
+	mx      sync.Mutex
+}{
+	loaders: map[string]dataLoader{},
+}
+
+func RegisterDataLoader(fn dataLoader) {
+	fnName := runtime.FuncForPC(reflect.ValueOf(fn).Pointer()).Name()
+	fnName = fnName[strings.LastIndex(fnName, ".")+1:]
+	dataLoaderRegistry.mx.Lock()
+	utils.PanicIff(dataLoaderRegistry.loaders[fnName] != nil, "There's already a loader registered for name '%s'", fnName)
+	dataLoaderRegistry.loaders[fnName] = fn
+	dataLoaderRegistry.mx.Unlock()
 }

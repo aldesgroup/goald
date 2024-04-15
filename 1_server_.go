@@ -77,6 +77,9 @@ func NewServer() ServerContext {
 	// bit of logging // TODO remove
 	slog.Info(fmt.Sprintf("Instance: %s", server.instance))
 
+	// loading some data in parallel, if there are data loaders registered
+	server.loadData()
+
 	return server
 }
 

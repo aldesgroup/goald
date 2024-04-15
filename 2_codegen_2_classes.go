@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aldesgroup/goald/features/utils"
+	u "github.com/aldesgroup/goald/features/utils"
 )
 
 const classTEMPLATE = `// Generated file, do not edit!
@@ -75,18 +75,18 @@ func (thisServer *server) generateObjectClasses(srcdir string, regen bool) {
 	}
 
 	// where the class files will be generated
-	classDir := utils.EnsureDir(srcdir, classFOLDER)
+	classDir := u.EnsureDir(srcdir, classFOLDER)
 
 	// we'll gather all the existing class files
 	existingClassFiles := map[string]*classFile{}
 
 	// so, let's read the class folder
 	classEntries, errDir := os.ReadDir(classDir)
-	utils.PanicErrf(errDir, "Could not read the class folder")
+	u.PanicErrf(errDir, "Could not read the class folder")
 	for _, classEntry := range classEntries {
 		classEntryInfo, errInfo := classEntry.Info()
-		utils.PanicErrf(errInfo, "Could not read info for file '%s'", classEntry.Name())
-		classEntryName := utils.SnakeToPascal(classEntry.Name()[:len(classEntry.Name())-classFILExSUFFIXxLEN])
+		u.PanicErrf(errInfo, "Could not read info for file '%s'", classEntry.Name())
+		classEntryName := u.SnakeToPascal(classEntry.Name()[:len(classEntry.Name())-classFILExSUFFIXxLEN])
 		existingClassFiles[classEntryName] = &classFile{
 			modTime:  classEntryInfo.ModTime(),
 			filename: classEntry.Name(),
@@ -113,7 +113,7 @@ func (thisServer *server) generateObjectClasses(srcdir string, regen bool) {
 	for _, unneededClass := range existingClassFiles {
 		log.Println("removing " + unneededClass.filename)
 		if errRem := os.Remove(path.Join(classDir, unneededClass.filename)); errRem != nil {
-			utils.PanicErrf(errRem, "Could not delete class file '%s'", unneededClass.filename)
+			u.PanicErrf(errRem, "Could not delete class file '%s'", unneededClass.filename)
 		}
 	}
 }
@@ -136,7 +136,7 @@ func generateObjectClass(classDir string, bObjEntry *businessObjectEntry) {
 
 	// trivial filling of the template
 	content := strings.ReplaceAll(classTEMPLATE, "$$Upper$$", bObjEntry.name)
-	content = strings.ReplaceAll(content, "$$lower$$", utils.PascalToCamel(bObjEntry.name))
+	content = strings.ReplaceAll(content, "$$lower$$", u.PascalToCamel(bObjEntry.name))
 
 	// declaring the properties of the classe
 	content = strings.Replace(content, "$$propdecl$$", buildPropDecl(bObjEntry, context), 1)
@@ -148,7 +148,7 @@ func generateObjectClass(classDir string, bObjEntry *businessObjectEntry) {
 	content = strings.Replace(content, "$$accessors$$", buildAccessors(bObjEntry, context), 1)
 
 	// writing to file
-	utils.WriteToFile(content, classDir, utils.PascalToSnake(bObjEntry.name)+classFILExSUFFIX)
+	u.WriteToFile(content, classDir, u.PascalToSnake(bObjEntry.name)+classFILExSUFFIX)
 
 	log.Printf("(Re-)generated class %s", bObjEntry.name)
 }
@@ -157,7 +157,7 @@ func buildPropDecl(bObjEntry *businessObjectEntry, context *classGenContext) (re
 	// the very first property, field #0, MUST be the business object's super class
 	superClassField := bObjEntry.bObjType.Field(0)
 	if !superClassField.Anonymous || !reflect.PointerTo(superClassField.Type).Implements(typeIxBUSINESSxOBJECT) {
-		utils.Panicf("%s: this object's first property should be the BO it inherits from, i.e."+
+		u.Panicf("%s: this object's first property should be the BO it inherits from, i.e."+
 			"goald.BusinessObject, or one of its descendants", bObjEntry.name)
 	}
 
@@ -166,7 +166,7 @@ func buildPropDecl(bObjEntry *businessObjectEntry, context *classGenContext) (re
 	} else if context.superType == typeURLxQUERYxOBJECT {
 		result += "g.IURLQueryParamsClass"
 	} else {
-		result += "" + utils.PascalToCamel(superClassField.Type.Name()) + classNAMExSUFFIX
+		result += "" + u.PascalToCamel(superClassField.Type.Name()) + classNAMExSUFFIX
 	}
 
 	// browsing the entity's properties
@@ -183,19 +183,16 @@ func buildPropDecl(bObjEntry *businessObjectEntry, context *classGenContext) (re
 
 			targetType := ""                          // makes no sense for BO fields...
 			if propType == PropertyTypeRELATIONSHIP { // ... but it does for relationships
-				entityType := field.Type
-				if multiple {
-					entityType = field.Type.Elem()
-				}
+				entityType := u.IfThenElse(multiple, field.Type.Elem(), field.Type)
 				targetType = entityType.Elem().Name()
 			}
 
 			context.propertiesMap[field.Name] = &classGenPropertyInfo{propType, multiple, targetType}
 
 			if propType == PropertyTypeRELATIONSHIP {
-				result += newline + "" + utils.PascalToCamel(field.Name) + " *g.Relationship"
+				result += newline + "" + u.PascalToCamel(field.Name) + " *g.Relationship"
 			} else {
-				result += newline + "" + utils.PascalToCamel(field.Name) + " *g." + getFieldForType(propType)
+				result += newline + "" + u.PascalToCamel(field.Name) + " *g." + getFieldForType(propType)
 			}
 		}
 	}
@@ -228,7 +225,7 @@ func getFieldForType(propType PropertyType) string {
 
 func buildPropInit(bObjEntry *businessObjectEntry, context *classGenContext) string {
 	// the class as a variable
-	className_ := utils.PascalToCamel(bObjEntry.name)
+	className_ := u.PascalToCamel(bObjEntry.name)
 
 	// dealing with the class initialisation
 	classInit := "newClass := &" + className_ + classNAMExSUFFIX + "{%s: %s}"
@@ -238,7 +235,7 @@ func buildPropInit(bObjEntry *businessObjectEntry, context *classGenContext) str
 		superClassDecl = "IURLQueryParamsClass"
 		superClassValue = "g.NewURLQueryParamsClass()"
 	} else if context.superType != typeBUSINESSxOBJECT {
-		superClassDecl = utils.PascalToCamel(context.superType.Name()) + classNAMExSUFFIX
+		superClassDecl = u.PascalToCamel(context.superType.Name()) + classNAMExSUFFIX
 		superClassValue = "*new" + context.superType.Name() + "Class()"
 	}
 	classInit = fmt.Sprintf(classInit, superClassDecl, superClassValue)
@@ -249,7 +246,7 @@ func buildPropInit(bObjEntry *businessObjectEntry, context *classGenContext) str
 	// valueing each class property
 	for _, propName := range context.propertyNames {
 		propInfo := context.propertiesMap[propName]
-		propLine := "newClass." + utils.PascalToCamel(propName) + " = "
+		propLine := "newClass." + u.PascalToCamel(propName) + " = "
 
 		multiple := "false"
 		if propInfo.multiple {
@@ -258,7 +255,7 @@ func buildPropInit(bObjEntry *businessObjectEntry, context *classGenContext) str
 
 		if propInfo.propType == PropertyTypeRELATIONSHIP {
 			propLine += fmt.Sprintf("g.NewRelationship(%s, \"%s\", %s, %s)",
-				"newClass", propName, multiple, utils.PascalToCamel(propInfo.targetType))
+				"newClass", propName, multiple, u.PascalToCamel(propInfo.targetType))
 		} else {
 			propLine += fmt.Sprintf("g.New%s(%s, \"%s\", %s)",
 				getFieldForType(propInfo.propType), "newClass", propName, multiple)
@@ -277,7 +274,7 @@ func buildAccessors(bObjEntry *businessObjectEntry, context *classGenContext) st
 	// generating 1 accessor per
 	for _, propName := range context.propertyNames {
 		propInfo := context.propertiesMap[propName]
-		owner := utils.PascalToCamel(bObjEntry.name)
+		owner := u.PascalToCamel(bObjEntry.name)
 		ownerShort := owner[:1]
 		accType := getFieldForType(propInfo.propType)
 		if propInfo.propType == PropertyTypeRELATIONSHIP {
@@ -287,7 +284,7 @@ func buildAccessors(bObjEntry *businessObjectEntry, context *classGenContext) st
 			newline+"return %s.%s"+
 			newline+"}",
 			ownerShort, owner, propName, accType,
-			ownerShort, utils.PascalToCamel(propName),
+			ownerShort, u.PascalToCamel(propName),
 		)
 
 		// func (p *projectClass) Name() *g.Field {

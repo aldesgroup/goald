@@ -4,6 +4,7 @@ import (
 	"time"
 
 	g "github.com/aldesgroup/goald"
+	"github.com/aldesgroup/goald/_generated/class"
 	"github.com/aldesgroup/goald/features/other/nested"
 )
 
@@ -19,4 +20,8 @@ type TestObject struct {
 	DateProp      *time.Time
 	ListEnumProp  []Language
 	OtherEnumProp nested.Origin
+}
+
+func init() {
+	class.TestObject().SetNotPersisted()
 }

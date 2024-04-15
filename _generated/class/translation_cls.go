@@ -10,12 +10,11 @@ import (
 // static, reflect-free access to the definition of the Translation class
 type translationClass struct {
 	g.IBusinessObjectClass
-	lang    *g.EnumField
-	langStr *g.StringField
-	route   *g.StringField
-	part    *g.StringField
-	key     *g.StringField
-	value   *g.StringField
+	lang  *g.StringField
+	route *g.StringField
+	part  *g.StringField
+	key   *g.StringField
+	value *g.StringField
 }
 
 // this is the main way to refer to the Translation class in the applicative code
@@ -32,8 +31,7 @@ var (
 // fully describing each of this class' properties & relationships
 func newTranslationClass() *translationClass {
 	newClass := &translationClass{IBusinessObjectClass: g.NewClass()}
-	newClass.lang = g.NewEnumField(newClass, "Lang", false)
-	newClass.langStr = g.NewStringField(newClass, "LangStr", false)
+	newClass.lang = g.NewStringField(newClass, "Lang", false)
 	newClass.route = g.NewStringField(newClass, "Route", false)
 	newClass.part = g.NewStringField(newClass, "Part", false)
 	newClass.key = g.NewStringField(newClass, "Key", false)
@@ -54,12 +52,8 @@ func init() {
 
 // accessing all the Translation class' properties and relationships
 
-func (t *translationClass) Lang() *g.EnumField {
+func (t *translationClass) Lang() *g.StringField {
 	return t.lang
-}
-
-func (t *translationClass) LangStr() *g.StringField {
-	return t.langStr
 }
 
 func (t *translationClass) Route() *g.StringField {

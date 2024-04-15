@@ -7,14 +7,13 @@ import (
 
 type Translation struct {
 	goald.BusinessObject
-	Lang    Language
-	LangStr string
-	Route   string
-	Part    string
-	Key     string
-	Value   string
+	Lang  string `json:"-"`
+	Route string
+	Part  string
+	Key   string
+	Value string
 }
 
-func init() {
+func init() { //
 	class.Translation().SetNotPersisted()
 }

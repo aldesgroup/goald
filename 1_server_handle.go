@@ -10,7 +10,6 @@ import (
 	"log"
 	"net/http"
 	"reflect"
-	"strings"
 
 	"github.com/aldesgroup/goald/features/hstatus"
 	r "github.com/julienschmidt/httprouter"
@@ -203,58 +202,14 @@ func retrieveInputData(request *http.Request, webContext *webContextImpl, ep iEn
 }
 
 // parsing the request's URL to build the expected URLQueryParams object
-func retrieveURLParams(request *http.Request, webContext *webContextImpl, ep iEndpoint) (any, error) {
+func retrieveURLParams(request *http.Request, _ *webContextImpl, ep iEndpoint) (any, error) {
+	// new URLQueryParams object
 	urlParams := reflect.New(ep.getInputOrParamsType()).Interface().(IURLQueryParams)
 
+	// transferring the URL param values from the URL to the object
 	for _, field := range ClassForName(ep.getInputOrParamsName()).base().fields {
 		urlParams.SetValueAsString(field.getName(), request.URL.Query().Get(field.getName()))
 	}
 
-	values := []string{}
-	for _, field := range ClassForName(ep.getInputOrParamsName()).base().fields {
-		values = append(values, fmt.Sprintf("%s = %s", field.getName(), urlParams.GetValueAsString(field.getName())))
-	}
-
-	return nil, Error("stopping here: " + strings.Join(values, " / "))
-
-	// if len(operation.QueryParams) > 0 {
-	// 	for _, queryParam := range operation.QueryParams {
-	// 		stringParamValue := url.Query().Get(queryParam.Name)
-	// 		if stringParamValue == "" && queryParam.Mandatory {
-	// 			return NewErr("Query parameter '%s' is expected in the URL!", queryParam.Name)
-	// 		}
-
-	// 		if stringParamValue == "" && queryParam.ParamType != PropertyTypeSTRING {
-	// 			stringParamValue = "0" // default value for booleans, integers and real numbers
-	// 		}
-
-	// 		switch queryParam.ParamType {
-	// 		case PropertyTypeBOOL:
-	// 			boolValue, errParse := strconv.ParseBool(stringParamValue)
-	// 			if errParse != nil {
-	// 				return NewErrC(errParse, "Value '%s' is not a valid boolean for query parameter '%s'", stringParamValue, queryParam.Name)
-	// 			}
-
-	// 			wsContext.setQueryParam(queryParam.Name, boolValue)
-	// 		case PropertyTypeINT:
-	// 			intValue, errParse := strconv.Atoi(stringParamValue)
-	// 			if errParse != nil {
-	// 				return NewErrC(errParse, "Value '%s' is not a valid integer for query parameter '%s'", stringParamValue, queryParam.Name)
-	// 			}
-
-	// 			wsContext.setQueryParam(queryParam.Name, intValue)
-	// 		case PropertyTypeREAL64:
-	// 			realValue, errParse := strconv.ParseFloat(stringParamValue, 64)
-	// 			if errParse != nil {
-	// 				return NewErrC(errParse, "Value '%s' is not a valid real number for query parameter '%s'", stringParamValue, queryParam.Name)
-	// 			}
-
-	// 			wsContext.setQueryParam(queryParam.Name, realValue)
-	// 		default:
-	// 			wsContext.setQueryParam(queryParam.Name, stringParamValue)
-	// 		}
-	// 	}
-	// }
-
-	// return nil
+	return urlParams, nil
 }
