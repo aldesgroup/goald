@@ -53,7 +53,7 @@ func (thisServer *server) generateObjectRegistry(srcdir, currentPath string, _ b
 						utils.Panicf("The business object's name should be the file name Pascal-cased, i.e. we should have: "+
 							"%s in file %s, "+
 							"or %s in file %s",
-							expected,
+							bObjEntry.name, expected,
 							utils.KebabToPascal(strings.Replace(entry.Name(), sourceFILExSUFFIX, "", 1)), entry.Name(),
 						)
 					}

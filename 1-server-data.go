@@ -29,16 +29,16 @@ func (thisServer *server) loadData() {
 	// launching all the registred data loaders in parallel!
 	for fnName, dataLoadingFn := range dataLoaderRegistry.loaders {
 		wg.Add(1)
-		go func() {
+		go func(fnNameArg string, dataLoadingFnArg dataLoader) {
 			defer wg.Done()
-			defer RecoverError("Error while running data loader '%s'", fnName)
+			defer RecoverError("Error while running data loader '%s'", fnNameArg)
 
-			if errLoad := dataLoadingFn(thisServer, thisServer.config.commonPart().DataLoaders[fnName]); errLoad != nil {
+			if errLoad := dataLoadingFnArg(thisServer, thisServer.config.commonPart().DataLoaders[fnNameArg]); errLoad != nil {
 				errorMx.Lock()
-				errors[fnName] = errLoad
+				errors[fnNameArg] = errLoad
 				errorMx.Unlock()
 			}
-		}()
+		}(fnName, dataLoadingFn)
 	}
 
 	// waiting for the last loader to finish

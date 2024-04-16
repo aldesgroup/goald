@@ -48,7 +48,7 @@ type response struct {
 	Message    string       `json:"Message"`
 }
 
-func errResp(status int, str string, params ...any) *response {
+func errResp(_ int, _ string, _ ...any) *response {
 	return &response{}
 }
 

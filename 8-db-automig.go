@@ -114,8 +114,6 @@ func createMissingTables(db *DB, existingClasses map[string]IBusinessObjectClass
 	// 		}
 	// 	}
 	// }
-
-	return
 }
 
 // createMissingTable creates the missing table corresponding to the given BO class

@@ -12,7 +12,7 @@ import (
 
 var mockDatabase map[string]IBusinessObject = map[string]IBusinessObject{}
 
-func dbInsert(daoCtx DaoContext, bObj IBusinessObject) error {
+func dbInsert(_ DaoContext, bObj IBusinessObject) error {
 	uuid, errUuid := uuid.NewRandom()
 	if errUuid != nil {
 		return ErrorC(errUuid, "could not generate a new UUID")
@@ -26,7 +26,7 @@ func dbInsert(daoCtx DaoContext, bObj IBusinessObject) error {
 	return nil
 }
 
-func dbLoadList(daoCtx DaoContext, boClass IBusinessObjectClass) (result []IBusinessObject, err error) {
+func dbLoadList(_ DaoContext, boClass IBusinessObjectClass) (result []IBusinessObject, err error) {
 	for _, bObj := range mockDatabase {
 		if boClass == bObj.Class() {
 			result = append(result, bObj)
@@ -36,7 +36,7 @@ func dbLoadList(daoCtx DaoContext, boClass IBusinessObjectClass) (result []IBusi
 	return
 }
 
-func dbLoadOne(daoCtx DaoContext, idProp IField, idPropVal string) (result IBusinessObject, err error) {
+func dbLoadOne(_ DaoContext, idProp IField, idPropVal string) (result IBusinessObject, err error) {
 	for _, bObj := range mockDatabase {
 		if idProp.ownerClass() == bObj.Class() && idPropVal == idProp.StringValue(bObj) {
 			return bObj, nil
@@ -46,7 +46,7 @@ func dbLoadOne(daoCtx DaoContext, idProp IField, idPropVal string) (result IBusi
 	return nil, Error("No '%s' found with '%s = %s'", idProp.ownerClass().base().className, idProp.getName(), idPropVal)
 }
 
-func dbRemoveOne(daoCtx DaoContext, idProp IField, idPropVal string) (result IBusinessObject, err error) {
+func dbRemoveOne(_ DaoContext, idProp IField, idPropVal string) (result IBusinessObject, err error) {
 	for _, bObj := range mockDatabase {
 		if idProp.ownerClass() == bObj.Class() && idPropVal == idProp.StringValue(bObj) {
 			delete(mockDatabase, string(bObj.GetID()))
@@ -57,7 +57,7 @@ func dbRemoveOne(daoCtx DaoContext, idProp IField, idPropVal string) (result IBu
 	return nil, Error("No '%s' found with '%s = %s'", idProp.ownerClass().base().className, idProp.getName(), idPropVal)
 }
 
-func dbUpdate(daoCtx DaoContext, input IBusinessObject) error {
+func dbUpdate(_ DaoContext, input IBusinessObject) error {
 	instore := mockDatabase[string(input.GetID())]
 	if instore == nil {
 		return Error("No object exists with ID %s", input.GetID())
