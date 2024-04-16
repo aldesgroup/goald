@@ -26,7 +26,7 @@ func $$DbID$$() *g.DB {
 `
 
 const dbFOLDER = "_generated/db"
-const dbFILE = "db_list.go"
+const dbFILE = "db-list.go"
 
 func (thisServer *server) generateDatabasesList(srcdir string) {
 	start := time.Now()

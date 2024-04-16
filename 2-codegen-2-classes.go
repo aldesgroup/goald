@@ -62,7 +62,7 @@ $$accessors$$
 `
 
 const classFOLDER = "_generated/class"
-const classFILExSUFFIX = "_cls.go"
+const classFILExSUFFIX = "-cls.go"
 const classFILExSUFFIXxLEN = len(classFILExSUFFIX)
 const classNAMExSUFFIX = "Class"
 const newline = "\n"
@@ -86,7 +86,7 @@ func (thisServer *server) generateObjectClasses(srcdir string, regen bool) {
 	for _, classEntry := range classEntries {
 		classEntryInfo, errInfo := classEntry.Info()
 		u.PanicErrf(errInfo, "Could not read info for file '%s'", classEntry.Name())
-		classEntryName := u.SnakeToPascal(classEntry.Name()[:len(classEntry.Name())-classFILExSUFFIXxLEN])
+		classEntryName := u.KebabToPascal(classEntry.Name()[:len(classEntry.Name())-classFILExSUFFIXxLEN])
 		existingClassFiles[classEntryName] = &classFile{
 			modTime:  classEntryInfo.ModTime(),
 			filename: classEntry.Name(),
@@ -148,7 +148,7 @@ func generateObjectClass(classDir string, bObjEntry *businessObjectEntry) {
 	content = strings.Replace(content, "$$accessors$$", buildAccessors(bObjEntry, context), 1)
 
 	// writing to file
-	u.WriteToFile(content, classDir, u.PascalToSnake(bObjEntry.name)+classFILExSUFFIX)
+	u.WriteToFile(content, classDir, u.PascalToKebab(bObjEntry.name)+classFILExSUFFIX)
 
 	log.Printf("(Re-)generated class %s", bObjEntry.name)
 }
@@ -225,10 +225,10 @@ func getFieldForType(propType PropertyType) string {
 
 func buildPropInit(bObjEntry *businessObjectEntry, context *classGenContext) string {
 	// the class as a variable
-	className_ := u.PascalToCamel(bObjEntry.name)
+	className := u.PascalToCamel(bObjEntry.name)
 
 	// dealing with the class initialisation
-	classInit := "newClass := &" + className_ + classNAMExSUFFIX + "{%s: %s}"
+	classInit := "newClass := &" + className + classNAMExSUFFIX + "{%s: %s}"
 	superClassDecl := "IBusinessObjectClass"
 	superClassValue := "g.NewClass()"
 	if context.superType == typeURLxQUERYxOBJECT {

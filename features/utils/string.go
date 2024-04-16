@@ -11,8 +11,8 @@ import (
 // Strings
 // ------------------------------------------------------------------------------------------------
 
-// PascalToSnake converts a PascalCase string to snake_case.
-func PascalToSnake(s string) string {
+// pascalToSeparated converts a PascalCase string to seperated case like kebab-case or snake_case
+func pascalToSeparated(s string, sep rune) string {
 	if s == "" {
 		return s
 	}
@@ -22,7 +22,7 @@ func PascalToSnake(s string) string {
 	for i, r := range s {
 		if unicode.IsUpper(r) {
 			if i > 0 && i+1 < len(s) && unicode.IsLower(rune(s[i+1])) {
-				buffer.WriteRune('_')
+				buffer.WriteRune(sep)
 			}
 			buffer.WriteRune(unicode.ToLower(r))
 		} else {
@@ -33,11 +33,21 @@ func PascalToSnake(s string) string {
 	return buffer.String()
 }
 
-// SnakeToPascal converts a snake_case string to PascalCase
-func SnakeToPascal(s string) string {
+// PascalToKebab converts a PascalCase string to kebab-case.
+func PascalToKebab(s string) string {
+	return pascalToSeparated(s, '-')
+}
+
+// PascalToSnake converts a PascalCase string to snake_case.
+func PascalToSnake(s string) string {
+	return pascalToSeparated(s, '_')
+}
+
+// separatedToPascal converts a separated case string to PascalCase
+func separatedToPascal(s string, sep string) string {
 	words := []string{}
 
-	for _, word := range strings.Split(s, "_") {
+	for _, word := range strings.Split(s, sep) {
 		if len(word) > 0 {
 			// Capitalize the first letter of each word manually.
 			words = append(words, strings.ToUpper(word[:1])+word[1:])
@@ -45,6 +55,11 @@ func SnakeToPascal(s string) string {
 	}
 
 	return strings.Join(words, "")
+}
+
+// KebabToPascal converts a kebab-case string to PascalCase
+func KebabToPascal(s string) string {
+	return separatedToPascal(s, "-")
 }
 
 // PascalToCamel converts a PascalCase string to camelCase.

@@ -18,8 +18,8 @@ import (
 	"github.com/aldesgroup/goald/features/utils"
 )
 
-const sourceFILExSUFFIX = "__.go"
-const sourceREGISTRYxNAME = "0_registry.go"
+const sourceFILExSUFFIX = "--.go"
+const sourceREGISTRYxNAME = "0-registry.go"
 
 // TODO to have only 1 file, we need to handle the imports, which can be tedious, in particular with nested packages
 
@@ -49,12 +49,12 @@ func (thisServer *server) generateObjectRegistry(srcdir, currentPath string, _ b
 				// getting the business object entry for the egustry, from the current file
 				if bObjEntry := getEntryFromFile(srcdir, currentPath, entry.Name()); bObjEntry != nil {
 					// checking the biz obj / file naming
-					if utils.PascalToSnake(bObjEntry.name)+sourceFILExSUFFIX != entry.Name() {
+					if expected := utils.PascalToKebab(bObjEntry.name) + sourceFILExSUFFIX; expected != entry.Name() {
 						utils.Panicf("The business object's name should be the file name Pascal-cased, i.e. we should have: "+
 							"%s in file %s, "+
 							"or %s in file %s",
-							bObjEntry.name, utils.PascalToSnake(bObjEntry.name)+sourceFILExSUFFIX,
-							utils.SnakeToPascal(strings.Replace(entry.Name(), sourceFILExSUFFIX, "", 1)), entry.Name(),
+							expected,
+							utils.KebabToPascal(strings.Replace(entry.Name(), sourceFILExSUFFIX, "", 1)), entry.Name(),
 						)
 					}
 

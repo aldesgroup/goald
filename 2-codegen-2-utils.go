@@ -38,7 +38,7 @@ $$setcases$$
 }
 `
 
-const utilsFILExSUFFIX = "__utils.go"
+const utilsFILExSUFFIX = "--utils.go"
 
 func (thisServer *server) generateObjectUtils(srcdir, currentPath string, regen bool) {
 	// the path we're currently reading at e.g. go/pkg1/pkg2
@@ -64,7 +64,7 @@ func (thisServer *server) generateObjectUtils(srcdir, currentPath string, regen 
 				bObjEntry := boRegistry.content[bObjEntryFile.name]
 
 				// the corresponding utils file, if it exist
-				utilsFilename := strings.Replace(entry.Name(), "__.go", utilsFILExSUFFIX, 1)
+				utilsFilename := strings.Replace(entry.Name(), sourceFILExSUFFIX, utilsFILExSUFFIX, 1)
 
 				// generating the utils file, if not existing yet, or too old
 				if regen || !utils.FileExists(utilsFilename) || utils.EnsureModTime(utilsFilename).Before(bObjEntry.lastMod) {
