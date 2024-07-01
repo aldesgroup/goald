@@ -14,23 +14,23 @@ import (
 func (thisServer *server) runCodeChecks() {
 	start := time.Now()
 
-	for className, boClass := range getAllClasses() {
-		thisServer.checkClass(className, boClass)
+	for clsName, boClass := range getAllClasses() {
+		thisServer.checkClass(clsName, boClass)
 	}
 
 	log.Printf("done checking the code in %s", time.Since(start))
 }
 
-func (thisServer *server) checkClass(className string, boClass IBusinessObjectClass) {
+func (thisServer *server) checkClass(clsName className, boClass IBusinessObjectClass) {
 	nbChildToParentRelationships := 0
 
 	// class-level controls
-	if className != utils.ToPascal(className) {
-		utils.Panicf("The class name '%s' should be pascal-cased, i.e. %s", className, utils.ToPascal(className))
+	if string(clsName) != utils.ToPascal(string(clsName)) {
+		utils.Panicf("The class name '%s' should be pascal-cased, i.e. %s", clsName, utils.ToPascal(string(clsName)))
 	}
 
 	if boClass.base().isPersisted() && boClass.GetInDB() == nil {
-		utils.Panicf("Class '%s' should be SetNotPersisted, or associated with a DB", className)
+		utils.Panicf("Class '%s' should be SetNotPersisted, or associated with a DB", clsName)
 	}
 
 	// checks for the persistency requirements
@@ -41,7 +41,7 @@ func (thisServer *server) checkClass(className string, boClass IBusinessObjectCl
 			switch field := field.(type) {
 			case *StringField:
 				if field.name != "ID" && field.size == 0 {
-					utils.Panicf("Field '%s.%s' should have a max size set", className, field.name)
+					utils.Panicf("Field '%s.%s' should have a max size set", clsName, field.name)
 				}
 			}
 		}
@@ -50,7 +50,7 @@ func (thisServer *server) checkClass(className string, boClass IBusinessObjectCl
 		for _, relationship := range boClass.base().relationships {
 			if relationship.relationType == 0 {
 				utils.Panicf("Relationship '%s.%s' should have a defined type, with SetChildToParent(), "+
-					"SetSourceToTarget() or SetOneWay()", className, relationship.name)
+					"SetSourceToTarget() or SetOneWay()", clsName, relationship.name)
 			}
 
 			if relationship.relationType == relationshipTypeCHILDxTOxPARENT {
@@ -58,12 +58,12 @@ func (thisServer *server) checkClass(className string, boClass IBusinessObjectCl
 			}
 
 			if nbChildToParentRelationships > 1 {
-				utils.Panicf("There cannot be more than one child to parent relationship in '%s'", className)
+				utils.Panicf("There cannot be more than one child to parent relationship in '%s'", clsName)
 			}
 
 			if relationship.relationType == relationshipTypePARENTxTOxCHILDREN && !relationship.multiple {
 				utils.Panicf("We do not handle 1-1 child-parent relationship for now. "+
-					"Please re-design relationship '%s.%s'", className, relationship.name)
+					"Please re-design relationship '%s.%s'", clsName, relationship.name)
 			}
 		}
 	}

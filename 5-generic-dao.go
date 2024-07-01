@@ -5,8 +5,6 @@
 package goald
 
 import (
-	"reflect"
-
 	"github.com/google/uuid"
 )
 
@@ -19,7 +17,6 @@ func dbInsert(_ DaoContext, bObj IBusinessObject) error {
 	}
 
 	bObj.setID(uuid.String())
-	bObj.setClassName(reflect.TypeOf(bObj).Elem().Name())
 
 	mockDatabase[string(bObj.GetID())] = bObj
 
@@ -38,23 +35,23 @@ func dbLoadList(_ DaoContext, boClass IBusinessObjectClass) (result []IBusinessO
 
 func dbLoadOne(_ DaoContext, idProp IField, idPropVal string) (result IBusinessObject, err error) {
 	for _, bObj := range mockDatabase {
-		if idProp.ownerClass() == bObj.Class() && idPropVal == idProp.StringValue(bObj) {
+		if idProp.ownerClass() == bObj.Class() && idPropVal == bObj.GetValueAsString(idPropVal) {
 			return bObj, nil
 		}
 	}
 
-	return nil, Error("No '%s' found with '%s = %s'", idProp.ownerClass().base().className, idProp.getName(), idPropVal)
+	return nil, Error("No '%s' found with '%s = %s'", idProp.ownerClass().base().name, idProp.getName(), idPropVal)
 }
 
 func dbRemoveOne(_ DaoContext, idProp IField, idPropVal string) (result IBusinessObject, err error) {
 	for _, bObj := range mockDatabase {
-		if idProp.ownerClass() == bObj.Class() && idPropVal == idProp.StringValue(bObj) {
+		if idProp.ownerClass() == bObj.Class() && idPropVal == bObj.GetValueAsString(idPropVal) {
 			delete(mockDatabase, string(bObj.GetID()))
 			return bObj, nil
 		}
 	}
 
-	return nil, Error("No '%s' found with '%s = %s'", idProp.ownerClass().base().className, idProp.getName(), idPropVal)
+	return nil, Error("No '%s' found with '%s = %s'", idProp.ownerClass().base().name, idProp.getName(), idPropVal)
 }
 
 func dbUpdate(_ DaoContext, input IBusinessObject) error {

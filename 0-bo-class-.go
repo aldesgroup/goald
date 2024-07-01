@@ -4,8 +4,6 @@
 package goald
 
 import (
-	"reflect"
-
 	"github.com/aldesgroup/goald/features/utils"
 )
 
@@ -34,13 +32,15 @@ type IBusinessObjectClass interface {
 	addField(field IField) IField
 }
 
+type className string
+
 type businessObjectClass struct {
-	className               string                    // this class' name
+	name                    className                 // this class' name
 	fields                  map[string]IField         // the objet's simple properties
 	relationships           map[string]*Relationship  // the relationships to other classes
 	inDB                    *DB                       // the associated DB, if any
 	inNoDB                  bool                      // if true, then no associated DB
-	tableName               string                    // if persisted, the name of the corresponding DB table
+	tableName               string                    // if persisted, the name of the corresponding DB table - should be the same as the class name most of the time
 	persistedProperties     []iBusinessObjectProperty // all the properties - fields or relationships - persisted on this class
 	relationshipsWithColumn []*Relationship           // all the relationships for which this class has a column in its table
 	idField                 IField                    // accessor to the ID field
@@ -87,7 +87,7 @@ func (boClass *businessObjectClass) ID() IField {
 
 func (boClass *businessObjectClass) getTableName() string {
 	if boClass.tableName == "" {
-		boClass.tableName = utils.PascalToSnake(boClass.className)
+		boClass.tableName = utils.PascalToSnake(string(boClass.name))
 	}
 
 	return boClass.tableName
@@ -110,39 +110,54 @@ type iBusinessObjectProperty interface {
 	ownerClass() IBusinessObjectClass
 	setOwner(IBusinessObjectClass)
 	getName() string
+	getTypeFamily() utils.TypeFamily
+	isMultiple() bool
 	getColumnName() string
+	isMandatory() bool
 }
 
-type BusinessObjectProperty struct {
+type businessObjectProperty struct {
 	owner      IBusinessObjectClass // the property's owner class
 	name       string               // the property's name, as declared in the struct
-	pType      PropertyType         // the property's type, as detected by the codegen phase
+	typeFamily utils.TypeFamily     // the property's type, as detected by the codegen phase
 	multiple   bool                 // the property's multiplicity; false = 1, true = N
 	columnName string               // if this property - field or relationship - is persisted on the owner's table
 	mandatory  bool                 // if true, then this property's value must be non-zero
 }
 
-func (prop *BusinessObjectProperty) ownerClass() IBusinessObjectClass {
+func (prop *businessObjectProperty) ownerClass() IBusinessObjectClass {
 	return prop.owner
 }
 
-func (prop *BusinessObjectProperty) setOwner(owner IBusinessObjectClass) {
+func (prop *businessObjectProperty) setOwner(owner IBusinessObjectClass) {
 	prop.owner = owner
 }
 
-func (prop *BusinessObjectProperty) getName() string {
+func (prop *businessObjectProperty) getName() string {
 	return prop.name
 }
 
-func (prop *BusinessObjectProperty) getColumnName() string {
+func (prop *businessObjectProperty) getTypeFamily() utils.TypeFamily {
+	return prop.typeFamily
+}
+
+func (prop *businessObjectProperty) getColumnName() string {
 	if prop.columnName == "" {
 		prop.columnName = utils.PascalToSnake(prop.name)
-		if prop.pType == PropertyTypeRELATIONSHIP {
+		if prop.typeFamily == utils.TypeFamilyRELATIONSHIP {
 			prop.columnName += "_id"
 		}
 	}
 
 	return prop.columnName
+}
+
+func (prop *businessObjectProperty) isMultiple() bool {
+	return prop.multiple
+}
+
+func (prop *businessObjectProperty) isMandatory() bool {
+	return prop.mandatory
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -151,21 +166,21 @@ func (prop *BusinessObjectProperty) getColumnName() string {
 
 type IField interface {
 	iBusinessObjectProperty
-	StringValue(IBusinessObject) string
+	isBuiltIn() bool
 }
 
 // base implementation
 type field struct {
-	BusinessObjectProperty
+	businessObjectProperty
 }
 
-func newField(owner IBusinessObjectClass, name string, multiple bool, pType PropertyType) field {
+func newField(owner IBusinessObjectClass, name string, multiple bool, typeFamily utils.TypeFamily) field {
 	return field{
-		BusinessObjectProperty: BusinessObjectProperty{
-			owner:    owner,
-			name:     name,
-			pType:    pType,
-			multiple: multiple,
+		businessObjectProperty: businessObjectProperty{
+			owner:      owner,
+			name:       name,
+			typeFamily: typeFamily,
+			multiple:   multiple,
 		},
 	}
 }
@@ -175,9 +190,13 @@ func (f *field) SetMandatory() *field {
 	return f
 }
 
-func (f *field) StringValue(bObj IBusinessObject) string {
-	// TODO we shall do better without reflect
-	return reflect.ValueOf(bObj).Elem().FieldByName(f.name).String()
+//	func (f *field) SetAlias(alias string) *field {
+//		f.mandatory = true
+//		return f
+//	}
+
+func (f *field) isBuiltIn() bool {
+	return false
 }
 
 type BoolField struct {
@@ -198,11 +217,17 @@ type IntField struct {
 	field
 }
 
-type Int64Field struct {
+type BigIntField struct {
 	field
 }
 
-type realField struct {
+type RealField struct {
+	field
+	// digits   int // number of digits before the decimal points, e.g. 4 in 9876.06
+	// decimals int // number of digits after the decimal points, e.g. 2 in 9876.06
+}
+
+type DoubleField struct {
 	field
 	// digits   int // number of digits before the decimal points, e.g. 4 in 9876.06
 	// decimals int // number of digits after the decimal points, e.g. 2 in 9876.06
@@ -214,14 +239,6 @@ type realField struct {
 // 	return rf
 // }
 
-type Real32Field struct {
-	realField
-}
-
-type Real64Field struct {
-	realField
-}
-
 type DateField struct {
 	field
 }
@@ -232,49 +249,48 @@ type EnumField struct {
 
 func NewBoolField(owner IBusinessObjectClass, name string, multiple bool) *BoolField {
 	return owner.addField(&BoolField{
-		field: newField(owner, name, multiple, PropertyTypeBOOL),
+		field: newField(owner, name, multiple, utils.TypeFamilyBOOL),
 	}).(*BoolField)
 }
 
 func NewStringField(owner IBusinessObjectClass, name string, multiple bool) *StringField {
 	return owner.addField(&StringField{
-		field: newField(owner, name, multiple, PropertyTypeSTRING),
+		field: newField(owner, name, multiple, utils.TypeFamilySTRING),
 	}).(*StringField)
 }
 
 func NewIntField(owner IBusinessObjectClass, name string, multiple bool) *IntField {
 	return owner.addField(&IntField{
-		field: newField(owner, name, multiple, PropertyTypeINT),
+		field: newField(owner, name, multiple, utils.TypeFamilyINT),
 	}).(*IntField)
 }
 
-func NewInt64Field(owner IBusinessObjectClass, name string, multiple bool) *Int64Field {
-	return owner.addField(&Int64Field{
-		field: newField(owner, name, multiple, PropertyTypeINT64),
-	}).(*Int64Field)
+func NewBigIntField(owner IBusinessObjectClass, name string, multiple bool) *BigIntField {
+	return owner.addField(&BigIntField{
+		field: newField(owner, name, multiple, utils.TypeFamilyBIGINT),
+	}).(*BigIntField)
 }
 
-func NewReal32Field(owner IBusinessObjectClass, name string, multiple bool) *Real32Field {
-	return owner.addField(&Real32Field{
-		realField: realField{field: newField(owner, name, multiple, PropertyTypeREAL32)},
-	}).(*Real32Field)
+func NewRealField(owner IBusinessObjectClass, name string, multiple bool) *RealField {
+	return owner.addField(&RealField{
+		field: newField(owner, name, multiple, utils.TypeFamilyREAL),
+	}).(*RealField)
 }
-
-func NewReal64Field(owner IBusinessObjectClass, name string, multiple bool) *Real64Field {
-	return owner.addField(&Real64Field{
-		realField: realField{field: newField(owner, name, multiple, PropertyTypeREAL64)},
-	}).(*Real64Field)
+func NewDoubleField(owner IBusinessObjectClass, name string, multiple bool) *DoubleField {
+	return owner.addField(&DoubleField{
+		field: newField(owner, name, multiple, utils.TypeFamilyDOUBLE),
+	}).(*DoubleField)
 }
 
 func NewDateField(owner IBusinessObjectClass, name string, multiple bool) *DateField {
 	return owner.addField(&DateField{
-		field: newField(owner, name, multiple, PropertyTypeDATE),
+		field: newField(owner, name, multiple, utils.TypeFamilyDATE),
 	}).(*DateField)
 }
 
 func NewEnumField(owner IBusinessObjectClass, name string, multiple bool) *EnumField {
 	return owner.addField(&EnumField{
-		field: newField(owner, name, multiple, PropertyTypeENUM),
+		field: newField(owner, name, multiple, utils.TypeFamilyENUM),
 	}).(*EnumField)
 }
 
@@ -304,7 +320,7 @@ const (
 )
 
 type Relationship struct {
-	BusinessObjectProperty
+	businessObjectProperty
 	target       IBusinessObjectClass // the type of BO pointed by this relationship
 	relationType relationshipType     // valued from the business object's init
 	backRef      *Relationship        // valued from the business object's init
@@ -313,7 +329,7 @@ type Relationship struct {
 // Allows to declare a new relationship on a given class
 func NewRelationship(owner IBusinessObjectClass, name string, multiple bool, target IBusinessObjectClass) *Relationship {
 	relationship := &Relationship{
-		BusinessObjectProperty: BusinessObjectProperty{
+		businessObjectProperty: businessObjectProperty{
 			owner:    owner,
 			name:     name,
 			multiple: multiple,

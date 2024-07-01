@@ -52,7 +52,7 @@ func LoadBOs(bloCtx BloContext, boClass IBusinessObjectClass, loadingType Loadin
 	loadedBOs, errLoad := dbLoadList(bloCtx.GetDaoContext(), boClass)
 
 	if errLoad != nil {
-		return nil, ErrorC(errLoad, "error while loading a list of '%s'", boClass.base().className)
+		return nil, ErrorC(errLoad, "error while loading a list of '%s'", boClass.base().name)
 	}
 
 	// TODO add post read
@@ -64,7 +64,7 @@ func ReadBO(bloCtx BloContext, idProp IField, idPropVal string, loadingType Load
 	loadedBOs, errLoad := dbLoadOne(bloCtx.GetDaoContext(), idProp, idPropVal)
 
 	if errLoad != nil {
-		return nil, ErrorC(errLoad, "error while loading one instance of '%s' (%s)", idProp.ownerClass().base().className, idPropVal)
+		return nil, ErrorC(errLoad, "error while loading one instance of '%s' (%s)", idProp.ownerClass().base().name, idPropVal)
 	}
 
 	// TODO add post read
@@ -76,7 +76,7 @@ func DeleteBO(bloCtx BloContext, idProp IField, idPropVal string) (IBusinessObje
 	loadedBOs, errLoad := dbRemoveOne(bloCtx.GetDaoContext(), idProp, idPropVal)
 
 	if errLoad != nil {
-		return nil, ErrorC(errLoad, "error while deleting one instance of '%s' (%s)", idProp.ownerClass().base().className, idPropVal)
+		return nil, ErrorC(errLoad, "error while deleting one instance of '%s' (%s)", idProp.ownerClass().base().name, idPropVal)
 	}
 
 	// TODO add post read

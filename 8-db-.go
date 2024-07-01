@@ -1,11 +1,10 @@
 package goald
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"log"
-	"os"
+	"log/slog"
 	"time"
 
 	"github.com/aldesgroup/goald/features/utils"
@@ -53,21 +52,25 @@ func (thisDB *DB) Exec(query string, args ...any) (sql.Result, error) {
 // Opening a DB, checking it, etc.
 // ------------------------------------------------------------------------------------------------
 
-func openDB(conf *dbConfig) *sql.DB {
-	// getting the password
-	password := os.Getenv(conf.Password)
-
-	// building the connection string
-	var connStr string
+func openDB(conf *dbConfig) (*sql.DB, iDBAdapter) {
+	// getting the right adapter for the current DB config
+	var adapter iDBAdapter
 	switch conf.DbType {
 	case dbTypeSQLSERVER:
-		connStr = fmt.Sprintf("user id=%s;password=%s;port=%s;database=%s",
-			conf.User, password, conf.DbPort, conf.DbName)
+		adapter = &dbAdapterMSSQL{}
 	default:
-		utils.Panicf("Unhandled DB type '%s'", conf.DbType)
+		utils.Panicf("Unhandled DB type: %s", conf.DbType)
 	}
 
-	// Creating the DB object
+	// // making sure the DB exists
+	// if conf.MakeExist {
+
+	// }
+
+	// connection string
+	connStr := adapter.getConnectionString(conf)
+
+	// Creating the DB object by opening connections with it
 	startDB := time.Now()
 	db, errOpen := sql.Open(string(conf.DbType), connStr)
 	if errOpen != nil {
@@ -75,13 +78,13 @@ func openDB(conf *dbConfig) *sql.DB {
 	}
 
 	// Pinging
-	if errPing := db.PingContext(context.Background()); errPing != nil {
+	if errPing := db.Ping(); errPing != nil {
 		utils.Panicf("Issue while testing the '%s' DB: %s", conf.DbID, errPing)
 	}
 
-	fmt.Printf("Established connection to DB '%s' in %s!\n", conf.DbID, time.Since(startDB))
+	slog.Info(fmt.Sprintf("Established connection to DB '%s' in %s!\n", conf.DbID, time.Since(startDB)))
 
-	return db
+	return db, adapter
 }
 
 // ------------------------------------------------------------------------------------------------

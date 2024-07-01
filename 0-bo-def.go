@@ -12,8 +12,8 @@ import "fmt"
 type IBusinessObject interface {
 	// identification
 	Class() IBusinessObjectClass
-	getClassName() string
-	setClassName(string)
+	getClassName() className
+	setClassName(className)
 	GetID() BObjID
 	setID(string)
 	GetLabel() string
@@ -36,7 +36,7 @@ type BObjID string // probably a UUID here
 
 type BusinessObject struct {
 	class     IBusinessObjectClass
-	className string
+	className className
 	ID        BObjID `json:"ID"`
 	Label     string `json:"Label,omitempty"`
 }
@@ -45,7 +45,7 @@ var _ IBusinessObject = (*BusinessObject)(nil)
 
 func (thisBO *BusinessObject) Class() IBusinessObjectClass {
 	if thisBO.class == nil {
-		thisBO.class = ClassForName(thisBO.className)
+		thisBO.class = classForName(thisBO.className)
 	}
 
 	if thisBO.class == nil {
@@ -56,8 +56,8 @@ func (thisBO *BusinessObject) Class() IBusinessObjectClass {
 }
 
 /* default implementations */
-func (thisBO *BusinessObject) getClassName() string                    { return thisBO.className }
-func (thisBO *BusinessObject) setClassName(cn string)                  { thisBO.className = cn }
+func (thisBO *BusinessObject) getClassName() className                 { return thisBO.className }
+func (thisBO *BusinessObject) setClassName(cn className)               { thisBO.className = cn }
 func (thisBO *BusinessObject) GetID() BObjID                           { return thisBO.ID }
 func (thisBO *BusinessObject) setID(id string)                         { thisBO.ID = BObjID(id) }
 func (thisBO *BusinessObject) GetLabel() string                        { return thisBO.Label }

@@ -57,12 +57,14 @@ type staticRouteConfig struct {
 }
 
 type dbConfig struct {
-	DbID     DatabaseID
-	DbType   databaseType
-	DbName   string
-	DbPort   string
-	User     string
-	Password string
+	DbID      DatabaseID
+	DbType    databaseType
+	DbName    string
+	DbHost    string
+	DbPort    int
+	User      string
+	Password  string
+	MakeExist bool
 }
 
 // ------------------------------------------------------------------------------------------------

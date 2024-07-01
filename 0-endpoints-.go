@@ -5,10 +5,10 @@ package goald
 
 import (
 	"net/http"
-	"reflect"
 	"strings"
 
 	"github.com/aldesgroup/goald/features/hstatus"
+	"github.com/aldesgroup/goald/features/utils"
 )
 
 // ------------------------------------------------------------------------------------------------
@@ -24,8 +24,7 @@ type iEndpoint interface {
 	hasBodyOrParamsInput() bool
 	isBodyInputRequired() bool
 	isMultipleInput() bool
-	getInputOrParamsType() reflect.Type
-	getInputOrParamsName() string
+	getInputOrParamsClass() className
 	returnOne(webCtx WebContext) (any, hstatus.Code, string)
 	returnMany(webCtx WebContext) (any, hstatus.Code, string)
 	returnOneForOne(webCtx WebContext, input any) (any, hstatus.Code, string)
@@ -37,18 +36,17 @@ type iEndpoint interface {
 // an endpoint object is parametrized by the potential objects of type I,
 // and the output objects of type O, i.e. the resource type
 type endpoint[ResourceType IBusinessObject] struct {
-	method            string       // get, post, put...
-	basePath          string       // the endpoint's base path, which is the lower-cased resource type name
-	actionPath        string       // do we need an additional path for a non-CRUD action, like "reduce" in: "GET /document/reduce/:id"
-	idProp            IField       // if a specific BO is targeted, this has to be through one of its properties
-	fullPath          string       // resulting from the parameter type, action path and id property
-	label             string       // short label to describe the endpoint
-	multipleOutput    bool         // if true, then the endpoint delivers arrays of BOs, rather than a single one
-	loadingType       LoadingType  // how the returned resource(s) are loaded
-	bodyInputRequired bool         // if true, then we expect something in the request body
-	multipleInput     bool         // if true, then we expect an array of BOs in the body, rather than a single one
-	inputOrParamsType reflect.Type // if inputExpected = true, then this is the type of the input
-	inputOrParamsName string       // the name of the input or params type
+	method             string      // get, post, put...
+	basePath           string      // the endpoint's base path, which is the lower-cased resource type name
+	actionPath         string      // do we need an additional path for a non-CRUD action, like "reduce" in: "GET /document/reduce/:id"
+	idProp             IField      // if a specific BO is targeted, this has to be through one of its properties
+	fullPath           string      // resulting from the parameter type, action path and id property
+	label              string      // short label to describe the endpoint
+	multipleOutput     bool        // if true, then the endpoint delivers arrays of BOs, rather than a single one
+	loadingType        LoadingType // how the returned resource(s) are loaded
+	bodyInputRequired  bool        // if true, then we expect something in the request body
+	multipleInput      bool        // if true, then we expect an array of BOs in the body, rather than a single one
+	inputOrParamsClass className   // if bodyInputRequired = true, then this is the type of the input
 }
 
 func (ep *endpoint[ResourceType]) getMethod() string {
@@ -90,7 +88,7 @@ func (ep *endpoint[ResourceType]) isMultipleOutput() bool {
 }
 
 func (ep *endpoint[ResourceType]) hasBodyOrParamsInput() bool {
-	return ep.inputOrParamsType != nil
+	return ep.inputOrParamsClass != ""
 }
 
 func (ep *endpoint[ResourceType]) isBodyInputRequired() bool {
@@ -101,12 +99,8 @@ func (ep *endpoint[ResourceType]) isMultipleInput() bool {
 	return ep.multipleInput
 }
 
-func (ep *endpoint[ResourceType]) getInputOrParamsType() reflect.Type {
-	return ep.inputOrParamsType
-}
-
-func (ep *endpoint[ResourceType]) getInputOrParamsName() string {
-	return ep.inputOrParamsName
+func (ep *endpoint[ResourceType]) getInputOrParamsClass() className {
+	return ep.inputOrParamsClass
 }
 
 func (ep *endpoint[ResourceType]) returnOne(webCtx WebContext) (any, hstatus.Code, string) {
@@ -147,26 +141,19 @@ func newEndpoint[InputOrParamsType, ResourceType IBusinessObject](
 	withURLParams bool,
 ) *endpoint[ResourceType] {
 
-	var inputOrParamsType reflect.Type
+	var inputOrParamsName className
 	if bodyInputRequired || withURLParams {
-		// if the InputType is '*Project', then we're keeping  'Project' here (without the pointer)
-		inputOrParamsType = reflect.TypeOf(*new(InputOrParamsType)).Elem()
-	}
-
-	inputOrParamsName := ""
-	if inputOrParamsType != nil {
-		inputOrParamsName = inputOrParamsType.Name()
+		inputOrParamsName = className(utils.TypeNameOf((*new(InputOrParamsType)), true))
 	}
 
 	return &endpoint[ResourceType]{
-		method:            method,
-		basePath:          strings.ToLower(reflect.TypeOf(*new(ResourceType)).Elem().Name()),
-		multipleOutput:    multipleOutput,
-		loadingType:       loadingType,
-		bodyInputRequired: bodyInputRequired,
-		multipleInput:     multipleInput,
-		inputOrParamsType: inputOrParamsType,
-		inputOrParamsName: inputOrParamsName,
+		method:             method,
+		basePath:           strings.ToLower(utils.TypeNameOf((*new(ResourceType)), true)),
+		multipleOutput:     multipleOutput,
+		loadingType:        loadingType,
+		bodyInputRequired:  bodyInputRequired,
+		multipleInput:      multipleInput,
+		inputOrParamsClass: inputOrParamsName,
 	}
 }
 

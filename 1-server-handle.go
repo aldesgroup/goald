@@ -9,7 +9,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"reflect"
 
 	"github.com/aldesgroup/goald/features/hstatus"
 	r "github.com/julienschmidt/httprouter"
@@ -54,7 +53,11 @@ func errResp(_ int, _ string, _ ...any) *response {
 
 // main HTTP SERVING function
 func (thisReqCtx *httpRequestContext) serve(ep iEndpoint, w http.ResponseWriter, req *http.Request, params r.Params) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	// w.Header().Set("Access-Control-Allow-Origin", "*")
+	// w.Header().Add("Access-Control-Allow-Origin", "*")
+	// w.Header().Add("Access-Control-Allow-Methods", "DELETE, POST, GET, OPTIONS")
+	// w.Header().Add("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+	// w.Header().Add("Access-Control-Allow-Headers", "Aept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
 
 	// TODO remove
 	reqCount++
@@ -177,21 +180,19 @@ func retrieveInputData(request *http.Request, webContext *webContextImpl, ep iEn
 
 	if ep.isMultipleInput() {
 		// Handling array of bObj input: []*package.BObj
-		// explanation:      *           []              *     package.BObj                   - removes the starting *
-		bObjSlice := reflect.New(reflect.SliceOf(reflect.PointerTo(ep.getInputOrParamsType()))).Elem()
+		bObjSlice := boRegistry.content[ep.getInputOrParamsClass()].newSliceFn()
 
 		// Unmarshaling *[]*package.BObj as an interface - which is expected by the Unmarshal function
-		if jsonErr := json.Unmarshal(inputBodyBytes, bObjSlice.Addr().Interface()); jsonErr != nil {
+		if jsonErr := json.Unmarshal(inputBodyBytes, &bObjSlice); jsonErr != nil {
 			return nil, ErrorC(jsonErr, "Could not unmarshall the JSON object array!")
 		}
 
 		// Not returning the reflect.Value, but the concrete instance associated with it
-		return bObjSlice.Interface(), nil
+		return bObjSlice, nil
 
 	} else {
 		// Handling single bObj input: *package.BObj
-		// explanation: *   package.BObj             - needed by the unmarshaling
-		bObj := reflect.New(ep.getInputOrParamsType()).Interface()
+		bObj := boRegistry.content[ep.getInputOrParamsClass()].instanceFn()
 
 		if jsonErr := json.Unmarshal(inputBodyBytes, bObj); jsonErr != nil {
 			return nil, ErrorC(jsonErr, "Could not unmarshall the JSON object!")
@@ -204,10 +205,10 @@ func retrieveInputData(request *http.Request, webContext *webContextImpl, ep iEn
 // parsing the request's URL to build the expected URLQueryParams object
 func retrieveURLParams(request *http.Request, _ *webContextImpl, ep iEndpoint) (any, error) {
 	// new URLQueryParams object
-	urlParams := reflect.New(ep.getInputOrParamsType()).Interface().(IURLQueryParams)
+	urlParams := boRegistry.content[ep.getInputOrParamsClass()].instanceFn().(IURLQueryParams)
 
 	// transferring the URL param values from the URL to the object
-	for _, field := range ClassForName(ep.getInputOrParamsName()).base().fields {
+	for _, field := range classForName(ep.getInputOrParamsClass()).base().fields {
 		urlParams.SetValueAsString(field.getName(), request.URL.Query().Get(field.getName()))
 	}
 

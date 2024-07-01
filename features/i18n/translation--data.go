@@ -75,7 +75,7 @@ func loadTranslations(ctx g.BloContext, params map[string]string) error {
 	}
 
 	// TODO
-	// debounce the restart of containers when aldev build runs OR use another place for the compilation / run
+	// debounce the restart of containers when aldev complete runs OR use another place for the compilation / run
 	// hide the logs for the server start, only show in verbose mode
 	// aldev should also have a silent mode by default
 

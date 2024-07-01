@@ -16,7 +16,7 @@ const utilsTEMPLATE = `// Generated file, do not edit!
 package $$package$$
 
 import (
-	g "github.com/aldesgroup/goald"$$otherimports$$
+	$$otherimports$$
 )
 
 // getting a property's value as a string, without using reflection
@@ -34,7 +34,7 @@ func (this$$Upper$$ *$$Upper$$) SetValueAsString(propertyName string, valueAsStr
 $$setcases$$
 	}
 
-	return g.Error("Unknown property: %T.%s", this$$Upper$$, propertyName)
+	return goald.Error("Unknown property: %T.%s", this$$Upper$$, propertyName)
 }
 `
 
@@ -49,6 +49,7 @@ func (thisServer *server) generateObjectUtils(srcdir, currentPath string, regen 
 	utils.PanicErrf(errDir, "could not read '%s'", readingPath)
 
 	// going through the resources found withing the current directory
+	// we got the BO & class registries, but we still need to browse the filesystem since we're updating it with files
 	for _, entry := range dirEntries {
 		if entry.IsDir() {
 			// not going into the vendor
@@ -61,7 +62,7 @@ func (thisServer *server) generateObjectUtils(srcdir, currentPath string, regen 
 			if strings.HasSuffix(entry.Name(), sourceFILExSUFFIX) {
 				// getting the business object entry within this file, then the registred entry in the code
 				bObjEntryFile := getEntryFromFile(srcdir, currentPath, entry.Name())
-				bObjEntry := boRegistry.content[bObjEntryFile.name]
+				bObjEntry := boRegistry.content[bObjEntryFile.class]
 
 				// the corresponding utils file, if it exist
 				utilsFilename := strings.Replace(entry.Name(), sourceFILExSUFFIX, utilsFILExSUFFIX, 1)
@@ -75,92 +76,89 @@ func (thisServer *server) generateObjectUtils(srcdir, currentPath string, regen 
 	}
 }
 
-func generateObjectUtilsForEntry(srcdir string, bObjEntry *businessObjectEntry, filename string) {
-	content := strings.ReplaceAll(utilsTEMPLATE, "$$package$$", path.Base(bObjEntry.srcPath))
-	content = strings.ReplaceAll(content, "$$Upper$$", bObjEntry.name)
+func generateObjectUtilsForEntry(srcdir string, bObjectEntry *businessObjectEntry, filename string) {
+	// the corresponding class
+	className := bObjectEntry.class
+	boClass := classForName(className)
+
+	// starting the content
+	content := strings.ReplaceAll(utilsTEMPLATE, "$$package$$", path.Base(bObjectEntry.srcPath))
+	content = strings.ReplaceAll(content, "$$Upper$$", string(bObjectEntry.class))
 
 	getCases := []string{}
 	setCases := []string{}
 
 	// need for some imports
-	var importsMap = map[string]bool{}
-	var importStrconv, importTime bool
+	var importsMap = map[string]bool{"github.com/aldesgroup/goald": true}
+	var importUtils bool
+
+	// getting the type of business object
+	bObjectType := utils.TypeOf(bObjectEntry.instanceFn(), true)
 
 	// browsing the entity's properties to fill the get / set cases in the 2 switch
-	for fieldNum := 1; fieldNum < bObjEntry.bObjType.NumField(); fieldNum++ {
-		// getting the current field
-		field := bObjEntry.bObjType.Field(fieldNum)
-
-		// detecting its type and multiplicity
-		propType, multiple := getPropertyType(field)
-
+	// for fieldNum := 1; fieldNum < bObjEntry.bObjType.NumField(); fieldNum++ {
+	for _, field := range utils.GetSortedValues(boClass.base().fields) {
 		// adding to the context, and the class file content
-		if propType != PropertyTypeUNKNOWN && propType != PropertyTypeRELATIONSHIP {
-			if !multiple { // not handling this for now
+		if typeFamily := field.getTypeFamily(); typeFamily != utils.TypeFamilyUNKNOWN && typeFamily != utils.TypeFamilyRELATIONSHIP {
+			// not handling multiple properties for now
+			if fieldName := field.getName(); !field.isMultiple() {
+				// is the field type a type alias, or a built-in type?
+				fieldTypeAlias := getNonBuiltInFieldType(bObjectType, fieldName, importsMap)
+
 				// case init
-				getCase := fmt.Sprintf("\tcase \"%s\":", field.Name)
+				getCase := fmt.Sprintf("\tcase \"%s\":", fieldName)
 				setCase := getCase
 
-				switch propType {
-				case PropertyTypeBOOL:
-					getCase += newline + fmt.Sprintf("\t\treturn strconv.FormatBool(this%s.%s)", bObjEntry.name, field.Name)
-					importStrconv = true
-					setCase += newline + "\t\tvalue, errConv := strconv.ParseBool(valueAsString)"
-					setCase += newline + fmt.Sprintf("\t\tutils.PanicErrf(errConv, \"Could not set '%s.%s' to %%s\", valueAsString)", bObjEntry.name, field.Name)
-					setCase += newline + fmt.Sprintf("\t\tthis%s.%s = value", bObjEntry.name, field.Name)
+				// this is going to come up a lot
+				fieldID := string(className) + "." + fieldName
 
-				case PropertyTypeSTRING:
-					getCase += newline + fmt.Sprintf("\t\treturn this%s.%s", bObjEntry.name, field.Name)
-					setCase += newline + fmt.Sprintf("\t\tthis%s.%s = valueAsString", bObjEntry.name, field.Name)
+				switch typeFamily {
+				case utils.TypeFamilyBOOL:
+					getBit, setBit, end := getBits(fieldTypeAlias, "bool")
+					getCase += newline + fmt.Sprintf("\t\treturn utils.BoolToString(%sthis%s%s)", getBit, fieldID, end)
+					importUtils = true
+					setCase += newline + fmt.Sprintf("\t\tthis%s = %sutils.StringToBool(valueAsString, \"%s\")%s", fieldID, setBit, fieldID, end)
 
-				case PropertyTypeINT:
-					getCase += newline + fmt.Sprintf("\t\treturn strconv.Itoa(this%s.%s)", bObjEntry.name, field.Name)
-					importStrconv = true
-					setCase += newline + "\t\tvalue, errConv := strconv.Atoi(valueAsString)"
-					setCase += newline + fmt.Sprintf("\t\tutils.PanicErrf(errConv, \"Could not set '%s.%s' to %%s\", valueAsString)", bObjEntry.name, field.Name)
-					setCase += newline + fmt.Sprintf("\t\tthis%s.%s = value", bObjEntry.name, field.Name)
+				case utils.TypeFamilySTRING:
+					getBit, setBit, end := getBits(fieldTypeAlias, "string")
+					getCase += newline + fmt.Sprintf("\t\treturn %sthis%s%s", getBit, fieldID, end)
+					setCase += newline + fmt.Sprintf("\t\tthis%s = %svalueAsString%s", fieldID, setBit, end)
 
-				case PropertyTypeINT64:
-					getCase += newline + fmt.Sprintf("\t\treturn strconv.FormatInt(this%s.%s, 10)", bObjEntry.name, field.Name)
-					importStrconv = true
-					setCase += newline + "\t\tvalue, errConv := strconv.ParseInt(valueAsString, 10, 64)"
-					setCase += newline + fmt.Sprintf("\t\tutils.PanicErrf(errConv, \"Could not set '%s.%s' to %%s\", valueAsString)", bObjEntry.name, field.Name)
-					setCase += newline + fmt.Sprintf("\t\tthis%s.%s = value", bObjEntry.name, field.Name)
+				case utils.TypeFamilyINT:
+					getBit, setBit, end := getBits(fieldTypeAlias, "int")
+					getCase += newline + fmt.Sprintf("\t\treturn utils.IntToString(%sthis%s%s)", getBit, fieldID, end)
+					importUtils = true
+					setCase += newline + fmt.Sprintf("\t\tthis%s = %sutils.StringToInt(valueAsString, \"%s\")%s", fieldID, setBit, fieldID, end)
 
-				case PropertyTypeREAL32:
-					getCase += newline + fmt.Sprintf("\t\treturn strconv.FormatFloat(float64(this%s.%s), 'f', -1, 32)", bObjEntry.name, field.Name)
-					importStrconv = true
-					setCase += newline + "\t\tvalue, errConv := strconv.ParseFloat(valueAsString, 32)"
-					setCase += newline + fmt.Sprintf("\t\tutils.PanicErrf(errConv, \"Could not set '%s.%s' to %%s\", valueAsString)", bObjEntry.name, field.Name)
-					setCase += newline + fmt.Sprintf("\t\tthis%s.%s = float32(value)", bObjEntry.name, field.Name)
+				case utils.TypeFamilyBIGINT:
+					getBit, setBit, end := getBits(fieldTypeAlias, "int64")
+					getCase += newline + fmt.Sprintf("\t\treturn utils.Int64ToString(%sthis%s%s)", getBit, fieldID, end)
+					importUtils = true
+					setCase += newline + fmt.Sprintf("\t\tthis%s = %sutils.StringToInt64(valueAsString, \"%s\")%s", fieldID, setBit, fieldID, end)
 
-				case PropertyTypeREAL64:
-					getCase += newline + fmt.Sprintf("\t\treturn strconv.FormatFloat(this%s.%s, 'f', -1, 64)", bObjEntry.name, field.Name)
-					importStrconv = true
-					setCase += newline + "\t\tvalue, errConv := strconv.ParseFloat(valueAsString, 64)"
-					setCase += newline + fmt.Sprintf("\t\tutils.PanicErrf(errConv, \"Could not set '%s.%s' to %%s\", valueAsString)", bObjEntry.name, field.Name)
-					setCase += newline + fmt.Sprintf("\t\tthis%s.%s = value", bObjEntry.name, field.Name)
+				case utils.TypeFamilyREAL:
+					getBit, setBit, end := getBits(fieldTypeAlias, "float32")
+					getCase += newline + fmt.Sprintf("\t\treturn utils.Float32ToString(%sthis%s%s)", getBit, fieldID, end)
+					importUtils = true
+					setCase += newline + fmt.Sprintf("\t\tthis%s = %sutils.StringToFloat32(valueAsString, \"%s\")%s", fieldID, setBit, fieldID, end)
 
-				case PropertyTypeDATE:
-					getCase += newline + fmt.Sprintf("\t\treturn this%s.%s.Format(utils.RFC3339Milli)", bObjEntry.name, field.Name)
-					importTime = true
-					setCase += newline + "\t\tvalue, errConv := time.Parse(utils.RFC3339Milli, valueAsString)"
-					setCase += newline + fmt.Sprintf("\t\tutils.PanicErrf(errConv, \"Could not set '%s.%s' to %%s\", valueAsString)", bObjEntry.name, field.Name)
-					setCase += newline + fmt.Sprintf("\t\tthis%s.%s = &value", bObjEntry.name, field.Name)
+				case utils.TypeFamilyDOUBLE:
+					getBit, setBit, end := getBits(fieldTypeAlias, "float64")
+					getCase += newline + fmt.Sprintf("\t\treturn utils.Float64ToString(%sthis%s%s)", getBit, fieldID, end)
+					importUtils = true
+					setCase += newline + fmt.Sprintf("\t\tthis%s = %sutils.StringToFloat64(valueAsString, \"%s\")%s", fieldID, setBit, fieldID, end)
 
-				case PropertyTypeENUM:
-					getCase += newline + fmt.Sprintf("\t\treturn strconv.Itoa(this%s.%s.Val())", bObjEntry.name, field.Name)
-					importStrconv = true
-					enumTypeString := field.Type.Name() // e.g.: MyEnumType
-					if enumPkg := field.Type.PkgPath(); enumPkg != bObjEntry.bObjType.PkgPath() {
-						enumTypeString = field.Type.String() /// e.g.: thatpackage.MyEnumType
-						importsMap[enumPkg] = true
-					}
-					setCase += newline + "\t\tintValue, errConv := strconv.Atoi(valueAsString)"
-					setCase += newline + fmt.Sprintf("\t\tutils.PanicErrf(errConv, \"Could not set '%s.%s' to %%s\", valueAsString)", bObjEntry.name, field.Name)
-					setCase += newline + fmt.Sprintf("\t\tthis%s.%s = (%s)(intValue)", bObjEntry.name, field.Name, enumTypeString)
-					setCase += newline + fmt.Sprintf("\t\tutils.PanicIff(this%s.%s.String() == \"\", \"Could not set '%s.%s' to %%s since it's not a listed value\", valueAsString)",
-						bObjEntry.name, field.Name, bObjEntry.name, field.Name)
+				case utils.TypeFamilyDATE:
+					getCase += newline + fmt.Sprintf("\t\treturn utils.DateToString(this%s)", fieldID)
+					setCase += newline + fmt.Sprintf("\t\tthis%s = utils.StringToDate(valueAsString, \"%s\")", fieldID, fieldID)
+
+				case utils.TypeFamilyENUM:
+					getCase += newline + fmt.Sprintf("\t\treturn utils.IntToString(this%s.Val())", fieldID)
+					importUtils = true
+					setCase += newline + fmt.Sprintf("\t\tthis%s = %s(utils.StringToInt(valueAsString, \"%s\"))", fieldID, fieldTypeAlias, fieldID)
+
+					setCase += newline + fmt.Sprintf("\t\tutils.PanicIff(this%s.String() == \"\", \"Could not set '%s' to %%s since it's not a listed value\", valueAsString)",
+						fieldID, fieldID)
 				}
 
 				// appending the case
@@ -174,22 +172,43 @@ func generateObjectUtilsForEntry(srcdir string, bObjEntry *businessObjectEntry, 
 	content = strings.ReplaceAll(content, "$$getcases$$", strings.Join(getCases, newline))
 	content = strings.ReplaceAll(content, "$$setcases$$", strings.Join(setCases, newline))
 
-	if importStrconv {
-		importsMap["strconv"] = true
-	}
-	if importTime {
-		importsMap["time"] = true
-	}
-	if importStrconv || importTime {
+	if importUtils {
 		importsMap["github.com/aldesgroup/goald/features/utils"] = true
 	}
 
 	imports := ""
 	if len(importsMap) > 0 {
-		imports = newline + "\t\"" + strings.Join(utils.GetSortedKeys(importsMap), "\""+newline+"\t"+"\"") + "\""
+		imports = "\"" + strings.Join(utils.GetSortedKeys(importsMap), "\""+newline+"\t"+"\"") + "\""
 	}
 	content = strings.Replace(content, "$$otherimports$$", imports, 1)
 
 	// write out the file
-	utils.WriteToFile(content, srcdir, bObjEntry.srcPath, filename)
+	utils.WriteToFile(content, srcdir, bObjectEntry.srcPath, filename)
+}
+
+func getBits(fieldTypeAlias, getBit string) (string, string, string) {
+	if fieldTypeAlias != "" {
+		return getBit + "(", fieldTypeAlias + "(", ")"
+	}
+
+	return "", "", ""
+}
+
+func getNonBuiltInFieldType(bOjbType *utils.GoaldType, fieldName string, toBeImported map[string]bool) string {
+	fieldType := bOjbType.FieldByName(fieldName).Type()
+	fieldPkg := fieldType.PkgPath()
+
+	// this is a built-in field type
+	if fieldPkg == "" {
+		return ""
+	}
+
+	// the type of the field is defined in the same package as the business object
+	if fieldPkg == bOjbType.PkgPath() {
+		return fieldType.Name() // e.g.: MyEnumType
+	}
+
+	// the field type comes from another package, that we have to import
+	toBeImported[fieldPkg] = true
+	return fieldType.String() // e.g.: thatpackage.MyEnumType
 }

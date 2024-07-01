@@ -4,133 +4,30 @@
 package goald
 
 import (
-	"reflect"
 	"sort"
-	"time"
+
+	"github.com/aldesgroup/goald/features/utils"
 )
 
 var (
-	typeBUSINESSxOBJECT   = reflect.TypeOf((*BusinessObject)(nil)).Elem()
-	typeURLxQUERYxOBJECT  = reflect.TypeOf((*URLQueryParams)(nil)).Elem()
-	typeIxBUSINESSxOBJECT = reflect.TypeOf((*IBusinessObject)(nil)).Elem()
-	typeTIME              = reflect.TypeOf((*time.Time)(nil))
-	typeIxENUM            = reflect.TypeOf((*IEnum)(nil)).Elem()
+	typeBUSINESSxOBJECT   = utils.TypeOf((*BusinessObject)(nil), true)
+	typeURLxQUERYxOBJECT  = utils.TypeOf((*URLQueryParams)(nil), true)
+	typeIxBUSINESSxOBJECT = utils.TypeOf((*IBusinessObject)(nil), true)
+	typeIxENUM            = utils.TypeOf((*IEnum)(nil), true)
 
-// TypeAMOUNT          = reflect.TypeOf((core.Amount)(0))
-// TypeDURATION        = reflect.TypeOf((time.Duration)(0))
-// TypeEMAIL           = reflect.TypeOf((core.Email)(""))
-// TypeIACTIONTYPE     = reflect.TypeOf((*IActionType)(nil)).Elem()
-// TypeIENUM           = reflect.TypeOf((*IEnum)(nil)).Elem()
-// TypeINT             = reflect.TypeOf((int)(0))
-// TypeINT64           = reflect.TypeOf((int64)(0))
-// TypeIUSER           = reflect.TypeOf((*IUser)(nil)).Elem()
-// TypeRESOURCE        = reflect.TypeOf((*Resource)(nil)).Elem()
-// TypeURL             = reflect.TypeOf((core.URL)(""))
-// TypeWEBOPERATION    = reflect.TypeOf((*WebOperation)(nil)).Elem()
-// TypeJSONString      = reflect.TypeOf((core.JSONString)(""))
+// TypeAMOUNT          = utils.TypeOf((core.Amount)(0))
+// TypeDURATION        = utils.TypeOf((time.Duration)(0))
+// TypeEMAIL           = utils.TypeOf((core.Email)(""))
+// TypeIACTIONTYPE     = utils.TypeOf((*IActionType)(nil), true)
+// TypeIENUM           = utils.TypeOf((*IEnum)(nil), true)
+// TypeINT             = utils.TypeOf((int)(0))
+// TypeINT64           = utils.TypeOf((int64)(0))
+// TypeIUSER           = utils.TypeOf((*IUser)(nil), true)
+// TypeRESOURCE        = utils.TypeOf((*Resource)(nil), true)
+// TypeURL             = utils.TypeOf((core.URL)(""))
+// TypeWEBOPERATION    = utils.TypeOf((*WebOperation)(nil), true)
+// TypeJSONString      = utils.TypeOf((core.JSONString)(""))
 )
-
-// getPropertyType returns the property type of a given structfield
-func getPropertyType(structField reflect.StructField) (propertyType PropertyType, multiple bool) {
-
-	// to debug - to comment/uncomment when needed
-	// if structField.Name == "Num" {
-	// fmt.Printf("\n--------------------------")
-	// fmt.Printf("\nName: %s ", structField.Name)
-	// fmt.Printf("\nType: %s ", structField.Type)
-	// fmt.Printf("\nKind: %s ", structField.Type.Kind())
-	// }
-
-	// a business object's real property must be exported, and therefore PkgPath should be empty
-	// Cf. https://golang.org/pkg/reflect/#StructField
-	if fieldType := structField.Type; structField.PkgPath == "" {
-		// // detecting the Loadedrelationships: special case of []string, which is not allowed anywhere else
-		// if structField.Name == __BUSINESS OBJEcT__FieldLOADEDrelationshipS {
-		// 	return PropertyTypeSTRING, true
-		// }
-
-		// // detecting an __BUSINESS OBJEcT__ ID
-		// if fieldType == Type__BUSINESS OBJEcT__ID {
-		// 	return PropertyType__BUSINESS OBJEcT__ID, false
-		// }
-
-		// detecting an enum
-		if fieldType.Implements(typeIxENUM) {
-			return PropertyTypeENUM, false
-		}
-
-		// detecting a time
-		if fieldType == typeTIME {
-			return PropertyTypeDATE, false
-		}
-
-		// // detecting a URL
-		// if fieldType == TypeURL {
-		// 	return PropertyTypeURL, false
-		// }
-
-		// // detecting an email
-		// if fieldType == TypeEMAIL {
-		// 	return PropertyTypeEMAIL, false
-		// }
-
-		// // detecting an __BUSINESS OBJEcT__ reference
-		// if fieldType == Type__BUSINESS OBJEcT__REFERENCE {
-		// 	return PropertyType__BUSINESS OBJEcT__REFERENCE, false
-		// }
-
-		// // detecting an amount
-		// if fieldType == TypeAMOUNT {
-		// 	return PropertyTypeAMOUNT, false
-		// }
-
-		// // detecting a json object
-		// if fieldType == TypeJSONString {
-		// 	return PropertyTypeJSON, false
-		// }
-
-		// detecting the basic types here
-		switch fieldKind := fieldType.Kind(); fieldKind {
-		case reflect.Bool:
-			return PropertyTypeBOOL, false
-
-		case reflect.String:
-			return PropertyTypeSTRING, false
-
-			// We only allow 3 types of int, for simplicity's sake
-		case reflect.Int:
-			return PropertyTypeINT, false
-
-			// We only allow 3 types of int, for simplicity's sake
-		case reflect.Int64, reflect.Uint64:
-			return PropertyTypeINT64, false
-
-		case reflect.Float32:
-			return PropertyTypeREAL32, false
-
-		case reflect.Float64:
-			return PropertyTypeREAL64, false
-		}
-
-		// // detecting an enum list
-		// if innerSliceType := fieldType.Elem(); fieldKind == reflect.Slice && innerSliceType.Implements(TypeIENUM) {
-		// 	return PropertyTypeENUM, true
-		// }
-
-		// detecting a multiple relationship to business objects
-		if innerSliceType := fieldType.Elem(); fieldType.Kind() == reflect.Slice && innerSliceType.Implements(typeIxBUSINESSxOBJECT) {
-			return PropertyTypeRELATIONSHIP, true
-		}
-
-		// detecting a single relationship to a business object
-		if fieldType.Kind() == reflect.Ptr && fieldType.Implements(typeIxBUSINESSxOBJECT) {
-			return PropertyTypeRELATIONSHIP, false
-		}
-	}
-
-	// this happens with technical fields !
-	return PropertyTypeUNKNOWN, false
-}
 
 // // GetAllProperties returns all this class' properties
 // func (boClass *businessObjectClass) GetAllProperties() []iBusinessObjectProperty {

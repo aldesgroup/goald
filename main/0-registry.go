@@ -3,11 +3,12 @@ package main
 
 import (
 	g "github.com/aldesgroup/goald"
-"github.com/aldesgroup/goald/features/i18n"
+	"github.com/aldesgroup/goald/features/i18n"
 )
 
 func init() {
-	g.Register(&i18n.TestObject{}, "goald",  "features/i18n",  "2024-04-16T13:18:31+02:00")
-	g.Register(&i18n.Translation{}, "goald",  "features/i18n",  "2024-04-16T14:07:55+02:00")
-	g.Register(&i18n.TranslationUrlParams{}, "goald",  "features/i18n",  "2024-04-11T16:40:54+02:00")
+	g.In("goald").
+		Register(func() any { return &i18n.TestObject{} }, "features/i18n", "2024-06-27T00:16:16+02:00", func() any { return []*i18n.TestObject{} }).
+		Register(func() any { return &i18n.Translation{} }, "features/i18n", "2024-06-17T09:12:08+02:00", func() any { return []*i18n.Translation{} }).
+		Register(func() any { return &i18n.TranslationUrlParams{} }, "features/i18n", "2024-06-26T13:11:52+02:00", func() any { return []*i18n.TranslationUrlParams{} })
 }

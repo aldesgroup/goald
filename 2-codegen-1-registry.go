@@ -24,7 +24,7 @@ const sourceREGISTRYxNAME = "0-registry.go"
 // TODO to have only 1 file, we need to handle the imports, which can be tedious, in particular with nested packages
 
 func (thisServer *server) generateObjectRegistry(srcdir, currentPath string, _ bool,
-	allEntriesInCodeSoFar map[string]*businessObjectEntry, regen bool) {
+	allEntriesInCodeSoFar map[className]*businessObjectEntry, regen bool) {
 	// we want all the entities we find in the code to build 1 global registry
 	entriesInCode := allEntriesInCodeSoFar
 
@@ -49,21 +49,21 @@ func (thisServer *server) generateObjectRegistry(srcdir, currentPath string, _ b
 				// getting the business object entry for the egustry, from the current file
 				if bObjEntry := getEntryFromFile(srcdir, currentPath, entry.Name()); bObjEntry != nil {
 					// checking the biz obj / file naming
-					if expected := utils.PascalToKebab(bObjEntry.name) + sourceFILExSUFFIX; expected != entry.Name() {
+					if expected := utils.PascalToKebab(string(bObjEntry.class)) + sourceFILExSUFFIX; expected != entry.Name() {
 						utils.Panicf("The business object's name should be the file name Pascal-cased, i.e. we should have: "+
 							"%s in file %s, "+
 							"or %s in file %s",
-							bObjEntry.name, expected,
+							bObjEntry.class, expected,
 							utils.KebabToPascal(strings.Replace(entry.Name(), sourceFILExSUFFIX, "", 1)), entry.Name(),
 						)
 					}
 
 					// checking the unicity of each biz obj name
-					if entriesInCode[bObjEntry.name] != nil {
+					if entriesInCode[bObjEntry.class] != nil {
 						utils.Panicf("We can't have 2 business objects with the same name '%s'."+
-							" This would lead to the same REST path. You have to rename one.", bObjEntry.name)
+							" This would lead to the same REST path. You have to rename one.", bObjEntry.class)
 					} else {
-						entriesInCode[bObjEntry.name] = bObjEntry
+						entriesInCode[bObjEntry.class] = bObjEntry
 					}
 				}
 			}
@@ -91,10 +91,7 @@ func init() {
 `
 
 func writeRegistryFileIfNeeded(srcdir, currentPath string, isLibrary bool,
-	entriesInCode map[string]*businessObjectEntry, regen bool) {
-	// TODO remote
-	println("--- examining folder: " + currentPath)
-
+	entriesInCode map[className]*businessObjectEntry, regen bool) {
 	// do we need to regenerate the object registry at the current path?
 	needRegen := regen
 
@@ -135,26 +132,32 @@ func writeRegistryFileIfNeeded(srcdir, currentPath string, isLibrary bool,
 	}
 
 	// now let's write the registry file, if needed, and if we're at root
-	if len(entriesInCode) > 0 && needRegen {
+	if nbEntries := len(entriesInCode); nbEntries > 0 && needRegen {
 		// gathering the biz objs in order
-		registrationLines := []string{}
+		registrationLines := []string{fmt.Sprintf("\tg.In(\"%s\")", getCurrentModuleName())}
 
 		// and the imports, but only once per import, hence the map
 		imports := []string{}
 		imported := map[string]bool{}
 
 		// going over all the business object entries
-		for _, bObjEntry := range utils.GetSortedValues[string, *businessObjectEntry](entriesInCode) {
+		for _, bObjEntry := range utils.GetSortedValues[className, *businessObjectEntry](entriesInCode) {
 			if isLibrary {
 				// adding 1 registration line per business object
-				registrationLines = append(registrationLines, fmt.Sprintf("%sg.Register(&%s{}, \"%s\", \"%s\", \"%s\")", "\t",
-					bObjEntry.name, getCurrentModuleName(), bObjEntry.srcPath,
-					bObjEntry.lastMod.Add(time.Second).Format(time.RFC3339)))
+				boPath := path.Base(bObjEntry.srcPath)
+				registrationLines = append(registrationLines,
+					fmt.Sprintf(
+						"%sRegister(func() any { return &%s.%s{} }, \"%s\", \"%s\", func() any { return []*%s.%s{} })", "\t\t",
+						boPath, bObjEntry.class, bObjEntry.srcPath, bObjEntry.lastMod.Add(time.Second).Format(time.RFC3339), boPath, bObjEntry.class),
+				)
 			} else {
 				// adding 1 registration line per business object
-				registrationLines = append(registrationLines, fmt.Sprintf("%sg.Register(&%s.%s{}, \"%s\",  \"%s\",  \"%s\")", "\t",
-					path.Base(bObjEntry.srcPath), bObjEntry.name, getCurrentModuleName(), bObjEntry.srcPath,
-					bObjEntry.lastMod.Add(time.Second).Format(time.RFC3339)))
+				boPath := path.Base(bObjEntry.srcPath)
+				registrationLines = append(registrationLines,
+					fmt.Sprintf(
+						"%sRegister(func() any { return &%s.%s{} }, \"%s\", \"%s\", func() any { return []*%s.%s{} })", "\t\t",
+						boPath, bObjEntry.class, bObjEntry.srcPath, bObjEntry.lastMod.Add(time.Second).Format(time.RFC3339), boPath, bObjEntry.class),
+				)
 
 				// adding the corresponding import
 				if !imported[bObjEntry.srcPath] {
@@ -177,7 +180,8 @@ func writeRegistryFileIfNeeded(srcdir, currentPath string, isLibrary bool,
 		filename := path.Join(srcdir, genPath, sourceREGISTRYxNAME)
 
 		// which content?
-		content := fmt.Sprintf(registryFileTemplate, pkgName, strings.Join(imports, newline), strings.Join(registrationLines, newline))
+		dot := "." + newline
+		content := fmt.Sprintf(registryFileTemplate, pkgName, strings.Join(imports, dot), strings.Join(registrationLines, dot))
 
 		// writing to the file
 		utils.WriteToFile(content, filename)
@@ -209,7 +213,7 @@ func getEntryFromFile(srcdir, currentPath, entryName string) (entry *businessObj
 					case *ast.StructType:
 						if entry == nil {
 							entry = &businessObjectEntry{
-								name:    typeSpec.Name.Name,
+								class:   className(typeSpec.Name.Name),
 								lastMod: stat.ModTime(),
 								srcPath: currentPath,
 							}

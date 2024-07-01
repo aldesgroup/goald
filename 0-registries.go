@@ -4,8 +4,6 @@
 package goald
 
 import (
-	"reflect"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -20,22 +18,31 @@ import (
 // ------------------------------------------------------------------------------------------------
 
 type businessObjectEntry struct {
-	name     string
-	lastMod  time.Time
-	bObjType reflect.Type
-	module   string
-	srcPath  string
+	class      className
+	lastMod    time.Time
+	module     string
+	srcPath    string
+	instanceFn func() any // a function to instantiate 1 BO corresponding to this entry
+	newSliceFn func() any // a function to instantiate an empty slice of BOs corresponding to this entry
 }
 
 var boRegistry = &struct {
-	content map[string]*businessObjectEntry // all the business objects! mapped by the name
+	content map[className]*businessObjectEntry // all the business objects! mapped by the name
 	mx      sync.Mutex
 }{
-	content: map[string]*businessObjectEntry{},
+	content: map[className]*businessObjectEntry{},
+}
+
+type moduleBoRegitry struct {
+	module string
+}
+
+func In(module string) *moduleBoRegitry {
+	return &moduleBoRegitry{module}
 }
 
 // registering happens in all the applicative packages, gence the public function
-func Register(bObj IBusinessObject, module, srcPath string, lastModification string) {
+func (m *moduleBoRegitry) Register(genOneFn func() any, srcPath string, lastModification string, genSlice func() any) *moduleBoRegitry {
 	boRegistry.mx.Lock()
 	defer boRegistry.mx.Unlock()
 
@@ -43,14 +50,25 @@ func Register(bObj IBusinessObject, module, srcPath string, lastModification str
 	utils.PanicErrf(errParse, "'%s' has an invalid date format (which is: 2006-01-02 15:04:05)", lastModification)
 
 	entry := &businessObjectEntry{}
-	entry.bObjType = reflect.TypeOf(bObj).Elem()
-	entry.name = entry.bObjType.Name()
-	entry.module = module
+	entry.module = m.module
 	entry.srcPath = srcPath
 	entry.lastMod = date
+	entry.instanceFn = genOneFn
+	entry.newSliceFn = genSlice
+	entry.class = className(utils.TypeNameOf(genOneFn(), true))
 
 	// registering the business object type globally
-	boRegistry.content[entry.name] = entry
+	boRegistry.content[entry.class] = entry
+
+	return m
+}
+
+func NewBO(clsName className) IBusinessObject {
+	if boEntry := boRegistry.content[clsName]; boEntry != nil {
+		return boEntry.instanceFn().(IBusinessObject)
+	}
+
+	panic("The business object registry cannot instantiate an object of class: " + clsName)
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -58,23 +76,22 @@ func Register(bObj IBusinessObject, module, srcPath string, lastModification str
 // ------------------------------------------------------------------------------------------------
 
 var classRegistry = struct {
-	classes map[string]IBusinessObjectClass
+	classes map[className]IBusinessObjectClass
 	mx      sync.Mutex
 }{
-	classes: map[string]IBusinessObjectClass{},
+	classes: map[className]IBusinessObjectClass{},
 }
 
 // registering happens in the "class" package, gence the public function
-func RegisterClass(name string, class IBusinessObjectClass) {
+func RegisterClass(name className, class IBusinessObjectClass) {
 	classRegistry.mx.Lock()
 
 	// setting the class name
-	class.base().className = name
+	class.base().name = className(name)
 
 	// making sure this class own its fields, including the inherited ones
 	for _, field := range class.base().fields {
 		field.setOwner(class)
-		// println("- " + field.getName() + " belongs to " + field.ownerClass().base().className)
 	}
 
 	// making sure this class own its relationships, including the inherited ones
@@ -85,18 +102,14 @@ func RegisterClass(name string, class IBusinessObjectClass) {
 	classRegistry.mx.Unlock()
 }
 
-func ClassForName(name string) IBusinessObjectClass {
+func classForName(clsName className) IBusinessObjectClass {
 	// not using the MX for now, but will have to do if there's any possibility for race condition
-	return classRegistry.classes[name]
+	return classRegistry.classes[clsName]
 }
 
-func getAllClasses() map[string]IBusinessObjectClass {
+func getAllClasses() map[className]IBusinessObjectClass {
 	return classRegistry.classes
 }
-
-// func GetClass[BOTYPE IBusinessObject]() IBusinessObjectClass {
-// 	return ClassForName(reflect.TypeOf(new(BOTYPE)).Elem().Elem().Name())
-// }
 
 // ------------------------------------------------------------------------------------------------
 // Endpoints registry
@@ -137,9 +150,8 @@ func initAndRegisterDB(config *dbConfig) {
 	}
 
 	// init the DB driver
-	db.DB = openDB(config)
+	db.DB, db.adapter = openDB(config)
 	db.config = config
-	db.adapter = getAdapter(config.DbType)
 
 	// back into the registry (not needed if already done
 	dbRegistry.databases[config.DbID] = db
@@ -170,7 +182,7 @@ var dataLoaderRegistry = &struct {
 }
 
 func RegisterDataLoader(fn dataLoader) {
-	fnName := runtime.FuncForPC(reflect.ValueOf(fn).Pointer()).Name()
+	fnName := utils.GetFnName(fn)
 	fnName = fnName[strings.LastIndex(fnName, ".")+1:]
 	dataLoaderRegistry.mx.Lock()
 	utils.PanicIff(dataLoaderRegistry.loaders[fnName] != nil, "There's already a loader registered for name '%s'", fnName)

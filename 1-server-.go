@@ -130,6 +130,14 @@ func (thisServer *server) initRoutes() {
 }
 
 // ------------------------------------------------------------------------------------------------
+// Making the server type an HTTP server
+// ------------------------------------------------------------------------------------------------
+func (thisServer *server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	// this is a place for potential middlewares
+	thisServer.router.ServeHTTP(w, req)
+}
+
+// ------------------------------------------------------------------------------------------------
 // Starting the server
 // ------------------------------------------------------------------------------------------------
 
@@ -148,9 +156,11 @@ func (thisServer *server) Start() {
 	port := thisServer.config.commonPart().HTTP.Port
 	addr := fmt.Sprintf(":%d", port)
 	slog.Info(fmt.Sprintf("Serving at: http://localhost:%d/", port))
-	if errListen := http.ListenAndServe(addr, thisServer.router); errListen != nil && errListen != http.ErrServerClosed {
+	if errListen := http.ListenAndServe(addr, thisServer); errListen != nil && errListen != http.ErrServerClosed {
 		utils.PanicErrf(errListen, "Could not start the server!")
 	}
+
+	// TODO shutdown
 }
 
 func (thisServer *server) handleFor(ep iEndpoint) httprouter.Handle {

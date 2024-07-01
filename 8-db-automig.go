@@ -3,6 +3,9 @@ package goald
 import (
 	"fmt"
 	"log"
+	"log/slog"
+	"os"
+	"time"
 
 	"github.com/aldesgroup/goald/features/utils"
 )
@@ -39,58 +42,45 @@ import (
 // in order to be free of per-version migration scripts.
 // func AutoMigrate(dbContext DbContext, ignoreWarnings bool) {
 func autoMigrateDBs() {
-	log.Printf("Launching the Auto-Migration procedure") // TODO better logging
+	slog.Info("Launching the Auto-Migration procedure")
+	start := time.Now()
 
 	// iterating over all the configured DBs
 	for _, db := range dbRegistry.databases {
-		// getting all the classes associated with the current DB
-		existingClasses := getBOClassesInDB(db)
-
-		// getting the names of the tables existing in the current DB
-		existingTables := getTableNames(db)
-		fmt.Printf("%+v\n", existingTables)
-
-		createMissingTables(db, existingClasses, existingTables)
-		// tableColumns := getTableColumns(dbContext)
-		// createMissingColumns(dbContext, tableColumns)
-		// createMissingForeignKeys(dbContext)
-		// createMissingLinkTables(dbContext, tableNames, ignoreWarnings)
-		// // constraints
-		// createMissingSingleUniqueConstraints(dbContext)
-		// createMissingCompositeUniqueConstraints(dbContext)
-		// createMissingNotNullConstraints(dbContext, tableColumns)
-
-		// // apply some changes - the kind of changes that leave the data untouched !!
-		// extendsColumns(dbContext, tableColumns)
+		migrate(db)
 	}
+
+	slog.Info(fmt.Sprintf("done migrating the %d configured database(s) in %s", len(dbRegistry.databases), time.Since(start)))
+	os.Exit(0)
 }
 
-// getting all the BO classes associated with the given DBs
-func getBOClassesInDB(db *DB) (result map[string]IBusinessObjectClass) {
-	result = map[string]IBusinessObjectClass{}
-	for name, class := range getAllClasses() {
-		if class.GetInDB() == db {
-			result[name] = class
-		}
-	}
+func migrate(db *DB) {
+	// getting all the classes associated with the current DB
+	existingClasses := getBOClassesInDB(db)
+	slog.Debug(fmt.Sprintf("Existing classes: %+v\n", utils.GetSortedKeys(existingClasses)))
 
-	return
-}
+	// getting the names of the tables existing in the current DB
+	existingTables := getTableNames(db)
+	slog.Debug(fmt.Sprintf("Existing tables: %+v\n", existingTables))
 
-// getTableNames fetches the table names from the APP DB
-func getTableNames(db *DB) []string {
-	tables, errFetch := db.FetchStringColumn(db.adapter.getTablesQuery(db.config.DbName))
-	if errFetch != nil {
-		log.Fatalf("Could not fetch the table names: %s", errFetch)
-	}
+	createMissingTables(db, existingClasses, existingTables)
+	// tableColumns := getTableColumns(dbContext)
+	// createMissingColumns(dbContext, tableColumns)
+	// createMissingForeignKeys(dbContext)
+	// createMissingLinkTables(dbContext, tableNames, ignoreWarnings)
+	// // constraints
+	// createMissingSingleUniqueConstraints(dbContext)
+	// createMissingCompositeUniqueConstraints(dbContext)
+	// createMissingNotNullConstraints(dbContext, tableColumns)
 
-	return tables
+	// // apply some changes - the kind of changes that leave the data untouched !!
+	// extendsColumns(dbContext, tableColumns)
 }
 
 // createMissingTables reads the tables contained in the DB, and browses all the persisted BO
 // classes, and create a table for each class that does not have one yet
-func createMissingTables(db *DB, existingClasses map[string]IBusinessObjectClass, existingTables []string) {
-	log.Println("Scanning for missing TABLES, for all our resources")
+func createMissingTables(db *DB, existingClasses map[className]IBusinessObjectClass, existingTables []string) {
+	slog.Info("Scanning for missing TABLES, for all our resources")
 
 	// iterating over all the persisted classes on the given DB, and creating the missing tables if needed
 	for _, boClass := range existingClasses {
@@ -116,72 +106,59 @@ func createMissingTables(db *DB, existingClasses map[string]IBusinessObjectClass
 	// }
 }
 
+// getting all the BO classes associated with the given DBs
+func getBOClassesInDB(db *DB) (result map[className]IBusinessObjectClass) {
+	result = map[className]IBusinessObjectClass{}
+	for name, class := range getAllClasses() {
+		if class.GetInDB() == db {
+			result[name] = class
+		}
+	}
+
+	return
+}
+
+// getTableNames fetches the table names from the APP DB
+func getTableNames(db *DB) []string {
+	tables, errFetch := db.FetchStringColumn(db.adapter.getTablesQuery(db.config.DbName))
+	if errFetch != nil {
+		log.Fatalf("Could not fetch the table names: %s", errFetch)
+	}
+
+	return tables
+}
+
 // createMissingTable creates the missing table corresponding to the given BO class
 func createMissingTable(db *DB, boClass IBusinessObjectClass) {
-	log.Printf("Creating the missing table: %s", boClass.getTableName())
+	slog.Info(fmt.Sprintf("Creating the missing table: %s", boClass.getTableName()))
 
 	// we can manage these columns manually
-	columnsSQL := newline + `id CHAR(36) NOT NULL, `
+	columnsSQL := newline + `id INT IDENTITY(1,1) PRIMARY KEY`
 
 	// adding a column for each property that is persisted in the given BO class's table
-	println("nb properties: ")
-	println(len(boClass.base().getPersistedProperties()))
+	slog.Debug(fmt.Sprintf("nb properties: %d", len(boClass.base().getPersistedProperties())))
 	for i, property := range boClass.base().getPersistedProperties() {
-		// TODO handle not-persisted properties
 		// we avoid to treat the id column twice, since we've already added it just below
 		if i > 0 {
-			columnsSQL = columnsSQL + newline + getSQLColumnDeclaration(property) + ", "
+			columnsSQL = columnsSQL + "," + newline + db.adapter.getSQLColumnDeclaration(property)
 		}
 	}
 
 	// we obviously add a constraint on the ID, the primary key
-	columnsSQL = columnsSQL + newline + fmt.Sprintf("CONSTRAINT pk__%s PRIMARY KEY CLUSTERED (id ASC)", boClass.getTableName())
+	// TODO use adapter here
+	// columnsSQL = columnsSQL + newline + fmt.Sprintf("CONSTRAINT pk__%s PRIMARY KEY CLUSTERED (id ASC)", boClass.getTableName())
 
 	// this is how we create a table
 	// createQuery := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (%s"+newline+")",
 	// TODO use adapter
-	createQuery := fmt.Sprintf("CREATE TABLE %s.%s (%s"+newline+")",
-		"dbo", boClass.getTableName(), columnsSQL)
+	// createQuery := fmt.Sprintf("CREATE TABLE %s.%s (%s"+newline+")",
+	// 	"dbo", boClass.getTableName(), columnsSQL)
+	createQuery := fmt.Sprintf("CREATE TABLE %s (%s"+newline+")", boClass.getTableName(), columnsSQL)
 
 	if _, errCreate := db.Exec(createQuery); errCreate != nil {
 		// TODO better logging
 		log.Fatalf("Error creating table %s: %s", boClass.getTableName(), errCreate)
 	}
-}
-
-// getSQLColumnDeclaration returns the type of the column to create for the given BO property
-func getSQLColumnDeclaration(property iBusinessObjectProperty) string {
-	notNull := ""
-	// if property.IsRequiredInDB() { // TODO
-	// 	notNull = " NOT NULL"
-	// }
-
-	// TODO use adapter
-	switch property := property.(type) {
-	case *Relationship:
-		return property.getColumnName() + " CHAR(36)" + notNull
-	case *BoolField:
-		return property.getColumnName() + " TINYINT(1) UNSIGNED" + notNull
-	case *StringField:
-		return property.getColumnName() + fmt.Sprintf(" VARCHAR(%d)", property.size) + notNull
-	case *IntField:
-		return property.getColumnName() + " INT" + notNull
-	case *Int64Field:
-		return property.getColumnName() + " BIGINT" + notNull
-	case *Real32Field:
-		return property.getColumnName() + " REAL" + notNull
-	case *Real64Field:
-		return property.getColumnName() + " FLOAT" + notNull
-	case *DateField:
-		// TODO big differences between the various DB types
-		return property.getColumnName() + " DATETIME" + notNull
-	case *EnumField:
-		return property.getColumnName() + " INT" + notNull
-	}
-
-	log.Fatalf("Not handling this property in DB: %s", property.getName())
-
-	return ""
 }
 
 // // type tableColumnInfo helps us retrieve relevant info about the columns of our tables
@@ -304,7 +281,7 @@ func getSQLColumnDeclaration(property iBusinessObjectProperty) string {
 
 // // createMissingColumns adds the columns that are required by the code, but do not exist yet in the DB
 // func createMissingColumns(dbContext DbContext, tableColumns map[string]map[string]*tableColumnInfo) {
-// 	log.Printf("Scanning for missing COLUMNS")
+// 	slog.Info("Scanning for missing COLUMNS")
 
 // 	// iterating over all the __REPLACE__ types, and creating the missing link tables if needed
 // 	for __REPLACE__Kind := range Get__REPLACE__Kinds() {
@@ -355,7 +332,7 @@ func getSQLColumnDeclaration(property iBusinessObjectProperty) string {
 
 // // createMissingForeignKeys create the missing foreign keys linking the tables to each other
 // func createMissingForeignKeys(dbContext DbContext) {
-// 	log.Printf("Scanning for missing FOREIGN KEYs")
+// 	slog.Info("Scanning for missing FOREIGN KEYs")
 
 // 	// we're going to filter the foreign keys by their names
 // 	fkPrefix := "fk_"
@@ -433,7 +410,7 @@ func getSQLColumnDeclaration(property iBusinessObjectProperty) string {
 // // createMissingLinkTables is used to create the link tables that are missing
 // // Foreign keys can be created only after all the tables have been created, else adding a foreign key can fail
 // func createMissingLinkTables(dbContext DbContext, existingTableNames []string, ignoreWarnings bool) {
-// 	log.Printf("Scanning for missing LINK tables")
+// 	slog.Info("Scanning for missing LINK tables")
 
 // 	// listing all the needed link table names, to help us identify the dead tables
 // 	var requiredLinkTableNames []string
@@ -532,7 +509,7 @@ func getSQLColumnDeclaration(property iBusinessObjectProperty) string {
 
 // // createMissingSingleUniqueConstraints create the missing UNIQUE constraints
 // func createMissingSingleUniqueConstraints(dbContext DbContext) {
-// 	log.Printf("Scanning for missing simple UNIQUE constraints")
+// 	slog.Info("Scanning for missing simple UNIQUE constraints")
 
 // 	// we're going to filter the unique keys by their names
 // 	ukPrefix := sqlPrefixUNIQUEKEY
@@ -600,7 +577,7 @@ func getSQLColumnDeclaration(property iBusinessObjectProperty) string {
 
 // // createMissingCompositeUniqueConstraints create the missing UNIQUE constraints
 // func createMissingCompositeUniqueConstraints(dbContext DbContext) {
-// 	log.Printf("Scanning for missing composite UNIQUE constraints")
+// 	slog.Info("Scanning for missing composite UNIQUE constraints")
 
 // 	// getting the existing UNIQUE constraints
 // 	existingUniqueConstraints := FetchStringMap(dbContext, automigID, "select_composite_unique_constraints",
@@ -709,7 +686,7 @@ func getSQLColumnDeclaration(property iBusinessObjectProperty) string {
 // // createMissingNotNullConstraints create the missing NOT NULL constraints
 // // But it also removes the NOT NULL constraints when the property is not required anymore
 // func createMissingNotNullConstraints(dbContext DbContext, tableColumns map[string]map[string]*tableColumnInfo) {
-// 	log.Printf("Scanning for missing NOT NULL")
+// 	slog.Info("Scanning for missing NOT NULL")
 
 // 	// iterating over all the __REPLACE__ types, and creating the missing link tables if needed
 // 	for __REPLACE__Kind := range Get__REPLACE__Kinds() {
@@ -764,7 +741,7 @@ func getSQLColumnDeclaration(property iBusinessObjectProperty) string {
 // // extendsColumns look for columns that have been a maxlength in DB smaller than required by the code.
 // // NB: This function can only extend columns, never shrink them!
 // func extendsColumns(dbContext DbContext, tableColumns map[string]map[string]*tableColumnInfo) {
-// 	log.Printf("Scanning for required column EXTENSIONS")
+// 	slog.Info("Scanning for required column EXTENSIONS")
 
 // 	// iterating over all the __REPLACE__ types, and creating the missing link tables if needed
 // 	for __REPLACE__Kind := range Get__REPLACE__Kinds() {
