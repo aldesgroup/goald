@@ -21,7 +21,7 @@ func pascalToSeparated(s string, sep rune) string {
 
 	for i, r := range s {
 		if unicode.IsUpper(r) {
-			if i > 0 && i+1 < len(s) && unicode.IsLower(rune(s[i+1])) {
+			if i > 0 && i+1 < len(s) && (unicode.IsLower(rune(s[i+1])) || unicode.IsLower(rune(s[i-1]))) {
 				buffer.WriteRune(sep)
 			}
 			buffer.WriteRune(unicode.ToLower(r))
