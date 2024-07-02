@@ -210,16 +210,6 @@ func GetTypeFamily(field *GoaldField, iBoTypeFamily, enumTypeFamily *GoaldType) 
 	// a business object's real property must be exported, and therefore PkgPath should be empty
 	// Cf. https://golang.org/pkg/reflect/#StructField
 	if fieldType := field.Type(); field.val.PkgPath == "" {
-		// // detecting the Loadedrelationships: special case of []string, which is not allowed anywhere else
-		// if structField.Name == __BUSINESS OBJEcT__FieldLOADEDrelationshipS {
-		// 	return TypeFamilySTRING, true
-		// }
-
-		// // detecting an __BUSINESS OBJEcT__ ID
-		// if fieldType == Type__BUSINESS OBJEcT__ID {
-		// 	return TypeFamily__BUSINESS OBJEcT__ID, false
-		// }
-
 		// detecting an enum
 		if fieldType.Implements(enumTypeFamily) {
 			return TypeFamilyENUM, false
@@ -229,31 +219,6 @@ func GetTypeFamily(field *GoaldField, iBoTypeFamily, enumTypeFamily *GoaldType) 
 		if fieldType.Equals(typeTIMExPTR) {
 			return TypeFamilyDATE, false
 		}
-
-		// // detecting a URL
-		// if fieldType == TypeURL {
-		// 	return TypeFamilyURL, false
-		// }
-
-		// // detecting an email
-		// if fieldType == TypeEMAIL {
-		// 	return TypeFamilyEMAIL, false
-		// }
-
-		// // detecting an __BUSINESS OBJEcT__ reference
-		// if fieldType == Type__BUSINESS OBJEcT__REFERENCE {
-		// 	return TypeFamily__BUSINESS OBJEcT__REFERENCE, false
-		// }
-
-		// // detecting an amount
-		// if fieldType == TypeAMOUNT {
-		// 	return TypeFamilyAMOUNT, false
-		// }
-
-		// // detecting a json object
-		// if fieldType == TypeJSONString {
-		// 	return TypeFamilyJSON, false
-		// }
 
 		// detecting the basic types here
 		switch fieldKind := fieldType.val.Kind(); fieldKind {

@@ -16,7 +16,6 @@ type IBusinessObject interface {
 	setClassName(className)
 	GetID() BObjID
 	setID(string)
-	GetLabel() string
 
 	// business logic
 	ChangeBeforeInsert(BloContext) error
@@ -34,7 +33,6 @@ type BusinessObject struct {
 	class     IBusinessObjectClass
 	className className
 	ID        BObjID `json:"ID"`
-	Label     string `json:"Label,omitempty"`
 }
 
 var _ IBusinessObject = (*BusinessObject)(nil)
@@ -56,7 +54,6 @@ func (thisBO *BusinessObject) getClassName() className             { return this
 func (thisBO *BusinessObject) setClassName(cn className)           { thisBO.className = cn }
 func (thisBO *BusinessObject) GetID() BObjID                       { return thisBO.ID }
 func (thisBO *BusinessObject) setID(id string)                     { thisBO.ID = BObjID(id) }
-func (thisBO *BusinessObject) GetLabel() string                    { return thisBO.Label }
 func (thisBO *BusinessObject) ChangeBeforeInsert(BloContext) error { return nil }
 func (thisBO *BusinessObject) IsValid(BloContext) error            { return nil }
 func (thisBO *BusinessObject) ChangeAfterInsert(BloContext) error  { return nil }

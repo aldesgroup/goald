@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aldesgroup/goald/features/utils"
 	u "github.com/aldesgroup/goald/features/utils"
 )
 
@@ -119,13 +118,13 @@ func (thisServer *server) generateObjectClasses(srcdir string, regen bool) {
 }
 
 type classGenContext struct {
-	superType     *utils.GoaldType
+	superType     *u.GoaldType
 	propertyNames []string
 	propertiesMap map[string]*classGenPropertyInfo
 }
 
 type classGenPropertyInfo struct {
-	propType   utils.TypeFamily
+	propType   u.TypeFamily
 	multiple   bool
 	targetType string
 }
@@ -156,11 +155,11 @@ func generateObjectClass(classDir string, classUtils IClassUtils) {
 
 func buildPropDecl(classUtils IClassUtils, context *classGenContext) (result string) {
 	// getting the object's type
-	bObjType := utils.TypeOf(classUtils.NewObject(), true)
+	bObjType := u.TypeOf(classUtils.NewObject(), true)
 
 	// the very first property, field #0, MUST be the business object's super class
 	superClassField := bObjType.Field(0)
-	if !superClassField.IsAnonymous() || !utils.PointerTo(superClassField.Type()).Implements(typeIxBUSINESSxOBJECT) {
+	if !superClassField.IsAnonymous() || !u.PointerTo(superClassField.Type()).Implements(typeIxBUSINESSxOBJECT) {
 		u.Panicf("%s: this object's first property should be the BO it inherits from, i.e."+
 			"goald.BusinessObject, or one of its descendants", classUtils.core().class)
 	}
@@ -179,21 +178,21 @@ func buildPropDecl(classUtils IClassUtils, context *classGenContext) (result str
 		field := bObjType.Field(fieldNum)
 
 		// detecting its type and multiplicity
-		typeFamily, multiple := utils.GetTypeFamily(field, typeIxBUSINESSxOBJECT, typeIxENUM)
+		typeFamily, multiple := u.GetTypeFamily(field, typeIxBUSINESSxOBJECT, typeIxENUM)
 
 		// adding to the context, and the class file content
-		if typeFamily != utils.TypeFamilyUNKNOWN {
+		if typeFamily != u.TypeFamilyUNKNOWN {
 			context.propertyNames = append(context.propertyNames, field.Name()) // we're keeping the original order
 
-			targetType := ""                                // makes no sense for BO fields...
-			if typeFamily == utils.TypeFamilyRELATIONSHIP { // ... but it does for relationships
+			targetType := ""                            // makes no sense for BO fields...
+			if typeFamily == u.TypeFamilyRELATIONSHIP { // ... but it does for relationships
 				entityType := u.IfThenElse(multiple, field.Type().Elem(), field.Type())
 				targetType = entityType.Elem().Name()
 			}
 
 			context.propertiesMap[field.Name()] = &classGenPropertyInfo{typeFamily, multiple, targetType}
 
-			if typeFamily == utils.TypeFamilyRELATIONSHIP {
+			if typeFamily == u.TypeFamilyRELATIONSHIP {
 				result += newline + "" + u.PascalToCamel(field.Name()) + " *g.Relationship"
 			} else {
 				result += newline + "" + u.PascalToCamel(field.Name()) + " *g." + getFieldForType(typeFamily)
@@ -204,23 +203,23 @@ func buildPropDecl(classUtils IClassUtils, context *classGenContext) (result str
 	return
 }
 
-func getFieldForType(typeFamily utils.TypeFamily) string {
+func getFieldForType(typeFamily u.TypeFamily) string {
 	switch typeFamily {
-	case utils.TypeFamilyBOOL:
+	case u.TypeFamilyBOOL:
 		return "BoolField"
-	case utils.TypeFamilySTRING:
+	case u.TypeFamilySTRING:
 		return "StringField"
-	case utils.TypeFamilyINT:
+	case u.TypeFamilyINT:
 		return "IntField"
-	case utils.TypeFamilyBIGINT:
+	case u.TypeFamilyBIGINT:
 		return "BigIntField"
-	case utils.TypeFamilyREAL:
+	case u.TypeFamilyREAL:
 		return "RealField"
-	case utils.TypeFamilyDOUBLE:
+	case u.TypeFamilyDOUBLE:
 		return "DoubleField"
-	case utils.TypeFamilyDATE:
+	case u.TypeFamilyDATE:
 		return "DateField"
-	case utils.TypeFamilyENUM:
+	case u.TypeFamilyENUM:
 		return "EnumField"
 	default:
 		return typeFamily.String()
@@ -257,7 +256,7 @@ func buildPropInit(classUtils IClassUtils, context *classGenContext) string {
 			multiple = "true"
 		}
 
-		if propInfo.propType == utils.TypeFamilyRELATIONSHIP {
+		if propInfo.propType == u.TypeFamilyRELATIONSHIP {
 			propLine += fmt.Sprintf("g.NewRelationship(%s, \"%s\", %s, %s)",
 				"newClass", propName, multiple, u.PascalToCamel(propInfo.targetType))
 		} else {
@@ -281,7 +280,7 @@ func buildAccessors(classUtils IClassUtils, context *classGenContext) string {
 		owner := u.PascalToCamel(string(classUtils.core().class))
 		ownerShort := owner[:1]
 		accType := getFieldForType(propInfo.propType)
-		if propInfo.propType == utils.TypeFamilyRELATIONSHIP {
+		if propInfo.propType == u.TypeFamilyRELATIONSHIP {
 			accType = "Relationship"
 		}
 		accessor := fmt.Sprintf("func (%s *%sClass) %s() *g.%s {"+
