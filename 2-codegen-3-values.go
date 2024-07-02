@@ -61,29 +61,29 @@ func (thisServer *server) generateObjectUtils(srcdir, currentPath string, regen 
 			// found a file... but we're only interested in files containing Business Objects, which must end with sourceFILExSUFFIX
 			if strings.HasSuffix(entry.Name(), sourceFILExSUFFIX) {
 				// getting the business object entry within this file, then the registred entry in the code
-				bObjEntryFile := getEntryFromFile(srcdir, currentPath, entry.Name())
-				bObjEntry := boRegistry.content[bObjEntryFile.class]
+				classUtilsCore := getClassUtilsFromFile(srcdir, currentPath, entry.Name())
+				classUtils := classUtilsRegistry.content[classUtilsCore.class]
 
 				// the corresponding utils file, if it exist
 				utilsFilename := strings.Replace(entry.Name(), sourceFILExSUFFIX, utilsFILExSUFFIX, 1)
 
 				// generating the utils file, if not existing yet, or too old
-				if regen || !utils.FileExists(utilsFilename) || utils.EnsureModTime(utilsFilename).Before(bObjEntry.lastMod) {
-					generateObjectUtilsForEntry(srcdir, bObjEntry, utilsFilename)
+				if regen || !utils.FileExists(utilsFilename) || utils.EnsureModTime(utilsFilename).Before(classUtils.core().lastMod) {
+					generateObjectUtilsForEntry(srcdir, classUtils, utilsFilename)
 				}
 			}
 		}
 	}
 }
 
-func generateObjectUtilsForEntry(srcdir string, bObjectEntry *businessObjectEntry, filename string) {
+func generateObjectUtilsForEntry(srcdir string, classUtils IClassUtils, filename string) {
 	// the corresponding class
-	className := bObjectEntry.class
+	className := classUtils.core().class
 	boClass := classForName(className)
 
 	// starting the content
-	content := strings.ReplaceAll(utilsTEMPLATE, "$$package$$", path.Base(bObjectEntry.srcPath))
-	content = strings.ReplaceAll(content, "$$Upper$$", string(bObjectEntry.class))
+	content := strings.ReplaceAll(utilsTEMPLATE, "$$package$$", path.Base(classUtils.core().srcPath))
+	content = strings.ReplaceAll(content, "$$Upper$$", string(classUtils.core().class))
 
 	getCases := []string{}
 	setCases := []string{}
@@ -93,10 +93,10 @@ func generateObjectUtilsForEntry(srcdir string, bObjectEntry *businessObjectEntr
 	var importUtils bool
 
 	// getting the type of business object
-	bObjectType := utils.TypeOf(bObjectEntry.instanceFn(), true)
+	bObjectType := utils.TypeOf(classUtils.NewObject(), true)
 
 	// browsing the entity's properties to fill the get / set cases in the 2 switch
-	// for fieldNum := 1; fieldNum < bObjEntry.bObjType.NumField(); fieldNum++ {
+	// for fieldNum := 1; fieldNum < classUtils.bObjType.NumField(); fieldNum++ {
 	for _, field := range utils.GetSortedValues(boClass.base().fields) {
 		// adding to the context, and the class file content
 		if typeFamily := field.getTypeFamily(); typeFamily != utils.TypeFamilyUNKNOWN && typeFamily != utils.TypeFamilyRELATIONSHIP {
@@ -183,7 +183,7 @@ func generateObjectUtilsForEntry(srcdir string, bObjectEntry *businessObjectEntr
 	content = strings.Replace(content, "$$otherimports$$", imports, 1)
 
 	// write out the file
-	utils.WriteToFile(content, srcdir, bObjectEntry.srcPath, filename)
+	utils.WriteToFile(content, srcdir, classUtils.core().srcPath, filename)
 }
 
 func getBits(fieldTypeAlias, getBit string) (string, string, string) {
