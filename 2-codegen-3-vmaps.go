@@ -12,7 +12,7 @@ import (
 	"github.com/aldesgroup/goald/features/utils"
 )
 
-const utilsTEMPLATE = `// Generated file, do not edit!
+const vmapFileTEMPLATE = `// Generated file, do not edit!
 package $$package$$
 
 import (
@@ -20,7 +20,7 @@ import (
 )
 
 // getting a property's value as a string, without using reflection
-func (this$$Upper$$ *$$Upper$$) GetValueAsString(propertyName string) string {
+func (this$$Upper$$ClassUtils *$$Upper$$ClassUtils) GetValueAsString(bo goald.IBusinessObject, propertyName string) string {
 	switch propertyName {
 $$getcases$$
 	default:
@@ -29,18 +29,18 @@ $$getcases$$
 }
 
 // setting a property's value with a given string value, without using reflection
-func (this$$Upper$$ *$$Upper$$) SetValueAsString(propertyName string, valueAsString string) error {
+func (this$$Upper$$ClassUtils *$$Upper$$ClassUtils) SetValueAsString(bo goald.IBusinessObject, propertyName string, valueAsString string) error {
 	switch propertyName {
 $$setcases$$
 	}
 
-	return goald.Error("Unknown property: %T.%s", this$$Upper$$, propertyName)
+	return goald.Error("Unknown property: %T.%s", bo, propertyName)
 }
 `
 
-const utilsFILExSUFFIX = "--utils.go"
+const valueMapperFILExSUFFIX = "--vmap.go"
 
-func (thisServer *server) generateObjectUtils(srcdir, currentPath string, regen bool) {
+func (thisServer *server) generateObjectValueMappers(srcdir, currentPath string, regen bool) {
 	// the path we're currently reading at e.g. go/pkg1/pkg2
 	readingPath := path.Join(srcdir, currentPath)
 
@@ -55,41 +55,48 @@ func (thisServer *server) generateObjectUtils(srcdir, currentPath string, regen 
 			// not going into the vendor
 			if entry.Name() != "vendor" && entry.Name() != ".git" {
 				// found another directory, let's dive deeper!
-				thisServer.generateObjectUtils(srcdir, path.Join(currentPath, entry.Name()), regen)
+				thisServer.generateObjectValueMappers(srcdir, path.Join(currentPath, entry.Name()), regen)
 			}
 		} else {
 			// found a file... but we're only interested in files containing Business Objects, which must end with sourceFILExSUFFIX
 			if strings.HasSuffix(entry.Name(), sourceFILExSUFFIX) {
 				// getting the business object entry within this file, then the registred entry in the code
-				classUtilsCore := getClassUtilsFromFile(srcdir, currentPath, entry.Name())
-				classUtils := classUtilsRegistry.content[classUtilsCore.class]
+				clsuCore := getClassUtilsFromFile(srcdir, currentPath, entry.Name())
+				classUtils := classUtilsRegistry.content[clsuCore.class]
 
-				// the corresponding utils file, if it exist
-				utilsFilename := strings.Replace(entry.Name(), sourceFILExSUFFIX, utilsFILExSUFFIX, 1)
+				// the corresponding Value Mapper file, if it exist
+				vmapFilename := path.Join(sourceCLASSxUTILSxDIR, strings.Replace(entry.Name(), sourceFILExSUFFIX, valueMapperFILExSUFFIX, 1))
 
-				// generating the utils file, if not existing yet, or too old
-				if regen || !utils.FileExists(utilsFilename) || utils.EnsureModTime(utilsFilename).Before(classUtils.core().lastMod) {
-					generateObjectUtilsForEntry(srcdir, classUtils, utilsFilename)
+				// generating the Value Mapper file, if not existing yet, or too old
+				if regen || !utils.FileExists(vmapFilename) || utils.EnsureModTime(vmapFilename).Before(classUtils.core().lastMod) {
+					generateObjectValueMappersForBO(srcdir, classUtils, vmapFilename)
 				}
 			}
 		}
 	}
 }
 
-func generateObjectUtilsForEntry(srcdir string, classUtils IClassUtils, filename string) {
+func generateObjectValueMappersForBO(srcdir string, classUtils IClassUtils, filename string) {
 	// the corresponding class
 	className := classUtils.core().class
 	boClass := classForName(className)
 
+	// the corresponding package
+	classPkg := path.Join(getCurrentModule(), classUtils.core().srcPath)
+	shortPkg := path.Base(classPkg)
+
 	// starting the content
-	content := strings.ReplaceAll(utilsTEMPLATE, "$$package$$", path.Base(classUtils.core().srcPath))
+	content := strings.ReplaceAll(vmapFileTEMPLATE, "$$package$$", sourceCLASSxUTILSxDIR)
 	content = strings.ReplaceAll(content, "$$Upper$$", string(classUtils.core().class))
 
 	getCases := []string{}
 	setCases := []string{}
 
 	// need for some imports
-	var importsMap = map[string]bool{"github.com/aldesgroup/goald": true}
+	var importsMap = map[string]bool{
+		"github.com/aldesgroup/goald": true,
+		classPkg:                      true,
+	}
 	var importUtils bool
 
 	// getting the type of business object
@@ -110,54 +117,54 @@ func generateObjectUtilsForEntry(srcdir string, classUtils IClassUtils, filename
 				setCase := getCase
 
 				// this is going to come up a lot
-				fieldID := string(className) + "." + fieldName
+				fieldID := fmt.Sprintf("(*%s.%s).%s", shortPkg, className, fieldName)
 
 				switch typeFamily {
 				case utils.TypeFamilyBOOL:
 					getBit, setBit, end := getBits(fieldTypeAlias, "bool")
-					getCase += newline + fmt.Sprintf("\t\treturn utils.BoolToString(%sthis%s%s)", getBit, fieldID, end)
+					getCase += newline + fmt.Sprintf("\t\treturn utils.BoolToString(%sbo.%s%s)", getBit, fieldID, end)
 					importUtils = true
-					setCase += newline + fmt.Sprintf("\t\tthis%s = %sutils.StringToBool(valueAsString, \"%s\")%s", fieldID, setBit, fieldID, end)
+					setCase += newline + fmt.Sprintf("\t\tbo.%s = %sutils.StringToBool(valueAsString, \"%s\")%s", fieldID, setBit, fieldID, end)
 
 				case utils.TypeFamilySTRING:
 					getBit, setBit, end := getBits(fieldTypeAlias, "string")
-					getCase += newline + fmt.Sprintf("\t\treturn %sthis%s%s", getBit, fieldID, end)
-					setCase += newline + fmt.Sprintf("\t\tthis%s = %svalueAsString%s", fieldID, setBit, end)
+					getCase += newline + fmt.Sprintf("\t\treturn %sbo.%s%s", getBit, fieldID, end)
+					setCase += newline + fmt.Sprintf("\t\tbo.%s = %svalueAsString%s", fieldID, setBit, end)
 
 				case utils.TypeFamilyINT:
 					getBit, setBit, end := getBits(fieldTypeAlias, "int")
-					getCase += newline + fmt.Sprintf("\t\treturn utils.IntToString(%sthis%s%s)", getBit, fieldID, end)
+					getCase += newline + fmt.Sprintf("\t\treturn utils.IntToString(%sbo.%s%s)", getBit, fieldID, end)
 					importUtils = true
-					setCase += newline + fmt.Sprintf("\t\tthis%s = %sutils.StringToInt(valueAsString, \"%s\")%s", fieldID, setBit, fieldID, end)
+					setCase += newline + fmt.Sprintf("\t\tbo.%s = %sutils.StringToInt(valueAsString, \"%s\")%s", fieldID, setBit, fieldID, end)
 
 				case utils.TypeFamilyBIGINT:
 					getBit, setBit, end := getBits(fieldTypeAlias, "int64")
-					getCase += newline + fmt.Sprintf("\t\treturn utils.Int64ToString(%sthis%s%s)", getBit, fieldID, end)
+					getCase += newline + fmt.Sprintf("\t\treturn utils.Int64ToString(%sbo.%s%s)", getBit, fieldID, end)
 					importUtils = true
-					setCase += newline + fmt.Sprintf("\t\tthis%s = %sutils.StringToInt64(valueAsString, \"%s\")%s", fieldID, setBit, fieldID, end)
+					setCase += newline + fmt.Sprintf("\t\tbo.%s = %sutils.StringToInt64(valueAsString, \"%s\")%s", fieldID, setBit, fieldID, end)
 
 				case utils.TypeFamilyREAL:
 					getBit, setBit, end := getBits(fieldTypeAlias, "float32")
-					getCase += newline + fmt.Sprintf("\t\treturn utils.Float32ToString(%sthis%s%s)", getBit, fieldID, end)
+					getCase += newline + fmt.Sprintf("\t\treturn utils.Float32ToString(%sbo.%s%s)", getBit, fieldID, end)
 					importUtils = true
-					setCase += newline + fmt.Sprintf("\t\tthis%s = %sutils.StringToFloat32(valueAsString, \"%s\")%s", fieldID, setBit, fieldID, end)
+					setCase += newline + fmt.Sprintf("\t\tbo.%s = %sutils.StringToFloat32(valueAsString, \"%s\")%s", fieldID, setBit, fieldID, end)
 
 				case utils.TypeFamilyDOUBLE:
 					getBit, setBit, end := getBits(fieldTypeAlias, "float64")
-					getCase += newline + fmt.Sprintf("\t\treturn utils.Float64ToString(%sthis%s%s)", getBit, fieldID, end)
+					getCase += newline + fmt.Sprintf("\t\treturn utils.Float64ToString(%sbo.%s%s)", getBit, fieldID, end)
 					importUtils = true
-					setCase += newline + fmt.Sprintf("\t\tthis%s = %sutils.StringToFloat64(valueAsString, \"%s\")%s", fieldID, setBit, fieldID, end)
+					setCase += newline + fmt.Sprintf("\t\tbo.%s = %sutils.StringToFloat64(valueAsString, \"%s\")%s", fieldID, setBit, fieldID, end)
 
 				case utils.TypeFamilyDATE:
-					getCase += newline + fmt.Sprintf("\t\treturn utils.DateToString(this%s)", fieldID)
-					setCase += newline + fmt.Sprintf("\t\tthis%s = utils.StringToDate(valueAsString, \"%s\")", fieldID, fieldID)
+					getCase += newline + fmt.Sprintf("\t\treturn utils.DateToString(bo.%s)", fieldID)
+					setCase += newline + fmt.Sprintf("\t\tbo.%s = utils.StringToDate(valueAsString, \"%s\")", fieldID, fieldID)
 
 				case utils.TypeFamilyENUM:
-					getCase += newline + fmt.Sprintf("\t\treturn utils.IntToString(this%s.Val())", fieldID)
+					getCase += newline + fmt.Sprintf("\t\treturn utils.IntToString(bo.%s.Val())", fieldID)
 					importUtils = true
-					setCase += newline + fmt.Sprintf("\t\tthis%s = %s(utils.StringToInt(valueAsString, \"%s\"))", fieldID, fieldTypeAlias, fieldID)
+					setCase += newline + fmt.Sprintf("\t\tbo.%s = %s(utils.StringToInt(valueAsString, \"%s\"))", fieldID, fieldTypeAlias, fieldID)
 
-					setCase += newline + fmt.Sprintf("\t\tutils.PanicIff(this%s.String() == \"\", \"Could not set '%s' to %%s since it's not a listed value\", valueAsString)",
+					setCase += newline + fmt.Sprintf("\t\tutils.PanicIff(bo.%s.String() == \"\", \"Could not set '%s' to %%s since it's not a listed value\", valueAsString)",
 						fieldID, fieldID)
 				}
 
@@ -201,11 +208,6 @@ func getNonBuiltInFieldType(bOjbType *utils.GoaldType, fieldName string, toBeImp
 	// this is a built-in field type
 	if fieldPkg == "" {
 		return ""
-	}
-
-	// the type of the field is defined in the same package as the business object
-	if fieldPkg == bOjbType.PkgPath() {
-		return fieldType.Name() // e.g.: MyEnumType
 	}
 
 	// the field type comes from another package, that we have to import

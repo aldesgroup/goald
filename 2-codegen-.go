@@ -29,8 +29,8 @@ func (thisServer *server) runCodeGen(srcdir string, level codeGenLevel, _ bool, 
 		// we're making all the databases globally accessible
 		thisServer.generateDatabasesList(srcdir)
 
-		// we're making all the business objects reachable with the `reflect` package this way
-		thisServer.generateObjectRegistry(srcdir, ".", false, map[className]*businessObjectEntry{}, regen)
+		// we're making all the business objects reachable by listing the corresponding class utils
+		thisServer.generateObjectRegistry(srcdir, ".", false, map[className]*classUtilsCore{}, regen)
 
 		log.Printf("done generating the DB & BO registries in %s", time.Since(start))
 		os.Exit(0)
@@ -49,7 +49,7 @@ func (thisServer *server) runCodeGen(srcdir string, level codeGenLevel, _ bool, 
 
 		// now, using the `reflect` package, we can "easily" build utils for our BOs,
 		// that should help us avoid using the `reflect` package at runtime;
-		thisServer.generateObjectUtils(srcdir, ".", regen)
+		thisServer.generateObjectValueMappers(srcdir, ".", regen)
 
 		log.Printf("done generating the BO utils in %s", time.Since(start))
 		os.Exit(0)

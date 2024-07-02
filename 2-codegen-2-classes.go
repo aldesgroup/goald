@@ -94,14 +94,14 @@ func (thisServer *server) generateObjectClasses(srcdir string, regen bool) {
 	}
 
 	// let's see what we have in terms of business objects
-	for name, bObjEntry := range boRegistry.content {
+	for name, classUtils := range classUtilsRegistry.content {
 		// considering only the business objects of THIS module
-		if bObjEntry.module == getCurrentModuleName() {
+		if classUtils.core().module == getCurrentModuleName() {
 			// do we need to regen the class file?
 			if existingClass := existingClassFiles[name]; regen ||
-				existingClass == nil || existingClass.modTime.Before(bObjEntry.lastMod) {
+				existingClass == nil || existingClass.modTime.Before(classUtils.core().lastMod) {
 				// generating the missing or outdated class
-				generateObjectClass(classDir, bObjEntry)
+				generateObjectClass(classDir, classUtils)
 			}
 
 			// flagging this business object class as NOT unneeded (i.e. needed)
@@ -130,23 +130,23 @@ type classGenPropertyInfo struct {
 	targetType string
 }
 
-func generateObjectClass(classDir string, bObjEntry *businessObjectEntry) {
+func generateObjectClass(classDir string, classUtils IClassUtils) {
 	// starting to build the file content, with the same context
 	context := &classGenContext{propertiesMap: map[string]*classGenPropertyInfo{}}
 
 	// trivial filling of the template
-	class := string(bObjEntry.class)
+	class := string(classUtils.core().class)
 	content := strings.ReplaceAll(classTEMPLATE, "$$Upper$$", class)
 	content = strings.ReplaceAll(content, "$$lower$$", u.PascalToCamel(class))
 
 	// declaring the properties of the classe
-	content = strings.Replace(content, "$$propdecl$$", buildPropDecl(bObjEntry, context), 1)
+	content = strings.Replace(content, "$$propdecl$$", buildPropDecl(classUtils, context), 1)
 
 	// valueing the properties
-	content = strings.Replace(content, "$$propinit$$", buildPropInit(bObjEntry, context), 1)
+	content = strings.Replace(content, "$$propinit$$", buildPropInit(classUtils, context), 1)
 
 	// building the accessors to the properties
-	content = strings.Replace(content, "$$accessors$$", buildAccessors(bObjEntry, context), 1)
+	content = strings.Replace(content, "$$accessors$$", buildAccessors(classUtils, context), 1)
 
 	// writing to file
 	u.WriteToFile(content, classDir, u.PascalToKebab(class)+classFILExSUFFIX)
@@ -154,15 +154,15 @@ func generateObjectClass(classDir string, bObjEntry *businessObjectEntry) {
 	log.Printf("(Re-)generated class %s", class)
 }
 
-func buildPropDecl(bObjEntry *businessObjectEntry, context *classGenContext) (result string) {
+func buildPropDecl(classUtils IClassUtils, context *classGenContext) (result string) {
 	// getting the object's type
-	bObjType := utils.TypeOf(NewBO(bObjEntry.class), true)
+	bObjType := utils.TypeOf(classUtils.NewObject(), true)
 
 	// the very first property, field #0, MUST be the business object's super class
 	superClassField := bObjType.Field(0)
 	if !superClassField.IsAnonymous() || !utils.PointerTo(superClassField.Type()).Implements(typeIxBUSINESSxOBJECT) {
 		u.Panicf("%s: this object's first property should be the BO it inherits from, i.e."+
-			"goald.BusinessObject, or one of its descendants", bObjEntry.class)
+			"goald.BusinessObject, or one of its descendants", classUtils.core().class)
 	}
 
 	if context.superType = superClassField.Type(); context.superType.Equals(typeBUSINESSxOBJECT) {
@@ -227,9 +227,9 @@ func getFieldForType(typeFamily utils.TypeFamily) string {
 	}
 }
 
-func buildPropInit(bObjEntry *businessObjectEntry, context *classGenContext) string {
+func buildPropInit(classUtils IClassUtils, context *classGenContext) string {
 	// the class as a variable
-	className := u.PascalToCamel(string(bObjEntry.class))
+	className := u.PascalToCamel(string(classUtils.core().class))
 
 	// dealing with the class initialisation
 	classInit := "newClass := &" + className + classNAMExSUFFIX + "{%s: %s}"
@@ -272,13 +272,13 @@ func buildPropInit(bObjEntry *businessObjectEntry, context *classGenContext) str
 	return strings.Join(propLines, newline)
 }
 
-func buildAccessors(bObjEntry *businessObjectEntry, context *classGenContext) string {
+func buildAccessors(classUtils IClassUtils, context *classGenContext) string {
 	accessors := []string{}
 
 	// generating 1 accessor per
 	for _, propName := range context.propertyNames {
 		propInfo := context.propertiesMap[propName]
-		owner := u.PascalToCamel(string(bObjEntry.class))
+		owner := u.PascalToCamel(string(classUtils.core().class))
 		ownerShort := owner[:1]
 		accType := getFieldForType(propInfo.propType)
 		if propInfo.propType == utils.TypeFamilyRELATIONSHIP {

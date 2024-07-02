@@ -34,22 +34,22 @@ func dbLoadList(_ DaoContext, boClass IBusinessObjectClass) (result []IBusinessO
 }
 
 func dbLoadOne(_ DaoContext, idProp IField, idPropVal string) (result IBusinessObject, err error) {
-	for _, bObj := range mockDatabase {
-		if idProp.ownerClass() == bObj.Class() && idPropVal == bObj.GetValueAsString(idPropVal) {
-			return bObj, nil
-		}
-	}
+	// for _, bObj := range mockDatabase {
+	// 	if idProp.ownerClass() == bObj.Class() && idPropVal == bObj.GetValueAsString(idPropVal) {
+	// 		return bObj, nil
+	// 	}
+	// }
 
 	return nil, Error("No '%s' found with '%s = %s'", idProp.ownerClass().base().name, idProp.getName(), idPropVal)
 }
 
 func dbRemoveOne(_ DaoContext, idProp IField, idPropVal string) (result IBusinessObject, err error) {
-	for _, bObj := range mockDatabase {
-		if idProp.ownerClass() == bObj.Class() && idPropVal == bObj.GetValueAsString(idPropVal) {
-			delete(mockDatabase, string(bObj.GetID()))
-			return bObj, nil
-		}
-	}
+	// for _, bObj := range mockDatabase {
+	// 	if idProp.ownerClass() == bObj.Class() && idPropVal == bObj.GetValueAsString(idPropVal) {
+	// 		delete(mockDatabase, string(bObj.GetID()))
+	// 		return bObj, nil
+	// 	}
+	// }
 
 	return nil, Error("No '%s' found with '%s = %s'", idProp.ownerClass().base().name, idProp.getName(), idPropVal)
 }
