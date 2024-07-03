@@ -9,6 +9,7 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/aldesgroup/goald/features/utils"
@@ -69,16 +70,22 @@ func NewServer() ServerContext {
 		initAndRegisterDB(dbConfig)
 	}
 
-	// migrating the DBs
-	if migrate {
-		autoMigrateDBs()
-	}
-
 	// bit of logging // TODO remove
 	slog.Info(fmt.Sprintf("Instance: %s", server.instance))
 
-	// loading some data in parallel, if there are data loaders registered
-	server.loadData()
+	// migrating the DBs + injecting some data into the DBs
+	if migrate {
+		// making sure the DBs are in sync with the code
+		autoMigrateDBs()
+
+		// loading some data into the DBs
+		server.loadData(true)
+
+		os.Exit(0)
+	}
+
+	// loading some data for each instance of this server
+	server.loadData(false)
 
 	return server
 }

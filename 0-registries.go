@@ -215,17 +215,24 @@ func GetDB(dbID DatabaseID) *DB {
 // ------------------------------------------------------------------------------------------------
 
 var dataLoaderRegistry = &struct {
-	loaders map[string]dataLoader
-	mx      sync.Mutex
+	migrationLoaders map[string]dataLoader // loaders running during a migration phase
+	appServerLoaders map[string]dataLoader // loaders running at each app server instance startup
+	mx               sync.Mutex
 }{
-	loaders: map[string]dataLoader{},
+	migrationLoaders: map[string]dataLoader{},
+	appServerLoaders: map[string]dataLoader{},
 }
 
-func RegisterDataLoader(fn dataLoader) {
+func RegisterDataLoader(fn dataLoader, migrationPhase bool) {
 	fnName := utils.GetFnName(fn)
 	fnName = fnName[strings.LastIndex(fnName, ".")+1:]
 	dataLoaderRegistry.mx.Lock()
-	utils.PanicIff(dataLoaderRegistry.loaders[fnName] != nil, "There's already a loader registered for name '%s'", fnName)
-	dataLoaderRegistry.loaders[fnName] = fn
+	if migrationPhase {
+		utils.PanicIff(dataLoaderRegistry.migrationLoaders[fnName] != nil, "There's already a migration loader registered for name '%s'", fnName)
+		dataLoaderRegistry.migrationLoaders[fnName] = fn
+	} else {
+		utils.PanicIff(dataLoaderRegistry.appServerLoaders[fnName] != nil, "There's already a app server loader registered for name '%s'", fnName)
+		dataLoaderRegistry.appServerLoaders[fnName] = fn
+	}
 	dataLoaderRegistry.mx.Unlock()
 }

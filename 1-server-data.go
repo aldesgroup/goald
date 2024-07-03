@@ -12,13 +12,15 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+
+	"github.com/aldesgroup/goald/features/utils"
 )
 
 // the data loader type
 type dataLoader func(serverCtx BloContext, params map[string]string) error
 
 // the main data loading function
-func (thisServer *server) loadData() {
+func (thisServer *server) loadData(migrationPhase bool) {
 	// handling the synchronization of the loaders
 	wg := new(sync.WaitGroup)
 
@@ -27,7 +29,8 @@ func (thisServer *server) loadData() {
 	errorMx := new(sync.Mutex)
 
 	// launching all the registred data loaders in parallel!
-	for fnName, dataLoadingFn := range dataLoaderRegistry.loaders {
+	loaders := utils.IfThenElse(migrationPhase, dataLoaderRegistry.migrationLoaders, dataLoaderRegistry.appServerLoaders)
+	for fnName, dataLoadingFn := range loaders {
 		wg.Add(1)
 		go func(fnNameArg string, dataLoadingFnArg dataLoader) {
 			defer wg.Done()

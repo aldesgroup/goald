@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
-	"os"
 	"time"
 
 	"github.com/aldesgroup/goald/features/utils"
@@ -51,7 +50,6 @@ func autoMigrateDBs() {
 	}
 
 	slog.Info(fmt.Sprintf("done migrating the %d configured database(s) in %s", len(dbRegistry.databases), time.Since(start)))
-	os.Exit(0)
 }
 
 func migrate(db *DB) {
