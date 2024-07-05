@@ -46,7 +46,7 @@ import "sigs.k8s.io/yaml"
 Usage is very similar to the JSON library:
 
 ```go
-package goald
+package main
 
 import (
 	"fmt"
@@ -90,7 +90,7 @@ func main() {
 `yaml.YAMLToJSON` and `yaml.JSONToYAML` methods are also available:
 
 ```go
-package goald
+package main
 
 import (
 	"fmt"
