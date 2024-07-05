@@ -212,7 +212,11 @@ func retrieveURLParams(request *http.Request, _ *webContextImpl, ep iEndpoint) (
 
 	// transferring the URL param values from the URL to the object
 	for _, field := range classForName(ep.getInputOrParamsClass()).base().fields {
-		classUtils.SetValueAsString(urlParams, field.getName(), request.URL.Query().Get(field.getName()))
+		valueToSet := request.URL.Query().Get(field.getName())
+		if valueToSet == "" {
+			valueToSet = field.getDefaultValue()
+		}
+		classUtils.SetValueAsString(urlParams, field.getName(), valueToSet)
 	}
 
 	return urlParams, nil

@@ -173,11 +173,14 @@ func (prop *businessObjectProperty) isNotPersisted() bool {
 type IField interface {
 	iBusinessObjectProperty
 	isBuiltIn() bool
+	getDefaultValue() string
+	// SetDefaultValue(string) IField
 }
 
 // base implementation
 type field struct {
 	businessObjectProperty
+	defaultStringValue string
 }
 
 func newField(owner IBusinessObjectClass, name string, multiple bool, typeFamily utils.TypeFamily) field {
@@ -203,6 +206,15 @@ func (f *field) SetNotPersisted() *field {
 
 func (f *field) isBuiltIn() bool {
 	return false
+}
+
+func (f *field) SetDefaultValue(val string) *field {
+	f.defaultStringValue = val
+	return f
+}
+
+func (f *field) getDefaultValue() string {
+	return f.defaultStringValue
 }
 
 type BoolField struct {
