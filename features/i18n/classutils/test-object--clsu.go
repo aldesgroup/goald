@@ -14,10 +14,10 @@ func ClassUtilsForTestObject(srcPath, lastMod string) goald.IClassUtils {
 	return &TestObjectClassUtils{IClassUtilsCore: goald.NewClassUtilsCore(srcPath, lastMod)}
 }
 
-func (thisTestObjectClassUtils *TestObjectClassUtils) NewObject() any {
+func (thisUtils *TestObjectClassUtils) NewObject() any {
 	return &i18n.TestObject{}
 }
 
-func (thisTestObjectClassUtils *TestObjectClassUtils) NewSlice() any {
+func (thisUtils *TestObjectClassUtils) NewSlice() any {
 	return []*i18n.TestObject{}
 }

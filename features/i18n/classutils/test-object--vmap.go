@@ -9,7 +9,7 @@ import (
 )
 
 // getting a property's value as a string, without using reflection
-func (thisTestObjectClassUtils *TestObjectClassUtils) GetValueAsString(bo goald.IBusinessObject, propertyName string) string {
+func (thisUtils *TestObjectClassUtils) GetValueAsString(bo goald.IBusinessObject, propertyName string) string {
 	switch propertyName {
 	case "BoolProp":
 		return utils.BoolToString(bo.(*i18n.TestObject).BoolProp)
@@ -20,7 +20,7 @@ func (thisTestObjectClassUtils *TestObjectClassUtils) GetValueAsString(bo goald.
 	case "EnumProp":
 		return utils.IntToString(bo.(*i18n.TestObject).EnumProp.Val())
 	case "ID":
-		return string(bo.(*i18n.TestObject).ID)
+		return utils.IntToString(int(bo.(*i18n.TestObject).ID))
 	case "Int64Prop":
 		return utils.Int64ToString(bo.(*i18n.TestObject).Int64Prop)
 	case "Int64PropCustom":
@@ -49,7 +49,7 @@ func (thisTestObjectClassUtils *TestObjectClassUtils) GetValueAsString(bo goald.
 }
 
 // setting a property's value with a given string value, without using reflection
-func (thisTestObjectClassUtils *TestObjectClassUtils) SetValueAsString(bo goald.IBusinessObject, propertyName string, valueAsString string) error {
+func (thisUtils *TestObjectClassUtils) SetValueAsString(bo goald.IBusinessObject, propertyName string, valueAsString string) error {
 	switch propertyName {
 	case "BoolProp":
 		bo.(*i18n.TestObject).BoolProp = utils.StringToBool(valueAsString, "(*i18n.TestObject).BoolProp")
@@ -61,7 +61,7 @@ func (thisTestObjectClassUtils *TestObjectClassUtils) SetValueAsString(bo goald.
 		bo.(*i18n.TestObject).EnumProp = i18n.Language(utils.StringToInt(valueAsString, "(*i18n.TestObject).EnumProp"))
 		utils.PanicIff(bo.(*i18n.TestObject).EnumProp.String() == "", "Could not set '(*i18n.TestObject).EnumProp' to %s since it's not a listed value", valueAsString)
 	case "ID":
-		bo.(*i18n.TestObject).ID = goald.BObjID(valueAsString)
+		bo.(*i18n.TestObject).ID = goald.BObjID(utils.StringToInt(valueAsString, "(*i18n.TestObject).ID"))
 	case "Int64Prop":
 		bo.(*i18n.TestObject).Int64Prop = utils.StringToInt64(valueAsString, "(*i18n.TestObject).Int64Prop")
 	case "Int64PropCustom":

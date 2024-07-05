@@ -13,7 +13,7 @@ func CreateBO(bloCtx BloContext, bObj IBusinessObject) error {
 	}
 
 	// the business object should not have an ID already
-	if bObj.GetID() != "" {
+	if bObj.GetID() != 0 {
 		return Error("Could not create object since it already has an ID (%s)", bObj.GetID())
 	}
 
@@ -48,14 +48,18 @@ func CreateBO(bloCtx BloContext, bObj IBusinessObject) error {
 	return nil
 }
 
-func LoadBOs(bloCtx BloContext, boClass IBusinessObjectClass, loadingType LoadingType) ([]IBusinessObject, error) {
-	loadedBOs, errLoad := dbLoadList(bloCtx.GetDaoContext(), boClass)
+func LoadBOs[ResourceType IBusinessObject](bloCtx BloContext, boClass IBusinessObjectClass, loadingType LoadingType) ([]ResourceType, error) {
+	// func LoadBOs(bloCtx BloContext, boClass IBusinessObjectClass, loadingType LoadingType) ([]ResourceType, error) {
+	loadedBOs, errLoad := dbLoadList[ResourceType](bloCtx.GetDaoContext(), boClass)
+	// loadedBOs, errLoad := dbLoadList(bloCtx.GetDaoContext(), boClass)
 
 	if errLoad != nil {
 		return nil, ErrorC(errLoad, "error while loading a list of '%s'", boClass.base().name)
 	}
 
-	// TODO add post read
+	// TODO add post read, i.e.:
+	// - reading the links, using the LoadingType
+	// - on each BO: setting the loadingID + check if reading is ok, then do after read changes
 
 	return loadedBOs, nil
 }

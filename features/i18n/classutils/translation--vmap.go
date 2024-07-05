@@ -4,13 +4,14 @@ package classutils
 import (
 	"github.com/aldesgroup/goald"
 	"github.com/aldesgroup/goald/features/i18n"
+	"github.com/aldesgroup/goald/features/utils"
 )
 
 // getting a property's value as a string, without using reflection
-func (thisTranslationClassUtils *TranslationClassUtils) GetValueAsString(bo goald.IBusinessObject, propertyName string) string {
+func (thisUtils *TranslationClassUtils) GetValueAsString(bo goald.IBusinessObject, propertyName string) string {
 	switch propertyName {
 	case "ID":
-		return string(bo.(*i18n.Translation).ID)
+		return utils.IntToString(int(bo.(*i18n.Translation).ID))
 	case "Key":
 		return bo.(*i18n.Translation).Key
 	case "Lang":
@@ -27,10 +28,10 @@ func (thisTranslationClassUtils *TranslationClassUtils) GetValueAsString(bo goal
 }
 
 // setting a property's value with a given string value, without using reflection
-func (thisTranslationClassUtils *TranslationClassUtils) SetValueAsString(bo goald.IBusinessObject, propertyName string, valueAsString string) error {
+func (thisUtils *TranslationClassUtils) SetValueAsString(bo goald.IBusinessObject, propertyName string, valueAsString string) error {
 	switch propertyName {
 	case "ID":
-		bo.(*i18n.Translation).ID = goald.BObjID(valueAsString)
+		bo.(*i18n.Translation).ID = goald.BObjID(utils.StringToInt(valueAsString, "(*i18n.Translation).ID"))
 	case "Key":
 		bo.(*i18n.Translation).Key = valueAsString
 	case "Lang":

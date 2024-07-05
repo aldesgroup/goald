@@ -14,19 +14,6 @@ var (
 	typeURLxQUERYxOBJECT  = utils.TypeOf((*URLQueryParams)(nil), true)
 	typeIxBUSINESSxOBJECT = utils.TypeOf((*IBusinessObject)(nil), true)
 	typeIxENUM            = utils.TypeOf((*IEnum)(nil), true)
-
-// TypeAMOUNT          = utils.TypeOf((core.Amount)(0))
-// TypeDURATION        = utils.TypeOf((time.Duration)(0))
-// TypeEMAIL           = utils.TypeOf((core.Email)(""))
-// TypeIACTIONTYPE     = utils.TypeOf((*IActionType)(nil), true)
-// TypeIENUM           = utils.TypeOf((*IEnum)(nil), true)
-// TypeINT             = utils.TypeOf((int)(0))
-// TypeINT64           = utils.TypeOf((int64)(0))
-// TypeIUSER           = utils.TypeOf((*IUser)(nil), true)
-// TypeRESOURCE        = utils.TypeOf((*Resource)(nil), true)
-// TypeURL             = utils.TypeOf((core.URL)(""))
-// TypeWEBOPERATION    = utils.TypeOf((*WebOperation)(nil), true)
-// TypeJSONString      = utils.TypeOf((core.JSONString)(""))
 )
 
 // // GetAllProperties returns all this class' properties
@@ -58,8 +45,10 @@ func (boClass *businessObjectClass) getPersistedProperties() []iBusinessObjectPr
 
 		// let's gather all the persisted properties
 		// boClass.persistedProperties = make([]iBusinessObjectProperty, size)
-		for _, field := range boClass.fields { // TODO only take the persisted fields
-			boClass.persistedProperties = append(boClass.persistedProperties, field)
+		for _, field := range boClass.fields {
+			if !field.isNotPersisted() {
+				boClass.persistedProperties = append(boClass.persistedProperties, field)
+			}
 		}
 
 		for _, relationship := range boClass.getRelationshipsWithColumn() {

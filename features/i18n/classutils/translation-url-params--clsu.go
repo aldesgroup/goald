@@ -14,10 +14,10 @@ func ClassUtilsForTranslationUrlParams(srcPath, lastMod string) goald.IClassUtil
 	return &TranslationUrlParamsClassUtils{IClassUtilsCore: goald.NewClassUtilsCore(srcPath, lastMod)}
 }
 
-func (thisTranslationUrlParamsClassUtils *TranslationUrlParamsClassUtils) NewObject() any {
+func (thisUtils *TranslationUrlParamsClassUtils) NewObject() any {
 	return &i18n.TranslationUrlParams{}
 }
 
-func (thisTranslationUrlParamsClassUtils *TranslationUrlParamsClassUtils) NewSlice() any {
+func (thisUtils *TranslationUrlParamsClassUtils) NewSlice() any {
 	return []*i18n.TranslationUrlParams{}
 }

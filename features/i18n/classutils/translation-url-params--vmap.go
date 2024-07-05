@@ -7,7 +7,7 @@ import (
 )
 
 // getting a property's value as a string, without using reflection
-func (thisTranslationUrlParamsClassUtils *TranslationUrlParamsClassUtils) GetValueAsString(bo goald.IBusinessObject, propertyName string) string {
+func (thisUtils *TranslationUrlParamsClassUtils) GetValueAsString(bo goald.IBusinessObject, propertyName string) string {
 	switch propertyName {
 	case "Key":
 		return bo.(*i18n.TranslationUrlParams).Key
@@ -21,7 +21,7 @@ func (thisTranslationUrlParamsClassUtils *TranslationUrlParamsClassUtils) GetVal
 }
 
 // setting a property's value with a given string value, without using reflection
-func (thisTranslationUrlParamsClassUtils *TranslationUrlParamsClassUtils) SetValueAsString(bo goald.IBusinessObject, propertyName string, valueAsString string) error {
+func (thisUtils *TranslationUrlParamsClassUtils) SetValueAsString(bo goald.IBusinessObject, propertyName string, valueAsString string) error {
 	switch propertyName {
 	case "Key":
 		bo.(*i18n.TranslationUrlParams).Key = valueAsString

@@ -72,7 +72,7 @@ func (thisReqCtx *httpRequestContext) serve(ep iEndpoint, w http.ResponseWriter,
 
 	// prepping the context that's going to contain all the input data
 	// + some of the current endpoint's config
-	webCtx := newWebContext(thisReqCtx, ep.getLoadingType(), targetRefOrID)
+	webCtx := newWebContext(thisReqCtx, ep, targetRefOrID)
 
 	// prepping the response
 	resp := &response{}

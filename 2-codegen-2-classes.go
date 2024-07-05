@@ -95,10 +95,10 @@ func (thisServer *server) generateObjectClasses(srcdir string, regen bool) {
 	// let's see what we have in terms of business objects
 	for name, classUtils := range classUtilsRegistry.content {
 		// considering only the business objects of THIS module
-		if classUtils.core().module == getCurrentModuleName() {
+		if classUtils.getModule() == getCurrentModuleName() {
 			// do we need to regen the class file?
 			if existingClass := existingClassFiles[name]; regen ||
-				existingClass == nil || existingClass.modTime.Before(classUtils.core().lastMod) {
+				existingClass == nil || existingClass.modTime.Before(classUtils.getLastBOMod()) {
 				// generating the missing or outdated class
 				generateObjectClass(classDir, classUtils)
 			}
@@ -134,7 +134,7 @@ func generateObjectClass(classDir string, classUtils IClassUtils) {
 	context := &classGenContext{propertiesMap: map[string]*classGenPropertyInfo{}}
 
 	// trivial filling of the template
-	class := string(classUtils.core().class)
+	class := string(classUtils.getClass())
 	content := strings.ReplaceAll(classTEMPLATE, "$$Upper$$", class)
 	content = strings.ReplaceAll(content, "$$lower$$", u.PascalToCamel(class))
 
@@ -161,7 +161,7 @@ func buildPropDecl(classUtils IClassUtils, context *classGenContext) (result str
 	superClassField := bObjType.Field(0)
 	if !superClassField.IsAnonymous() || !u.PointerTo(superClassField.Type()).Implements(typeIxBUSINESSxOBJECT) {
 		u.Panicf("%s: this object's first property should be the BO it inherits from, i.e."+
-			"goald.BusinessObject, or one of its descendants", classUtils.core().class)
+			"goald.BusinessObject, or one of its descendants", classUtils.getClass())
 	}
 
 	if context.superType = superClassField.Type(); context.superType.Equals(typeBUSINESSxOBJECT) {
@@ -228,7 +228,7 @@ func getFieldForType(typeFamily u.TypeFamily) string {
 
 func buildPropInit(classUtils IClassUtils, context *classGenContext) string {
 	// the class as a variable
-	className := u.PascalToCamel(string(classUtils.core().class))
+	className := u.PascalToCamel(string(classUtils.getClass()))
 
 	// dealing with the class initialisation
 	classInit := "newClass := &" + className + classNAMExSUFFIX + "{%s: %s}"
@@ -277,7 +277,7 @@ func buildAccessors(classUtils IClassUtils, context *classGenContext) string {
 	// generating 1 accessor per
 	for _, propName := range context.propertyNames {
 		propInfo := context.propertiesMap[propName]
-		owner := u.PascalToCamel(string(classUtils.core().class))
+		owner := u.PascalToCamel(string(classUtils.getClass()))
 		ownerShort := owner[:1]
 		accType := getFieldForType(propInfo.propType)
 		if propInfo.propType == u.TypeFamilyRELATIONSHIP {

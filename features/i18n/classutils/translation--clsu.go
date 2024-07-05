@@ -14,10 +14,10 @@ func ClassUtilsForTranslation(srcPath, lastMod string) goald.IClassUtils {
 	return &TranslationClassUtils{IClassUtilsCore: goald.NewClassUtilsCore(srcPath, lastMod)}
 }
 
-func (thisTranslationClassUtils *TranslationClassUtils) NewObject() any {
+func (thisUtils *TranslationClassUtils) NewObject() any {
 	return &i18n.Translation{}
 }
 
-func (thisTranslationClassUtils *TranslationClassUtils) NewSlice() any {
+func (thisUtils *TranslationClassUtils) NewSlice() any {
 	return []*i18n.Translation{}
 }

@@ -14,10 +14,10 @@ func ClassUtilsForOtherTestObject(srcPath, lastMod string) goald.IClassUtils {
 	return &OtherTestObjectClassUtils{IClassUtilsCore: goald.NewClassUtilsCore(srcPath, lastMod)}
 }
 
-func (thisOtherTestObjectClassUtils *OtherTestObjectClassUtils) NewObject() any {
+func (thisUtils *OtherTestObjectClassUtils) NewObject() any {
 	return &nested.OtherTestObject{}
 }
 
-func (thisOtherTestObjectClassUtils *OtherTestObjectClassUtils) NewSlice() any {
+func (thisUtils *OtherTestObjectClassUtils) NewSlice() any {
 	return []*nested.OtherTestObject{}
 }

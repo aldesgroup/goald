@@ -70,28 +70,30 @@ type WebContext interface {
 	iRestContext
 	GetBloContext() BloContext
 	GetTargetRefOrID() string
-	GetResourceLoadingType() LoadingType // returns the loading type of the current main resources (BOs) being worked on
+	GetResourceClass() IBusinessObjectClass // the class of the resource being requested
+	GetResourceLoadingType() LoadingType    // returns the loading type of the current main resources (BOs) being worked on
 }
 
 // default implementation for web context
 type webContextImpl struct {
 	*appContextImpl     // common implem of AppContext
 	*httpRequestContext // wrapping one of the server's children handling 1 request
+	ep                  iEndpoint
+	resourceClass       IBusinessObjectClass
+	targetRefOrID       string // the ID or ref, or whatever property value used to clearly identify a resource
+	inputBodyBytes      []byte // keeping track of the incoming request body
 	bloContext          BloContext
-	targetRefOrID       string      // the ID or ref, or whatever property value used to clearly identify a resource
-	resourceLoadingType LoadingType // how the  (1 BOs or several) should be loaded
-	inputBodyBytes      []byte      // keeping track of the incoming request body
 }
 
 // type check
 var _ WebContext = (*webContextImpl)(nil)
 
-func newWebContext(reqCtx *httpRequestContext, loading LoadingType, targetRefOrID string) *webContextImpl {
+func newWebContext(reqCtx *httpRequestContext, ep iEndpoint, targetRefOrID string) *webContextImpl {
 	return &webContextImpl{
-		appContextImpl:      &appContextImpl{},
-		httpRequestContext:  reqCtx,
-		targetRefOrID:       targetRefOrID,
-		resourceLoadingType: loading,
+		appContextImpl:     &appContextImpl{},
+		httpRequestContext: reqCtx,
+		ep:                 ep,
+		targetRefOrID:      targetRefOrID,
 	}
 }
 
@@ -109,10 +111,18 @@ func (thisWebCtx *webContextImpl) GetBloContext() BloContext {
 	return thisWebCtx.bloContext
 }
 
+func (thisWebCtx *webContextImpl) GetResourceClass() IBusinessObjectClass {
+	if thisWebCtx.resourceClass == nil {
+		thisWebCtx.resourceClass = classRegistry.classes[thisWebCtx.ep.getInputOrParamsClass()]
+	}
+
+	return thisWebCtx.resourceClass
+}
+
 func (thisWebCtx *webContextImpl) GetTargetRefOrID() string {
 	return thisWebCtx.targetRefOrID
 }
 
 func (thisWebCtx *webContextImpl) GetResourceLoadingType() LoadingType {
-	return thisWebCtx.resourceLoadingType
+	return thisWebCtx.ep.getLoadingType()
 }

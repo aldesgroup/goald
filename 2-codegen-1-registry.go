@@ -117,7 +117,7 @@ func writeRegistryFileIfNeeded(srcdir string, allClsuCoresInCode map[className]*
 			needRegen = true
 
 			break
-		} else if classUtilsInRegistry.core().lastMod.Before(clsuCoreInCode.lastMod) {
+		} else if classUtilsInRegistry.getLastBOMod().Before(clsuCoreInCode.getLastBOMod()) {
 			log.Printf("Business object '%s' has changed since the last generation!", clsName)
 			needRegen = true
 
@@ -154,7 +154,7 @@ func writeRegistryFileIfNeeded(srcdir string, allClsuCoresInCode map[className]*
 			registrationLines = append(registrationLines,
 				fmt.Sprintf(
 					"%sRegister(%s.ClassUtilsFor%s(\"%s\", \"%s\"))", "\t\t",
-					boPath, clsuCore.class, clsuCore.srcPath, clsuCore.lastMod.Add(time.Second).Format(time.RFC3339)),
+					boPath, clsuCore.class, clsuCore.srcPath, clsuCore.getLastBOMod().Add(time.Second).Format(time.RFC3339)),
 			)
 
 			// adding the corresponding import
@@ -211,9 +211,9 @@ func getClassUtilsFromFile(srcdir, currentPath, boFileName string) (clsuCore *cl
 					case *ast.StructType:
 						if clsuCore == nil {
 							clsuCore = &classUtilsCore{
-								class:   className(typeSpec.Name.Name),
-								lastMod: stat.ModTime(),
-								srcPath: currentPath,
+								class:     className(typeSpec.Name.Name),
+								lastBOMod: stat.ModTime(),
+								srcPath:   currentPath,
 							}
 						} else {
 							utils.Panicf("More than one struct declared in the BusinessObject file '%s'!", filename)
@@ -275,11 +275,11 @@ func ClassUtilsFor$$CLASSNAME$$(srcPath, lastMod string) goald.IClassUtils {
 	return &$$CLASSNAME$$ClassUtils{IClassUtilsCore: goald.NewClassUtilsCore(srcPath, lastMod)}
 }
 
-func (this$$CLASSNAME$$ClassUtils *$$CLASSNAME$$ClassUtils) NewObject() any {
+func (thisUtils *$$CLASSNAME$$ClassUtils) NewObject() any {
 	return &$$PKG$$.$$CLASSNAME$${}
 }
 
-func (this$$CLASSNAME$$ClassUtils *$$CLASSNAME$$ClassUtils) NewSlice() any {
+func (thisUtils *$$CLASSNAME$$ClassUtils) NewSlice() any {
 	return []*$$PKG$$.$$CLASSNAME$${}
 }
 `

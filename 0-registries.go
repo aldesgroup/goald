@@ -17,17 +17,21 @@ import (
 
 // A ClassUtils core is a set of information fields that are common to all the Class Utils objects.
 type IClassUtilsCore interface {
-	completeCoreWith(className, moduleName)                 // complete the class utils internal state
-	core() *classUtilsCore                                  // returns the class utils internal state
+	completeCoreWith(className, moduleName) // complete the class utils internal state
+	// core() IClassUtilsCore                                  // returns the class utils internal state
+	getClass() className                                    // class of the associated Business Object
+	getLastBOMod() time.Time                                // last modification of the associated Business Object
+	getModule() moduleName                                  // the application or library in which the associated BO is developed
+	getSrcPath() string                                     // source path of the associated Business Object
 	GetValueAsString(IBusinessObject, string) string        // returning a BO's field's value, given the field's name
 	SetValueAsString(IBusinessObject, string, string) error // setting a BO's field's value, given the field's name
 }
 
 type classUtilsCore struct {
-	class   className
-	lastMod time.Time
-	module  moduleName
-	srcPath string
+	class     className
+	lastBOMod time.Time
+	module    moduleName
+	srcPath   string
 }
 
 func NewClassUtilsCore(srcPath, lastModification string) IClassUtilsCore {
@@ -35,14 +39,30 @@ func NewClassUtilsCore(srcPath, lastModification string) IClassUtilsCore {
 	utils.PanicErrf(errParse, "'%s' has an invalid date format (which is: 2006-01-02 15:04:05)", lastModification)
 
 	return &classUtilsCore{
-		lastMod: date,
-		srcPath: srcPath,
+		lastBOMod: date,
+		srcPath:   srcPath,
 	}
 }
 
-func (thisCore *classUtilsCore) core() *classUtilsCore {
-	return thisCore
+func (thisCore *classUtilsCore) getClass() className {
+	return thisCore.class
 }
+
+func (thisCore *classUtilsCore) getLastBOMod() time.Time {
+	return thisCore.lastBOMod
+}
+
+func (thisCore *classUtilsCore) getModule() moduleName {
+	return thisCore.module
+}
+
+func (thisCore *classUtilsCore) getSrcPath() string {
+	return thisCore.srcPath
+}
+
+// func (thisCore *classUtilsCore) core() IClassUtilsCore {
+// 	return thisCore
+// }
 
 func (thisCore *classUtilsCore) completeCoreWith(class className, module moduleName) {
 	thisCore.class = class
@@ -92,6 +112,7 @@ type moduleClassUtilsRegitry struct {
 	module moduleName
 }
 
+// allows to declare a new module where to register ClassUtils
 func In(module moduleName) *moduleClassUtilsRegitry {
 	return &moduleClassUtilsRegitry{module}
 }
@@ -109,6 +130,11 @@ func (m *moduleClassUtilsRegitry) Register(classUtils IClassUtils) *moduleClassU
 	// registering the business object type globally
 	classUtilsRegistry.content[class] = classUtils
 	return m
+}
+
+// 1 ClassUtils for 1 Business Object Class
+func getClassUtils(class IBusinessObjectClass) IClassUtils {
+	return classUtilsRegistry.content[class.base().name]
 }
 
 // ------------------------------------------------------------------------------------------------

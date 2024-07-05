@@ -28,7 +28,7 @@ func (thisAdapter *dbAdapterMSSQL) getSQLColumnDeclaration(property iBusinessObj
 
 	switch property := property.(type) {
 	case *Relationship:
-		return property.getColumnName() + " CHAR(36)" + notNull
+		return property.getColumnName() + " BIGINT" + notNull
 	case *BoolField:
 		return property.getColumnName() + " BIT"
 	case *StringField:

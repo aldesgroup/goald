@@ -54,7 +54,7 @@ func NewClass() IBusinessObjectClass {
 	}
 
 	// adding the generic fields
-	class.idField = NewStringField(class, "ID", false)
+	class.idField = NewBigIntField(class, "ID", false)
 
 	return class
 }
@@ -114,15 +114,17 @@ type iBusinessObjectProperty interface {
 	isMultiple() bool
 	getColumnName() string
 	isMandatory() bool
+	isNotPersisted() bool
 }
 
 type businessObjectProperty struct {
-	owner      IBusinessObjectClass // the property's owner class
-	name       string               // the property's name, as declared in the struct
-	typeFamily utils.TypeFamily     // the property's type, as detected by the codegen phase
-	multiple   bool                 // the property's multiplicity; false = 1, true = N
-	columnName string               // if this property - field or relationship - is persisted on the owner's table
-	mandatory  bool                 // if true, then this property's value must be non-zero
+	owner        IBusinessObjectClass // the property's owner class
+	name         string               // the property's name, as declared in the struct
+	typeFamily   utils.TypeFamily     // the property's type, as detected by the codegen phase
+	multiple     bool                 // the property's multiplicity; false = 1, true = N
+	columnName   string               // if this property - field or relationship - is persisted on the owner's table
+	mandatory    bool                 // if true, then this property's value must be non-zero
+	notPersisted bool                 // if true, then this property does not have a corresponding column in the BO's table
 }
 
 func (prop *businessObjectProperty) ownerClass() IBusinessObjectClass {
@@ -160,6 +162,10 @@ func (prop *businessObjectProperty) isMandatory() bool {
 	return prop.mandatory
 }
 
+func (prop *businessObjectProperty) isNotPersisted() bool {
+	return prop.notPersisted
+}
+
 // ------------------------------------------------------------------------------------------------
 // Fields (simple properties) of business object classes
 // ------------------------------------------------------------------------------------------------
@@ -190,10 +196,10 @@ func (f *field) SetMandatory() *field {
 	return f
 }
 
-//	func (f *field) SetAlias(alias string) *field {
-//		f.mandatory = true
-//		return f
-//	}
+func (f *field) SetNotPersisted() *field {
+	f.notPersisted = true
+	return f
+}
 
 func (f *field) isBuiltIn() bool {
 	return false
@@ -208,9 +214,9 @@ type StringField struct {
 	size int
 }
 
-func (sf *StringField) SetSize(size int) *StringField {
+func (sf *StringField) SetSize(size int) *field {
 	sf.size = size
-	return sf
+	return &sf.field
 }
 
 type IntField struct {

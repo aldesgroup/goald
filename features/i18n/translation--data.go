@@ -13,7 +13,7 @@ import (
 )
 
 func init() {
-	g.RegisterDataLoader(loadTranslations, true)
+	// g.RegisterDataLoader(loadTranslations, true)
 }
 
 // the structure of the translation file as downloaded by Aldev

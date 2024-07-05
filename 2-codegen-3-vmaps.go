@@ -20,7 +20,7 @@ import (
 )
 
 // getting a property's value as a string, without using reflection
-func (this$$Upper$$ClassUtils *$$Upper$$ClassUtils) GetValueAsString(bo goald.IBusinessObject, propertyName string) string {
+func (thisUtils *$$Upper$$ClassUtils) GetValueAsString(bo goald.IBusinessObject, propertyName string) string {
 	switch propertyName {
 $$getcases$$
 	default:
@@ -29,7 +29,7 @@ $$getcases$$
 }
 
 // setting a property's value with a given string value, without using reflection
-func (this$$Upper$$ClassUtils *$$Upper$$ClassUtils) SetValueAsString(bo goald.IBusinessObject, propertyName string, valueAsString string) error {
+func (thisUtils *$$Upper$$ClassUtils) SetValueAsString(bo goald.IBusinessObject, propertyName string, valueAsString string) error {
 	switch propertyName {
 $$setcases$$
 	}
@@ -68,7 +68,7 @@ func (thisServer *server) generateObjectValueMappers(srcdir, currentPath string,
 				vmapFilename := path.Join(sourceCLASSxUTILSxDIR, strings.Replace(entry.Name(), sourceFILExSUFFIX, valueMapperFILExSUFFIX, 1))
 
 				// generating the Value Mapper file, if not existing yet, or too old
-				if regen || !utils.FileExists(vmapFilename) || utils.EnsureModTime(vmapFilename).Before(classUtils.core().lastMod) {
+				if regen || !utils.FileExists(vmapFilename) || utils.EnsureModTime(vmapFilename).Before(classUtils.getLastBOMod()) {
 					generateObjectValueMappersForBO(srcdir, classUtils, vmapFilename)
 				}
 			}
@@ -78,16 +78,16 @@ func (thisServer *server) generateObjectValueMappers(srcdir, currentPath string,
 
 func generateObjectValueMappersForBO(srcdir string, classUtils IClassUtils, filename string) {
 	// the corresponding class
-	className := classUtils.core().class
+	className := classUtils.getClass()
 	boClass := classForName(className)
 
 	// the corresponding package
-	classPkg := path.Join(getCurrentModule(), classUtils.core().srcPath)
+	classPkg := path.Join(getCurrentModule(), classUtils.getSrcPath())
 	shortPkg := path.Base(classPkg)
 
 	// starting the content
 	content := strings.ReplaceAll(vmapFileTEMPLATE, "$$package$$", sourceCLASSxUTILSxDIR)
-	content = strings.ReplaceAll(content, "$$Upper$$", string(classUtils.core().class))
+	content = strings.ReplaceAll(content, "$$Upper$$", string(classUtils.getClass()))
 
 	getCases := []string{}
 	setCases := []string{}
@@ -190,7 +190,7 @@ func generateObjectValueMappersForBO(srcdir string, classUtils IClassUtils, file
 	content = strings.Replace(content, "$$otherimports$$", imports, 1)
 
 	// write out the file
-	utils.WriteToFile(content, srcdir, classUtils.core().srcPath, filename)
+	utils.WriteToFile(content, srcdir, classUtils.getSrcPath(), filename)
 }
 
 func getBits(fieldTypeAlias, getBit string) (string, string, string) {

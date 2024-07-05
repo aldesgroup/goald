@@ -3,7 +3,6 @@ package goald
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"log/slog"
 	"time"
 
@@ -33,7 +32,7 @@ type DB struct {
 }
 
 func logSQL(start time.Time, query string, args ...any) {
-	log.Printf("Run in %s: %s (with args: %+v)", time.Since(start), query, args)
+	slog.Debug(fmt.Sprintf("Run in %s: %s (with args: %+v)", time.Since(start), query, args))
 }
 
 // proxying this function so as to add functionality

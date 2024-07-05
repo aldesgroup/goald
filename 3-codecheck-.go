@@ -40,8 +40,8 @@ func (thisServer *server) checkClass(clsName className, boClass IBusinessObjectC
 		for _, field := range boClass.base().fields {
 			switch field := field.(type) {
 			case *StringField:
-				if field.name != "ID" && field.size == 0 {
-					utils.Panicf("Field '%s.%s' should have a max size set", clsName, field.name)
+				if field.name != "ID" && field.size == 0 && !field.isNotPersisted() {
+					utils.Panicf("Field '%s.%s' should have a max size set, or be SetNotPersisted()", clsName, field.name)
 				}
 			}
 		}

@@ -8,7 +8,7 @@ import (
 )
 
 // getting a property's value as a string, without using reflection
-func (thisOtherTestObjectClassUtils *OtherTestObjectClassUtils) GetValueAsString(bo goald.IBusinessObject, propertyName string) string {
+func (thisUtils *OtherTestObjectClassUtils) GetValueAsString(bo goald.IBusinessObject, propertyName string) string {
 	switch propertyName {
 	case "BoolProp":
 		return utils.BoolToString(bo.(*nested.OtherTestObject).BoolProp)
@@ -17,7 +17,7 @@ func (thisOtherTestObjectClassUtils *OtherTestObjectClassUtils) GetValueAsString
 	case "DateProp":
 		return utils.DateToString(bo.(*nested.OtherTestObject).DateProp)
 	case "ID":
-		return string(bo.(*nested.OtherTestObject).ID)
+		return utils.IntToString(int(bo.(*nested.OtherTestObject).ID))
 	case "Int64Prop":
 		return utils.Int64ToString(bo.(*nested.OtherTestObject).Int64Prop)
 	case "Int64PropCustom":
@@ -46,7 +46,7 @@ func (thisOtherTestObjectClassUtils *OtherTestObjectClassUtils) GetValueAsString
 }
 
 // setting a property's value with a given string value, without using reflection
-func (thisOtherTestObjectClassUtils *OtherTestObjectClassUtils) SetValueAsString(bo goald.IBusinessObject, propertyName string, valueAsString string) error {
+func (thisUtils *OtherTestObjectClassUtils) SetValueAsString(bo goald.IBusinessObject, propertyName string, valueAsString string) error {
 	switch propertyName {
 	case "BoolProp":
 		bo.(*nested.OtherTestObject).BoolProp = utils.StringToBool(valueAsString, "(*nested.OtherTestObject).BoolProp")
@@ -55,7 +55,7 @@ func (thisOtherTestObjectClassUtils *OtherTestObjectClassUtils) SetValueAsString
 	case "DateProp":
 		bo.(*nested.OtherTestObject).DateProp = utils.StringToDate(valueAsString, "(*nested.OtherTestObject).DateProp")
 	case "ID":
-		bo.(*nested.OtherTestObject).ID = goald.BObjID(valueAsString)
+		bo.(*nested.OtherTestObject).ID = goald.BObjID(utils.StringToInt(valueAsString, "(*nested.OtherTestObject).ID"))
 	case "Int64Prop":
 		bo.(*nested.OtherTestObject).Int64Prop = utils.StringToInt64(valueAsString, "(*nested.OtherTestObject).Int64Prop")
 	case "Int64PropCustom":
