@@ -24,6 +24,7 @@ var reqCount int // to remove
 
 func (thisServer *server) ServeEndpoint(ep iEndpoint, w http.ResponseWriter, req *http.Request, params r.Params) {
 	// TODO requestHandler pool
+
 	reqCtx := &httpRequestContext{
 		server: thisServer,
 	}
@@ -53,12 +54,6 @@ func errResp(_ int, _ string, _ ...any) *response {
 
 // main HTTP SERVING function
 func (thisReqCtx *httpRequestContext) serve(ep iEndpoint, w http.ResponseWriter, req *http.Request, params r.Params) {
-	// w.Header().Set("Access-Control-Allow-Origin", "*")
-	// w.Header().Add("Access-Control-Allow-Origin", "*")
-	// w.Header().Add("Access-Control-Allow-Methods", "DELETE, POST, GET, OPTIONS")
-	// w.Header().Add("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
-	// w.Header().Add("Access-Control-Allow-Headers", "Aept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
-
 	// TODO remove
 	reqCount++
 	prefix := fmt.Sprintf("%06d|%s", reqCount, thisReqCtx.instance) //

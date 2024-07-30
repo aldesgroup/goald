@@ -141,6 +141,15 @@ func (thisServer *server) initRoutes() {
 // ------------------------------------------------------------------------------------------------
 func (thisServer *server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// this is a place for potential middlewares
+	slog.Debug(fmt.Sprintf("%+v", req.Header))
+	// w.Header().Set("Access-Control-Allow-Origin", "*")
+	// TODO do better
+	w.Header().Add("Access-Control-Allow-Origin", "*")
+	w.Header().Add("Access-Control-Allow-Methods", "DELETE, POST, GET, OPTIONS")
+	w.Header().Add("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+	w.Header().Add("Access-Control-Allow-Headers", "Aept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+	// TODO better
+
 	thisServer.router.ServeHTTP(w, req)
 }
 

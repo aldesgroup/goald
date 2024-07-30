@@ -31,6 +31,7 @@ func (thisServer *server) loadData(migrationPhase bool) {
 	// launching all the registred data loaders in parallel!
 	loaders := utils.IfThenElse(migrationPhase, dataLoaderRegistry.migrationLoaders, dataLoaderRegistry.appServerLoaders)
 	for fnName, dataLoadingFn := range loaders {
+		slog.Debug(fmt.Sprintf("Starting runner: %s", fnName))
 		wg.Add(1)
 		go func(fnNameArg string, dataLoadingFnArg dataLoader) {
 			defer wg.Done()

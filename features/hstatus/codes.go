@@ -8,8 +8,17 @@ import "net/http"
 
 type Code struct{ val int }
 
+var allCodes = map[int]Code{}
+
 func wrap(val int) Code {
-	return Code{val}
+	code := Code{val}
+	allCodes[val] = code
+	return code
+}
+
+// getting the http status code object for a given http status code value
+func For(val int) Code {
+	return allCodes[val]
 }
 
 func (c Code) Val() int {

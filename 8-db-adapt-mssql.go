@@ -14,7 +14,7 @@ type dbAdapterMSSQL struct{}
 var _ iDBAdapter = (*dbAdapterMSSQL)(nil)
 
 func (thisAdapter *dbAdapterMSSQL) getConnectionString(conf *dbConfig) string {
-	return fmt.Sprintf("server=%s;port=%d;user id=%s;password=%s;database=%s", conf.DbHost, conf.DbPort, conf.User, conf.Password, conf.DbName)
+	return fmt.Sprintf("server=%s;port=%d;user id=%s;password=%s;database=%s;dial timeout=5;connection timeout=5", conf.DbHost, conf.DbPort, conf.User, conf.Password, conf.DbName)
 	// return fmt.Sprintf("server=%s;port=%d;user id=%s;password=%s", conf.DbHost, conf.DbPort, conf.User, conf.Password)
 }
 

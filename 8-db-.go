@@ -1,6 +1,7 @@
 package goald
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log/slog"
@@ -77,7 +78,8 @@ func openDB(conf *dbConfig) (*sql.DB, iDBAdapter) {
 	}
 
 	// Pinging
-	if errPing := db.Ping(); errPing != nil {
+	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+	if errPing := db.PingContext(ctx); errPing != nil {
 		utils.Panicf("Issue while testing the '%s' DB: %s", conf.DbID, errPing)
 	}
 

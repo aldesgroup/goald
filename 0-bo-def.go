@@ -33,7 +33,7 @@ type BObjID int64 // probably a UUID here
 type BusinessObject struct {
 	class     IBusinessObjectClass
 	className className
-	ID        BObjID `json:"ID"`
+	ID        BObjID `json:",omitempty"`
 }
 
 var _ IBusinessObject = (*BusinessObject)(nil)
