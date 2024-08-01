@@ -111,6 +111,7 @@ func (thisCtx *externalHttpRequest[ResponseType]) Exec(failOnBadStatusCode bool)
 	}
 
 	// processing the request by calling the remote URL using our client (and timing it)
+	slog.Debug(fmt.Sprintf("HTTP call: %s %s", thisCtx.method, thisCtx.url))
 	resp, errResponse := client.Do(httpRequest)
 	if errResponse != nil {
 		return nil, hstatus.InternalServerError, ErrorC(errResponse, "Error while HTTP calling")
