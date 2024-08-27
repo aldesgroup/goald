@@ -5,7 +5,8 @@
 package goald
 
 import (
-	"log"
+	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/aldesgroup/goald/features/utils"
@@ -18,7 +19,7 @@ func (thisServer *server) runCodeChecks() {
 		thisServer.checkClass(clsName, boClass)
 	}
 
-	log.Printf("done checking the code in %s", time.Since(start))
+	slog.Info(fmt.Sprintf("done checking the code in %s", time.Since(start)))
 }
 
 func (thisServer *server) checkClass(clsName className, boClass IBusinessObjectClass) {
@@ -29,7 +30,7 @@ func (thisServer *server) checkClass(clsName className, boClass IBusinessObjectC
 		utils.Panicf("The class name '%s' should be pascal-cased, i.e. %s", clsName, utils.ToPascal(string(clsName)))
 	}
 
-	if boClass.base().isPersisted() && boClass.GetInDB() == nil {
+	if boClass.base().isPersisted() && boClass.getInDB() == nil {
 		utils.Panicf("Class '%s' should be SetNotPersisted, or associated with a DB", clsName)
 	}
 

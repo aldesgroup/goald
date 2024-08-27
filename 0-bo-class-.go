@@ -15,16 +15,17 @@ import (
 // Business object classes
 // ------------------------------------------------------------------------------------------------
 type IBusinessObjectClass interface {
-	// public generic methods
-	GetInDB() *DB
-	IsNotPersisted() bool
-	SetInDB(db *DB)
-	SetNotPersisted()
+	/* public generic methods */
 
-	// access to generic properties
+	SetNotPersisted() // to indicate this class has no instance persisted in a database
+	SetInDB(db *DB)   // to associate the class with the DB where its instances are stored
+
+	// access to generic properties (fields & relationships)
 	ID() IField
 
 	// private methods
+	isNotPersisted() bool
+	getInDB() *DB
 	getTableName() string
 
 	// access to the base implementation
@@ -59,18 +60,6 @@ func NewClass() IBusinessObjectClass {
 	return class
 }
 
-func (boClass *businessObjectClass) GetInDB() *DB {
-	return boClass.inDB
-}
-
-func (boClass *businessObjectClass) IsNotPersisted() bool {
-	return boClass.inNoDB
-}
-
-func (boClass *businessObjectClass) isPersisted() bool {
-	return !boClass.IsNotPersisted()
-}
-
 func (boClass *businessObjectClass) SetInDB(db *DB) {
 	boClass.inNoDB = false
 	boClass.inDB = db
@@ -79,6 +68,18 @@ func (boClass *businessObjectClass) SetInDB(db *DB) {
 func (boClass *businessObjectClass) SetNotPersisted() {
 	boClass.inNoDB = true
 	boClass.inDB = nil
+}
+
+func (boClass *businessObjectClass) getInDB() *DB {
+	return boClass.inDB
+}
+
+func (boClass *businessObjectClass) isNotPersisted() bool {
+	return boClass.inNoDB
+}
+
+func (boClass *businessObjectClass) isPersisted() bool {
+	return !boClass.isNotPersisted()
 }
 
 func (boClass *businessObjectClass) ID() IField {

@@ -16,6 +16,7 @@ import (
 // ------------------------------------------------------------------------------------------------
 type iEndpoint interface {
 	getMethod() string
+	getResourceClass() className
 	getIDProp() IField
 	getFullPath() string
 	getLabel() string
@@ -25,6 +26,7 @@ type iEndpoint interface {
 	isBodyInputRequired() bool
 	isMultipleInput() bool
 	getInputOrParamsClass() className
+	isFromWebApp() bool
 	returnOne(webCtx WebContext) (any, hstatus.Code, string)
 	returnMany(webCtx WebContext) (any, hstatus.Code, string)
 	returnOneForOne(webCtx WebContext, input any) (any, hstatus.Code, string)
@@ -37,6 +39,7 @@ type iEndpoint interface {
 // and the output objects of type O, i.e. the resource type
 type endpoint[ResourceType IBusinessObject] struct {
 	method             string      // get, post, put...
+	resourceClass      className   // the class of the objects reached through this endpoint
 	basePath           string      // the endpoint's base path, which is the lower-cased resource type name
 	actionPath         string      // do we need an additional path for a non-CRUD action, like "reduce" in: "GET /document/reduce/:id"
 	idProp             IField      // if a specific BO is targeted, this has to be through one of its properties
@@ -47,10 +50,15 @@ type endpoint[ResourceType IBusinessObject] struct {
 	bodyInputRequired  bool        // if true, then we expect something in the request body
 	multipleInput      bool        // if true, then we expect an array of BOs in the body, rather than a single one
 	inputOrParamsClass className   // if bodyInputRequired = true, then this is the type of the input
+	fromWebApp         bool        // if true then this endpoint can be called from the webapp, so the BOs involved might be synced through codegen
 }
 
 func (ep *endpoint[ResourceType]) getMethod() string {
 	return ep.method
+}
+
+func (ep *endpoint[ResourceType]) getResourceClass() className {
+	return ep.resourceClass
 }
 
 func (ep *endpoint[ResourceType]) getIDProp() IField {
@@ -103,6 +111,10 @@ func (ep *endpoint[ResourceType]) getInputOrParamsClass() className {
 	return ep.inputOrParamsClass
 }
 
+func (ep *endpoint[ResourceType]) isFromWebApp() bool {
+	return ep.fromWebApp
+}
+
 func (ep *endpoint[ResourceType]) returnOne(webCtx WebContext) (any, hstatus.Code, string) {
 	panic("no generic implementation here")
 }
@@ -141,19 +153,21 @@ func newEndpoint[InputOrParamsType, ResourceType IBusinessObject](
 	withURLParams bool,
 ) *endpoint[ResourceType] {
 
-	var inputOrParamsName className
+	resourceClsName := className(utils.TypeNameOf((*new(ResourceType)), true))
+	var inputOrParamsClsName className
 	if bodyInputRequired || withURLParams {
-		inputOrParamsName = className(utils.TypeNameOf((*new(InputOrParamsType)), true))
+		inputOrParamsClsName = className(utils.TypeNameOf((*new(InputOrParamsType)), true))
 	}
 
 	return &endpoint[ResourceType]{
 		method:             method,
-		basePath:           strings.ToLower(utils.TypeNameOf((*new(ResourceType)), true)),
+		resourceClass:      resourceClsName,
+		basePath:           strings.ToLower(string(resourceClsName)),
 		multipleOutput:     multipleOutput,
 		loadingType:        loadingType,
 		bodyInputRequired:  bodyInputRequired,
 		multipleInput:      multipleInput,
-		inputOrParamsClass: inputOrParamsName,
+		inputOrParamsClass: inputOrParamsClsName,
 	}
 }
 
@@ -174,6 +188,14 @@ func (thisEndpoint *endpoint[ResourceType]) TargetWith(idProp IField) *endpoint[
 // Providing a short description for this endpoint
 func (thisEndpoint *endpoint[ResourceType]) Label(label string) *endpoint[ResourceType] {
 	thisEndpoint.label = label
+
+	return thisEndpoint
+}
+
+// Indicating that this endpoint can be called from the associated web app (through Aldev),
+// so that I/O code can be automatically generated within it
+func (thisEndpoint *endpoint[ResourceType]) FromWebApp() *endpoint[ResourceType] {
+	thisEndpoint.fromWebApp = true
 
 	return thisEndpoint
 }

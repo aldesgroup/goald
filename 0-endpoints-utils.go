@@ -22,7 +22,13 @@ func handleOne[ResourceType IBusinessObject](
 ) *oneForNoneEndpoint[ResourceType] {
 
 	return registerEndpoint(&oneForNoneEndpoint[ResourceType]{
-		endpoint:    newEndpoint[ResourceType, ResourceType](false, method, loadingType, false, false, false),
+		endpoint: newEndpoint[ResourceType, ResourceType](
+			false,
+			method,
+			loadingType,
+			false,
+			false,
+			false),
 		handlerFunc: handlerFunc,
 	}).(*oneForNoneEndpoint[ResourceType])
 }
@@ -47,13 +53,20 @@ func handleMany[ResourceType IBusinessObject](
 ) *manyForNoneEndpoint[ResourceType] {
 
 	return registerEndpoint(&manyForNoneEndpoint[ResourceType]{
-		endpoint:    newEndpoint[ResourceType, ResourceType](true, method, loadingType, false, false, false),
+		endpoint: newEndpoint[ResourceType, ResourceType](
+			true,
+			method,
+			loadingType,
+			false,
+			false,
+			false),
 		handlerFunc: handlerFunc,
 	}).(*manyForNoneEndpoint[ResourceType])
 }
 
 // adapting the parametrized function to a generic format that the main *httpRequestContext.serve() can call
-func (ep *manyForNoneEndpoint[ResourceType]) returnMany(webCtx WebContext) (any, hstatus.Code, string) {
+func (ep *manyForNoneEndpoint[ResourceType]) returnMany(webCtx WebContext) (any,
+	hstatus.Code, string) {
 	return ep.handlerFunc(webCtx)
 }
 
@@ -73,7 +86,13 @@ func handleOneForOne[InputType, ResourceType IBusinessObject](
 ) *oneForOneEndpoint[InputType, ResourceType] {
 
 	return registerEndpoint(&oneForOneEndpoint[InputType, ResourceType]{
-		endpoint:    newEndpoint[InputType, ResourceType](false, method, loadingType, true, false, false),
+		endpoint: newEndpoint[InputType, ResourceType](
+			false,
+			method,
+			loadingType,
+			true,
+			false,
+			false),
 		handlerFunc: handlerFunc,
 	}).(*oneForOneEndpoint[InputType, ResourceType])
 }
@@ -126,7 +145,13 @@ func handleManyForOne[InputOrParamsType, ResourceType IBusinessObject](
 ) *manyForOneEndpoint[InputOrParamsType, ResourceType] {
 
 	return registerEndpoint(&manyForOneEndpoint[InputOrParamsType, ResourceType]{
-		endpoint:    newEndpoint[InputOrParamsType, ResourceType](true, method, loadingType, withBodyInput, false, !withBodyInput),
+		endpoint: newEndpoint[InputOrParamsType, ResourceType](
+			true,
+			method,
+			loadingType,
+			withBodyInput,
+			false,
+			!withBodyInput),
 		handlerFunc: handlerFunc,
 	}).(*manyForOneEndpoint[InputOrParamsType, ResourceType])
 }
@@ -152,7 +177,13 @@ func handleManyForMany[InputType, ResourceType IBusinessObject](
 ) *manyForManyEndpoint[InputType, ResourceType] {
 
 	return registerEndpoint(&manyForManyEndpoint[InputType, ResourceType]{
-		endpoint:    newEndpoint[InputType, ResourceType](true, method, loadingType, true, true, false),
+		endpoint: newEndpoint[InputType, ResourceType](
+			true,
+			method,
+			loadingType,
+			true,
+			true,
+			false),
 		handlerFunc: handlerFunc,
 	}).(*manyForManyEndpoint[InputType, ResourceType])
 }

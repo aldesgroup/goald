@@ -2,8 +2,8 @@ package goald
 
 import (
 	"fmt"
-	"log"
 	"log/slog"
+	"os"
 	"time"
 
 	"github.com/aldesgroup/goald/features/utils"
@@ -108,7 +108,7 @@ func createMissingTables(db *DB, existingClasses map[className]IBusinessObjectCl
 func getBOClassesInDB(db *DB) (result map[className]IBusinessObjectClass) {
 	result = map[className]IBusinessObjectClass{}
 	for name, class := range getAllClasses() {
-		if class.GetInDB() == db {
+		if class.getInDB() == db {
 			result[name] = class
 		}
 	}
@@ -120,7 +120,7 @@ func getBOClassesInDB(db *DB) (result map[className]IBusinessObjectClass) {
 func getTableNames(db *DB) []string {
 	tables, errFetch := db.FetchStringColumn(db.adapter.getTablesQuery(db.config.DbName))
 	if errFetch != nil {
-		log.Fatalf("Could not fetch the table names: %s", errFetch)
+		slog.Error(fmt.Sprintf("Could not fetch the table names: %s", errFetch))
 	}
 
 	return tables
@@ -155,7 +155,8 @@ func createMissingTable(db *DB, boClass IBusinessObjectClass) {
 
 	if _, errCreate := db.Exec(createQuery); errCreate != nil {
 		// TODO better logging
-		log.Fatalf("Error creating table %s: %s", boClass.getTableName(), errCreate)
+		slog.Error(fmt.Sprintf("Error creating table %s: %s", boClass.getTableName(), errCreate))
+		os.Exit(1)
 	}
 }
 
@@ -187,7 +188,7 @@ func createMissingTable(db *DB, boClass IBusinessObjectClass) {
 // 	rows, err := dbContext.QuerySQL(query.With(dbContext.GetDbName()))
 
 // 	if err != nil {
-// 		log.Fatalf("Error while executing query '%s'. Cause: %s", query, err)
+// 		Error.Info(fmt.Sprintf("Error while executing query '%s'. Cause: %s", query, err))
 // 	}
 
 // 	defer func() {
@@ -212,7 +213,7 @@ func createMissingTable(db *DB, boClass IBusinessObjectClass) {
 // 		)
 
 // 		if err != nil {
-// 			log.Fatalf("Error while scanning a row: %s")
+// 		Error.Info(fmt.Sprintf("Error while scanning a row: %s"))
 // 		}
 
 // 		// trying to retrieve the other column infos for the current table, initialising them if necessary
@@ -233,7 +234,7 @@ func createMissingTable(db *DB, boClass IBusinessObjectClass) {
 
 // 	err = rows.Err() // handling the error occurring during the call to .Next()
 // 	if err != nil {
-// 		log.Fatalf("Error while iterating over the rows: %s", err)
+// 		Error.Info(fmt.Sprintf("Error while iterating over the rows: %s", err))
 // 	}
 
 // 	return tableColumns
@@ -309,7 +310,7 @@ func createMissingTable(db *DB, boClass IBusinessObjectClass) {
 
 // 					// executing the query
 // 					if _, err := dbContext.Exec(alterQuery.ToContext().ForceLogWithLevel(logrus.WarnLevel)); err != nil {
-// 						log.Fatalf("Could not add column: '%s' to table '%s': %s",
+// 		Error.Info(fmt.Sprintf("Could not add column: '%s' to table '%s': %s",)
 // 							property.getColumnName(), __REPLACE__Schema.GetTable(dbContext), err)
 // 					}
 // 				}
@@ -377,7 +378,7 @@ func createMissingTable(db *DB, boClass IBusinessObjectClass) {
 
 // 				// executing the query
 // 				if _, err := dbContext.Exec(alterQuery.ToContext().ForceLogWithLevel(logrus.WarnLevel)); err != nil {
-// 					log.Fatalf("Issue while dropping FK constraint: %s. Cause: %s", existingForeignKeyName, err)
+// 		Error.Info(fmt.Sprintf("Issue while dropping FK constraint: %s. Cause: %s", existingForeignKeyName, err))
 // 				}
 // 			}
 // 		}
@@ -398,7 +399,7 @@ func createMissingTable(db *DB, boClass IBusinessObjectClass) {
 
 // 			// executing the query
 // 			if _, err := dbContext.Exec(alterQuery.ToContext().ForceLogWithLevel(logrus.WarnLevel)); err != nil {
-// 				log.Fatalf("Could not create constraint: %s\nThe constraints known so far: %v. Cause: %s",
+// 		Error.Info(fmt.Sprintf("Could not create constraint: %s\nThe constraints known so far: %v. Cause: %s",)
 // 					requiredForeignKeyName, existingForeignKeyNames, err)
 // 			}
 // 		}
@@ -484,7 +485,7 @@ func createMissingTable(db *DB, boClass IBusinessObjectClass) {
 
 // 					// executing the query
 // 					if _, err := dbContext.Exec(createQuery.ToContext().ForceLogWithLevel(logrus.WarnLevel)); err != nil {
-// 						log.Fatalf("Error creating link table %s: %s", linkTableName, err)
+// 		Error.Info(fmt.Sprintf("Error creating link table %s: %s", linkTableName, err))
 // 					}
 // 				}
 // 			}
@@ -547,7 +548,7 @@ func createMissingTable(db *DB, boClass IBusinessObjectClass) {
 
 // 					// executing the query
 // 					if _, err := dbContext.Exec(alterQuery.ToContext().ForceLogWithLevel(logrus.WarnLevel)); err != nil {
-// 						log.Fatalf("Could not create unique constraint: %s\nThe constraints known so far: %v. Cause: %s",
+// 		Error.Info(fmt.Sprintf("Could not create unique constraint: %s\nThe constraints known so far: %v. Cause: %s",)
 // 							uniqueConstraintName, existingUniqueConstraints, err)
 // 					}
 // 				}
@@ -566,7 +567,7 @@ func createMissingTable(db *DB, boClass IBusinessObjectClass) {
 
 // 			// executing the query
 // 			if _, err := dbContext.Exec(alterQuery.ToContext().ForceLogWithLevel(logrus.WarnLevel)); err != nil {
-// 				log.Fatalf("Could not remove unique constraint: %s\nThe constraints known so far: %v. Cause: %s",
+// 		Error.Info(fmt.Sprintf("Could not remove unique constraint: %s\nThe constraints known so far: %v. Cause: %s",)
 // 					existingUniqueConstraint, existingUniqueConstraints)
 // 			}
 // 		}
@@ -617,7 +618,7 @@ func createMissingTable(db *DB, boClass IBusinessObjectClass) {
 
 // 					// executing the query
 // 					if _, err := dbContext.Exec(alterQuery.ToContext().ForceLogWithLevel(logrus.WarnLevel)); err != nil {
-// 						log.Fatalf("Could not create composite unique constraint: %s\nThe constraints known so far: %v. Cause: %s",
+// 		Error.Info(fmt.Sprintf("Could not create composite unique constraint: %s\nThe constraints known so far: %v. Cause: %s",)
 // 							uniqueConstraintName, existingUniqueConstraints, err)
 // 					}
 // 				}
@@ -636,7 +637,7 @@ func createMissingTable(db *DB, boClass IBusinessObjectClass) {
 
 // 			// executing the query
 // 			if _, err := dbContext.Exec(alterQuery.ToContext().ForceLogWithLevel(logrus.WarnLevel)); err != nil {
-// 				log.Fatalf("Could not remove composite unique constraint: %s\nThe constraints known so far: %v. Cause: %s."+
+// 		Error.Info(fmt.Sprintf("Could not remove composite unique constraint: %s\nThe constraints known so far: %v. Cause: %s."+)
 // 					"\n\nMaybe this could help - use with caution, this could take VERY LONG depending on your data!!!:\n%s",
 // 					existingUniqueConstraint, existingUniqueConstraints, err,
 // 					getHelpMsgForCukDropError(dbContext, tableToKind[tableName], existingUniqueConstraint))
@@ -725,7 +726,7 @@ func createMissingTable(db *DB, boClass IBusinessObjectClass) {
 // 					// executing the query if not empty
 // 					if alterQuery != nil {
 // 						if _, err := dbContext.Exec(alterQuery.ToContext().ForceLogWithLevel(logrus.WarnLevel)); err != nil {
-// 							log.Fatalf(
+// 		Error.Info(fmt.Sprintf()
 // 								"Could not modify column: '%s' for table '%s', probably because some data in this table does not comply with this change. Cause: %s",
 // 								property.getColumnName(), __REPLACE__Schema.GetTable(dbContext), err)
 // 						}
@@ -782,7 +783,7 @@ func createMissingTable(db *DB, boClass IBusinessObjectClass) {
 // 					// executing the query if not empty
 // 					if alterQuery != nil {
 // 						if _, err := dbContext.Exec(alterQuery.ToContext().ForceLogWithLevel(logrus.WarnLevel)); err != nil {
-// 							log.Fatalf("Could not modify column: '%s' for table '%s'. Cause: %s",
+// 		Error.Info(fmt.Sprintf("Could not modify column: '%s' for table '%s'. Cause: %s",)
 // 								field.getColumnName(), __REPLACE__Schema.GetTable(dbContext), err)
 // 						}
 // 					}
