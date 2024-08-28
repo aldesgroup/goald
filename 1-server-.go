@@ -6,7 +6,6 @@ package goald
 import (
 	"flag"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -29,15 +28,15 @@ func NewServer() ServerContext {
 	var srcdir string   // if codegen > 0, this is where to find the go source code
 	var migrate bool    // if true, then the configured databases are auto-migrated to fit the BOs' persistency requirements
 	var codegen int     // if > 0, the server cannot be started, but code is generated instead
+	var webdir string   // if codegen > 0, this is where to find the web app source code, if any
 	var regen bool      // if true, then all the generated code is regenerated
-	// var isLibrary bool  // if true, then the current project is a library, not an application
 
 	flag.StringVar(&confPath, "config", "", "the path to the config file")
 	flag.StringVar(&srcdir, "srcdir", "api", "where to find all the Go code, from the project's root")
 	flag.BoolVar(&migrate, "migrate", false, "activates the auto-migration of the configured databases")
 	flag.IntVar(&codegen, "codegen", 0, "if > 0, runs code generation and exits; 1 = objects, 2 = classes")
+	flag.StringVar(&webdir, "webdir", "webapp", "where to find all the Web app code, from the project's root")
 	flag.BoolVar(&regen, "regen", false, "forces the code regeneration")
-	// flag.BoolVar(&isLibrary, "library", false, "must be used when starting the server in a library")
 	flag.Parse()
 
 	// reading the config file
@@ -54,7 +53,7 @@ func NewServer() ServerContext {
 
 	// running the app in code generation mode, i.e. no server started here - should only be used by devs
 	if codegen > 0 {
-		server.runCodeGen(srcdir, codeGenLevel(codegen), false, regen)
+		server.runCodeGen(srcdir, codeGenLevel(codegen), webdir, regen)
 	}
 
 	// performing some checks on the code - but only in dev mode of course
@@ -163,7 +162,7 @@ func (thisServer *server) Start() {
 	// TODO fill the requestHandler pool
 
 	if len(restRegistry.endpoints) == 0 {
-		log.Printf("No endpoint configured, so no starting of the HTTP server!")
+		slog.Warn("No endpoint configured, so no starting of the HTTP server!")
 	}
 
 	// TODO set router PanicHandler

@@ -5,7 +5,7 @@ package goald
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"path"
 	"strings"
@@ -110,7 +110,7 @@ func (thisServer *server) generateObjectClasses(srcdir string, regen bool) {
 
 	// removing the unneeded classes
 	for _, unneededClass := range existingClassFiles {
-		log.Println("removing " + unneededClass.filename)
+		slog.Info(fmt.Sprintf("removing " + unneededClass.filename))
 		if errRem := os.Remove(path.Join(classDir, unneededClass.filename)); errRem != nil {
 			u.PanicErrf(errRem, "Could not delete class file '%s'", unneededClass.filename)
 		}
@@ -150,7 +150,7 @@ func generateObjectClass(classDir string, classUtils IClassUtils) {
 	// writing to file
 	u.WriteToFile(content, classDir, u.PascalToKebab(class)+classFILExSUFFIX)
 
-	log.Printf("(Re-)generated class %s", class)
+	slog.Info(fmt.Sprintf("(Re-)generated class %s", class))
 }
 
 func buildPropDecl(classUtils IClassUtils, context *classGenContext) (result string) {

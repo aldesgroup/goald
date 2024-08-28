@@ -10,7 +10,6 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"log"
 	"log/slog"
 	"os"
 	"path"
@@ -113,12 +112,12 @@ func writeRegistryFileIfNeeded(srcdir string, allClsuCoresInCode map[className]*
 	for clsName, clsuCoreInCode := range allClsuCoresInCode {
 		classUtilsInRegistry := classUtilsRegistry.content[clsName]
 		if classUtilsInRegistry == nil {
-			log.Printf("Business object '%s' has appeared since the last generation!", clsName)
+			slog.Info(fmt.Sprintf("Business object '%s' has appeared since the last generation!", clsName))
 			needRegen = true
 
 			break
 		} else if classUtilsInRegistry.getLastBOMod().Before(clsuCoreInCode.getLastBOMod()) {
-			log.Printf("Business object '%s' has changed since the last generation!", clsName)
+			slog.Info(fmt.Sprintf("Business object '%s' has changed since the last generation!", clsName))
 			needRegen = true
 
 			break
@@ -131,7 +130,7 @@ func writeRegistryFileIfNeeded(srcdir string, allClsuCoresInCode map[className]*
 		for clsName := range classUtilsRegistry.content {
 			if allClsuCoresInCode[clsName] == nil {
 				needRegen = true
-				log.Printf("Business object '%s' has disappeard since the last generation!", clsName)
+				slog.Info(fmt.Sprintf("Business object '%s' has disappeard since the last generation!", clsName))
 
 				break
 			}

@@ -1,5 +1,5 @@
 // ------------------------------------------------------------------------------------------------
-// Here is the code used for generating the class files
+// Here is the code used for generating the VMAP (value mapper) files
 // ------------------------------------------------------------------------------------------------
 package goald
 
@@ -103,7 +103,6 @@ func generateObjectValueMappersForBO(srcdir string, classUtils IClassUtils, file
 	bObjectType := utils.TypeOf(classUtils.NewObject(), true)
 
 	// browsing the entity's properties to fill the get / set cases in the 2 switch
-	// for fieldNum := 1; fieldNum < classUtils.bObjType.NumField(); fieldNum++ {
 	for _, field := range utils.GetSortedValues(boClass.base().fields) {
 		// adding to the context, and the class file content
 		if typeFamily := field.getTypeFamily(); typeFamily != utils.TypeFamilyUNKNOWN && typeFamily != utils.TypeFamilyRELATIONSHIP {
@@ -211,6 +210,9 @@ func getNonBuiltInFieldType(bOjbType *utils.GoaldType, fieldName string, toBeImp
 	}
 
 	// the field type comes from another package, that we have to import
-	toBeImported[fieldPkg] = true
+	if toBeImported != nil {
+		toBeImported[fieldPkg] = true
+	}
+
 	return fieldType.String() // e.g.: thatpackage.MyEnumType
 }

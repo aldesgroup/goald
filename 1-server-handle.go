@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/aldesgroup/goald/features/hstatus"
@@ -57,7 +57,7 @@ func (thisReqCtx *httpRequestContext) serve(ep iEndpoint, w http.ResponseWriter,
 	// TODO remove
 	reqCount++
 	prefix := fmt.Sprintf("%06d|%s", reqCount, thisReqCtx.instance) //
-	log.Printf("[%s] Serving  %s %s: %s", prefix, ep.getMethod(), ep.getFullPath(), ep.getLabel())
+	slog.Info(fmt.Sprintf("[%s] Serving  %s %s: %s", prefix, ep.getMethod(), ep.getFullPath(), ep.getLabel()))
 
 	// initialising the web context that's going to be passed to the applicative handler
 	var targetRefOrID string
@@ -96,7 +96,7 @@ func (thisReqCtx *httpRequestContext) serve(ep iEndpoint, w http.ResponseWriter,
 	}
 
 	// TODO do better - some "logging"
-	log.Printf("Body: %s", string(webCtx.inputBodyBytes))
+	slog.Debug(fmt.Sprintf("Body: %s", string(webCtx.inputBodyBytes)))
 
 	// calling the endpoint's handler, which depends on its type
 	if ep.hasBodyOrParamsInput() {
@@ -153,7 +153,7 @@ func (thisReqCtx *httpRequestContext) write(resp *response, w http.ResponseWrite
 	// actual writing out of the response
 	if _, errWrite := w.Write(jsonBytes); errWrite != nil {
 		// TODO change logging
-		log.Printf("Error while writing out the JSON response: %s", errWrite)
+		slog.Error(fmt.Sprintf("Error while writing out the JSON response: %s", errWrite))
 	}
 }
 

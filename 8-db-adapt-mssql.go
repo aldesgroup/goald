@@ -2,7 +2,7 @@ package goald
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/aldesgroup/goald/features/utils"
 )
@@ -50,7 +50,7 @@ func (thisAdapter *dbAdapterMSSQL) getSQLColumnDeclaration(property iBusinessObj
 		return property.getColumnName() + " INT" + notNull
 	}
 
-	log.Fatalf("Not handling this property in DB: %s", property.getName())
+	slog.Error(fmt.Sprintf("Not handling this property in DB: %s", property.getName()))
 
 	return ""
 }

@@ -112,15 +112,6 @@ func (f *GoaldField) Type() *GoaldType {
 	return f.typ
 }
 
-// func
-
-// enumType := bObjectEntry.getAllProperties()[fieldName].Type
-// enumTypeString := enumType.Name() // e.g.: MyEnumType
-// if enumPkg := enumType.PkgPath(); enumPkg != bObjectEntry.bObjType.PkgPath() {
-// 	enumTypeString = enumType.String() /// e.g.: thatpackage.MyEnumType
-// 	importsMap[enumPkg] = true
-// }
-
 func (f *GoaldField) IsAnonymous() bool {
 	return f.val.Anonymous
 }
@@ -128,18 +119,6 @@ func (f *GoaldField) IsAnonymous() bool {
 func (f *GoaldField) Name() string {
 	return f.val.Name
 }
-
-// WARNING: concurrent access not handled for now
-// func (thisBOEntry *businessObjectEntry) getAllProperties() map[string]reflect.StructField {
-// 	if thisBOEntry.properties == nil {
-// 		thisBOEntry.properties = make(map[string]reflect.StructField)
-// 		for _, field := range getAllFields(thisBOEntry.bObjType) {
-// 			thisBOEntry.properties[field.Name] = field
-// 		}
-// 	}
-
-// 	return thisBOEntry.properties
-// }
 
 // ------------------------------------------------------------------------------------------------
 // global variables
@@ -169,7 +148,7 @@ const (
 	TypeFamilyRELATIONSHIP
 )
 
-var TypeFamilys = map[int]string{
+var typeFamilies = map[int]string{
 	int(TypeFamilyUNKNOWN):      "unknown",
 	int(TypeFamilyBOOL):         "boolean",
 	int(TypeFamilySTRING):       "string",
@@ -183,7 +162,7 @@ var TypeFamilys = map[int]string{
 }
 
 func (thisProperty TypeFamily) String() string {
-	return TypeFamilys[int(thisProperty)]
+	return typeFamilies[int(thisProperty)]
 }
 
 // Val helps implement the IEnum interface
@@ -193,7 +172,7 @@ func (thisProperty TypeFamily) Val() int {
 
 // Values helps implement the IEnum interface
 func (thisProperty TypeFamily) Values() map[int]string {
-	return TypeFamilys
+	return typeFamilies
 }
 
 // GetTypeFamily returns the type family of a given structfield
@@ -261,18 +240,27 @@ func GetTypeFamily(field *GoaldField, iBoTypeFamily, enumTypeFamily *GoaldType) 
 	return TypeFamilyUNKNOWN, false
 }
 
-// func getAllFields(bObjType reflect.Type) (fields []reflect.StructField) {
-// 	for i := 0; i < bObjType.NumField(); i++ {
-// 		field := bObjType.Field(i)
-// 		if field.Anonymous {
-// 			fields = append(fields, getAllFields(field.Type)...)
-// 		} else {
-// 			fields = append(fields, field)
-// 		}
-// 	}
+// ------------------------------------------------------------------------------------------------
+// values
+// ------------------------------------------------------------------------------------------------
 
-// 	return
-// }
+type GoaldValue struct {
+	val reflect.Value
+}
+
+func newValue(val reflect.Value) *GoaldValue {
+	return &GoaldValue{val}
+}
+
+func ValueOf(arg any) *GoaldValue {
+	return newValue(reflect.ValueOf(arg).Elem())
+}
+
+func (thisValue *GoaldValue) GetFieldValue(fieldName string) any {
+	field := thisValue.val.FieldByName(fieldName)
+	// TODO  if !field.CanInterface() { return nil, fmt.Errorf("cannot access unexported field: %s", fieldName) }
+	return field.Interface()
+}
 
 // ------------------------------------------------------------------------------------------------
 // misc dynamic stuff using reflection

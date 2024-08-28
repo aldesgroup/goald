@@ -17,8 +17,7 @@ import (
 
 // A ClassUtils core is a set of information fields that are common to all the Class Utils objects.
 type IClassUtilsCore interface {
-	completeCoreWith(className, moduleName) // complete the class utils internal state
-	// core() IClassUtilsCore                                  // returns the class utils internal state
+	completeCoreWith(className, moduleName)                 // complete the class utils internal state
 	getClass() className                                    // class of the associated Business Object
 	getLastBOMod() time.Time                                // last modification of the associated Business Object
 	getModule() moduleName                                  // the application or library in which the associated BO is developed
@@ -59,10 +58,6 @@ func (thisCore *classUtilsCore) getModule() moduleName {
 func (thisCore *classUtilsCore) getSrcPath() string {
 	return thisCore.srcPath
 }
-
-// func (thisCore *classUtilsCore) core() IClassUtilsCore {
-// 	return thisCore
-// }
 
 func (thisCore *classUtilsCore) completeCoreWith(class className, module moduleName) {
 	thisCore.class = class
@@ -118,7 +113,6 @@ func In(module moduleName) *moduleClassUtilsRegitry {
 }
 
 // registering happens in all the applicative packages, gence the public function
-// func (m *moduleClassUtilsRegitry) Register(genOneFn func() any, srcPath string, lastModification string, genSlice func() any) *moduleClassUtilsRegitry {
 func (m *moduleClassUtilsRegitry) Register(classUtils IClassUtils) *moduleClassUtilsRegitry {
 	classUtilsRegistry.mx.Lock()
 	defer classUtilsRegistry.mx.Unlock()

@@ -1,7 +1,8 @@
 package utils
 
 import (
-	"log"
+	"fmt"
+	"log/slog"
 	"os"
 	"path"
 	"time"
@@ -58,7 +59,8 @@ func WriteToFile(content string, filepaths ...string) {
 	// ensuring we've got no leak
 	defer func() {
 		if errClose := file.Close(); errClose != nil {
-			log.Fatalf("Could not properly close file %s; cause: %s", fileName, errClose)
+			slog.Error(fmt.Sprintf("Could not properly close file %s; cause: %s", fileName, errClose))
+			os.Exit(1)
 		}
 	}()
 
