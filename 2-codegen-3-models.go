@@ -53,20 +53,39 @@ func (thisServer *server) generateWebAppModels(webdir string, regen bool) {
 	}
 }
 
-type codeEditContext struct {
+type codeContext struct {
 	enums      map[string]IEnum
 	bObjType   *utils.GoaldType
 	boInstance *utils.GoaldValue
+}
+
+func (ctx *codeContext) getEnumType(field IField) string {
+	return ctx.bObjType.FieldByName(field.getName()).Type().Name()
 }
 
 func generateWebAppModel(webdir string, clsName className, enums map[string]IEnum, regen bool) {
 	// the business object we're dealing with
 	boClass := classForName(clsName)
 	clUtils := getClassUtils(boClass)
+	boFields := utils.GetSortedValues(boClass.base().fields)
 
 	// the file we're dealing with
 	filename := utils.PascalToCamel(string(clsName)) + ".ts"
 	filepath := path.Join(webdir, modelsDIRPATH, filename)
+
+	// gathering needed info into a context
+	codeCtx := &codeContext{
+		enums:      enums,
+		bObjType:   utils.TypeOf(clUtils.NewObject(), true),
+		boInstance: utils.ValueOf(clUtils.NewObject()),
+	}
+
+	// gathering the needed enums
+	for _, field := range boFields {
+		if field.getTypeFamily() == utils.TypeFamilyENUM {
+			enums[codeCtx.getEnumType(field)] = codeCtx.boInstance.GetFieldValue(field.getName()).(IEnum)
+		}
+	}
 
 	// TODO remove
 	if !regen && utils.FileExists(filepath) && utils.EnsureModTime(filepath).After(clUtils.getLastBOMod()) {
@@ -76,16 +95,9 @@ func generateWebAppModel(webdir string, clsName className, enums map[string]IEnu
 	// getting the file content - which might be empty if the file does not exist yet
 	code := parseCode(filepath).addImportsIfNeeded()
 
-	// gathering needed info into a context
-	codeEditCtx := &codeEditContext{
-		enums:      enums,
-		bObjType:   utils.TypeOf(clUtils.NewObject(), true),
-		boInstance: utils.ValueOf(clUtils.NewObject()),
-	}
-
 	// browsing the entity's properties to fill the get / set cases in the 2 switch
-	for _, field := range utils.GetSortedValues(boClass.base().fields) {
-		code.addFieldIfNeeded(codeEditCtx, field)
+	for _, field := range boFields {
+		code.addFieldIfNeeded(codeCtx, field)
 	}
 
 	// "unpacking" the code blocks to code lins
@@ -127,14 +139,13 @@ func (thisCode *codeFile) addImportsIfNeeded() *codeFile {
 }
 
 // handling a field, adding it if not in the code already, flagging an enum for generation if it's an enum field
-func (thisCode *codeFile) addFieldIfNeeded(editCtx *codeEditContext, field IField) {
+func (thisCode *codeFile) addFieldIfNeeded(codeCtx *codeContext, field IField) {
 	// adding to the context, and the class file content
 	if typeFamily := field.getTypeFamily(); typeFamily != utils.TypeFamilyUNKNOWN && typeFamily != utils.TypeFamilyRELATIONSHIP {
 		// not handling multiple properties for now - nor the ID field
 		if !field.isMultiple() && field.getName() != "ID" {
 			var (
 				enumType, enumVar, initVal string
-				enum                       IEnum
 			)
 
 			// dealing with some field specificities
@@ -142,9 +153,7 @@ func (thisCode *codeFile) addFieldIfNeeded(editCtx *codeEditContext, field IFiel
 			// --- enums -------------------------------------------------------------------
 			case utils.TypeFamilyENUM:
 				// flagging this enum type for code generation
-				enumType = editCtx.bObjType.FieldByName(field.getName()).Type().Name()
-				enum = editCtx.boInstance.GetFieldValue(field.getName()).(IEnum)
-				editCtx.enums[enumType] = enum
+				enumType = codeCtx.getEnumType(field)
 
 				// importing the enum if needed
 				enumVar = "_" + utils.PascalToCamel(enumType)
@@ -154,7 +163,7 @@ func (thisCode *codeFile) addFieldIfNeeded(editCtx *codeEditContext, field IFiel
 				}
 
 				// proposing an init value
-				initVal = fmt.Sprintf("%s.%s", enumVar, makeEnumName(utils.GetFirstMapValue(enum.Values())))
+				initVal = fmt.Sprintf("%s.%s", enumVar, makeEnumName(utils.GetFirstMapValue(codeCtx.enums[enumType].Values())))
 
 			// --- numbers -----------------------------------------------------------------
 			case utils.TypeFamilyINT, utils.TypeFamilyBIGINT, utils.TypeFamilyREAL, utils.TypeFamilyDOUBLE:
