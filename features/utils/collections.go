@@ -33,6 +33,26 @@ func GetSortedValues[K cmp.Ordered, V any](m map[K]V) (values []V) {
 	return
 }
 
+// GetOneMapValue randomly returns a value from the map
+func GetOneMapValue[K cmp.Ordered, V any](m map[K]V) (value V) {
+	for _, val := range m {
+		value = val
+		return
+	}
+
+	return
+}
+
+// GetFirstMapValue returns the value corresponding to the first key, having sorted the keys beforehand
+func GetFirstMapValue[K cmp.Ordered, V any](m map[K]V) (value V) {
+	for _, key := range GetSortedKeys[K, V](m) {
+		value = m[key]
+		return
+	}
+
+	return
+}
+
 // InSlice returns true if the slice s contains the given element el
 func InSlice[V comparable](s []V, el V) bool {
 	for _, val := range s {
