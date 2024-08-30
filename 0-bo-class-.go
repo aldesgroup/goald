@@ -178,10 +178,22 @@ type IField interface {
 	// SetDefaultValue(string) IField
 }
 
+type iNumericField interface {
+	IField
+	isMinSet() bool
+	isMaxSet() bool
+}
+
 // base implementation
 type field struct {
 	businessObjectProperty
 	defaultStringValue string
+}
+
+type numericField struct {
+	field
+	minSet bool
+	maxSet bool
 }
 
 func newField(owner IBusinessObjectClass, name string, multiple bool, typeFamily utils.TypeFamily) field {
@@ -218,6 +230,14 @@ func (f *field) getDefaultValue() string {
 	return f.defaultStringValue
 }
 
+func (f *numericField) isMinSet() bool {
+	return f.minSet
+}
+
+func (f *numericField) isMaxSet() bool {
+	return f.maxSet
+}
+
 type BoolField struct {
 	field
 }
@@ -233,26 +253,79 @@ func (sf *StringField) SetSize(size int) *field {
 }
 
 type IntField struct {
-	field
+	numericField
+	min int
+	max int
+}
+
+func (f *IntField) Min(min int) *IntField {
+	f.min = min
+	f.minSet = true
+	return f
+}
+
+func (f *IntField) Max(max int) *IntField {
+	f.max = max
+	f.maxSet = true
+	return f
 }
 
 type BigIntField struct {
-	field
+	numericField
+	min int64
+	max int64
+}
+
+func (f *BigIntField) Min(min int64) *BigIntField {
+	f.min = min
+	f.minSet = true
+	return f
+}
+
+func (f *BigIntField) Max(max int64) *BigIntField {
+	f.max = max
+	return f
 }
 
 type RealField struct {
-	field
+	numericField
+	min float32
+	max float32
 	// digits   int // number of digits before the decimal points, e.g. 4 in 9876.06
 	// decimals int // number of digits after the decimal points, e.g. 2 in 9876.06
+}
+
+func (f *RealField) Min(min float32) *RealField {
+	f.min = min
+	f.minSet = true
+	return f
+}
+
+func (f *RealField) Max(max float32) *RealField {
+	f.max = max
+	return f
 }
 
 type DoubleField struct {
-	field
+	numericField
+	min float64
+	max float64
 	// digits   int // number of digits before the decimal points, e.g. 4 in 9876.06
 	// decimals int // number of digits after the decimal points, e.g. 2 in 9876.06
 }
 
-// func (rf *realField) SetForma/home/jwan/Git/emeraldrt(digits, decimals int) *realField {
+func (f *DoubleField) Min(min float64) *DoubleField {
+	f.min = min
+	f.minSet = true
+	return f
+}
+
+func (f *DoubleField) Max(max float64) *DoubleField {
+	f.max = max
+	return f
+}
+
+// func (rf *realField) SetFormat(digits, decimals int) *realField {
 // 	rf.digits = digits
 // 	rf.decimals = decimals
 // 	return rf
@@ -279,26 +352,26 @@ func NewStringField(owner IBusinessObjectClass, name string, multiple bool) *Str
 }
 
 func NewIntField(owner IBusinessObjectClass, name string, multiple bool) *IntField {
-	return owner.addField(&IntField{
+	return owner.addField(&IntField{numericField: numericField{
 		field: newField(owner, name, multiple, utils.TypeFamilyINT),
-	}).(*IntField)
+	}}).(*IntField)
 }
 
 func NewBigIntField(owner IBusinessObjectClass, name string, multiple bool) *BigIntField {
-	return owner.addField(&BigIntField{
+	return owner.addField(&BigIntField{numericField: numericField{
 		field: newField(owner, name, multiple, utils.TypeFamilyBIGINT),
-	}).(*BigIntField)
+	}}).(*BigIntField)
 }
 
 func NewRealField(owner IBusinessObjectClass, name string, multiple bool) *RealField {
-	return owner.addField(&RealField{
+	return owner.addField(&RealField{numericField: numericField{
 		field: newField(owner, name, multiple, utils.TypeFamilyREAL),
-	}).(*RealField)
+	}}).(*RealField)
 }
 func NewDoubleField(owner IBusinessObjectClass, name string, multiple bool) *DoubleField {
-	return owner.addField(&DoubleField{
+	return owner.addField(&DoubleField{numericField: numericField{
 		field: newField(owner, name, multiple, utils.TypeFamilyDOUBLE),
-	}).(*DoubleField)
+	}}).(*DoubleField)
 }
 
 func NewDateField(owner IBusinessObjectClass, name string, multiple bool) *DateField {

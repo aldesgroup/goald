@@ -202,6 +202,37 @@ func (thisCode *codeFile) addFieldIfNeeded(codeCtx *codeContext, field IField) {
 			if (typeFamily == utils.TypeFamilyENUM) && (missingConfigAtom || !thisCode.blockHasLineStartingWith(field.getName(), "options:")) {
 				thisCode.insertLineIntoBlockBeforePrefix(field.getName(), fmt.Sprintf("    options: %s.Options,", enumVar), "}")
 			}
+
+			// handling the constraints
+			if numField, ok := field.(iNumericField); ok {
+				// min constraint
+				if numField.isMinSet() {
+					switch nf := numField.(type) {
+					case *IntField:
+						thisCode.updateLineIntoBlockWithPrefix(field.getName(), fmt.Sprintf("    min: %d,", nf.min), "min:", "}")
+					case *BigIntField:
+						thisCode.updateLineIntoBlockWithPrefix(field.getName(), fmt.Sprintf("    min: %d,", nf.min), "min:", "}")
+					case *RealField:
+						thisCode.updateLineIntoBlockWithPrefix(field.getName(), fmt.Sprintf("    min: %f,", nf.min), "min:", "}")
+					case *DoubleField:
+						thisCode.updateLineIntoBlockWithPrefix(field.getName(), fmt.Sprintf("    min: %f,", nf.min), "min:", "}")
+					}
+				}
+
+				// max constraint
+				if numField.isMaxSet() {
+					switch nf := numField.(type) {
+					case *IntField:
+						thisCode.updateLineIntoBlockWithPrefix(field.getName(), fmt.Sprintf("    max: %d,", nf.max), "max:", "}")
+					case *BigIntField:
+						thisCode.updateLineIntoBlockWithPrefix(field.getName(), fmt.Sprintf("    max: %d,", nf.max), "max:", "}")
+					case *RealField:
+						thisCode.updateLineIntoBlockWithPrefix(field.getName(), fmt.Sprintf("    max: %f,", nf.max), "max:", "}")
+					case *DoubleField:
+						thisCode.updateLineIntoBlockWithPrefix(field.getName(), fmt.Sprintf("    max: %f,", nf.max), "max:", "}")
+					}
+				}
+			}
 		}
 	}
 }
@@ -377,20 +408,38 @@ func (thisCode *codeFile) addNewBlockAtPosition(rawline string, isCode bool, id 
 	return thisCode.current
 }
 
-// appending a line before the last one to the block target by the given ID
-func (thisCode *codeFile) insertLineIntoBlockBeforePrefix(blockID string, newLine string, prefix string) {
+// appending a line to the block targeted by the given ID, before the line that starts with the given prefix
+func (thisCode *codeFile) insertLineIntoBlockBeforePrefix(blockID string, newLine string, insertBeforePrefix string) {
 	if block := thisCode.blocksMap[blockID]; block != nil {
 		// finding where to cut the block lines
 		var pos int
 		for pos = len(block.lines) - 1; pos >= 0; pos-- {
 			line := block.lines[pos]
-			if line != nil && strings.HasPrefix(line.rawline, prefix) {
+			if line != nil && strings.HasPrefix(line.rawline, insertBeforePrefix) {
 				break
 			}
 		}
 
 		// inserting the new line at the right position
 		block.lines = append(block.lines[:pos], append([]*codeLine{newCodeLine(newLine, true)}, block.lines[pos:]...)...)
+	} else {
+		slog.Error("No block found with ID: " + blockID)
+	}
+}
+
+// updating a line that starts with the given prefix, in the block targeted by the given ID;
+// if the prefix is not found, a new line is inserted
+func (thisCode *codeFile) updateLineIntoBlockWithPrefix(blockID string, newLine string, updateAtPrefix string, insertBeforePrefix string) {
+	if block := thisCode.blocksMap[blockID]; block != nil {
+		// if the line exists, we update it
+		for _, line := range block.lines {
+			if line != nil && strings.HasPrefix(line.content, updateAtPrefix) {
+				line.rawline = newLine
+				return
+			}
+		}
+		// aw, seems like we need to insert it
+		thisCode.insertLineIntoBlockBeforePrefix(blockID, newLine, insertBeforePrefix)
 	} else {
 		slog.Error("No block found with ID: " + blockID)
 	}
