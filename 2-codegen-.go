@@ -13,6 +13,7 @@ import (
 )
 
 type codeGenLevel int
+type packageName string
 
 const codeGenOBJECTS codeGenLevel = 1
 const codeGenCLASSES codeGenLevel = 2
@@ -30,8 +31,8 @@ func (thisServer *server) runCodeGen(srcdir string, level codeGenLevel, webdir s
 		// we're making all the databases globally accessible
 		thisServer.generateDatabasesList(srcdir)
 
-		// we're making all the business objects reachable by listing the corresponding class utils
-		thisServer.generateObjectRegistry(srcdir, ".", false, map[className]*classUtilsCore{}, regen)
+		// generating the class utils and the packages that register them, and make the corresponding business objects "importable"
+		thisServer.generateIncludes(srcdir, ".", false, map[packageName]map[className]*classUtilsCore{}, regen)
 
 		slog.Info(fmt.Sprintf("done generating the DB & BO registries in %s", time.Since(start)))
 		os.Exit(0)

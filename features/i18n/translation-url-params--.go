@@ -2,16 +2,15 @@ package i18n
 
 import (
 	g "github.com/aldesgroup/goald"
-	"github.com/aldesgroup/goald/_generated/class"
+	class "github.com/aldesgroup/goald/_include/_class"
 )
 
 type TranslationUrlParams struct {
 	g.URLQueryParams
-	Route string
-	Part  string
-	Key   string
+	Namespace string
+	Key       string
 }
 
 func init() {
-	class.TranslationUrlParams().Route().SetMandatory()
+	class.TranslationUrlParams().Namespace().SetMandatory()
 }

@@ -11,15 +11,13 @@ import (
 func (thisUtils *TranslationClassUtils) GetValueAsString(bo goald.IBusinessObject, propertyName string) string {
 	switch propertyName {
 	case "ID":
-		return utils.IntToString(int(bo.(*i18n.Translation).ID))
+		return utils.Int64ToString(int64(bo.(*i18n.Translation).ID))
 	case "Key":
 		return bo.(*i18n.Translation).Key
 	case "Lang":
 		return bo.(*i18n.Translation).Lang
-	case "Part":
-		return bo.(*i18n.Translation).Part
-	case "Route":
-		return bo.(*i18n.Translation).Route
+	case "Namespace":
+		return bo.(*i18n.Translation).Namespace
 	case "Value":
 		return bo.(*i18n.Translation).Value
 	default:
@@ -31,15 +29,13 @@ func (thisUtils *TranslationClassUtils) GetValueAsString(bo goald.IBusinessObjec
 func (thisUtils *TranslationClassUtils) SetValueAsString(bo goald.IBusinessObject, propertyName string, valueAsString string) error {
 	switch propertyName {
 	case "ID":
-		bo.(*i18n.Translation).ID = goald.BObjID(utils.StringToInt(valueAsString, "(*i18n.Translation).ID"))
+		bo.(*i18n.Translation).ID = goald.BObjID(utils.StringToInt64(valueAsString, "(*i18n.Translation).ID"))
 	case "Key":
 		bo.(*i18n.Translation).Key = valueAsString
 	case "Lang":
 		bo.(*i18n.Translation).Lang = valueAsString
-	case "Part":
-		bo.(*i18n.Translation).Part = valueAsString
-	case "Route":
-		bo.(*i18n.Translation).Route = valueAsString
+	case "Namespace":
+		bo.(*i18n.Translation).Namespace = valueAsString
 	case "Value":
 		bo.(*i18n.Translation).Value = valueAsString
 	}

@@ -10,9 +10,8 @@ import (
 // static, reflect-free access to the definition of the TranslationUrlParams class
 type translationUrlParamsClass struct {
 	g.IURLQueryParamsClass
-	route *g.StringField
-	part  *g.StringField
-	key   *g.StringField
+	namespace *g.StringField
+	key       *g.StringField
 }
 
 // this is the main way to refer to the TranslationUrlParams class in the applicative code
@@ -29,8 +28,7 @@ var (
 // fully describing each of this class' properties & relationships
 func newTranslationUrlParamsClass() *translationUrlParamsClass {
 	newClass := &translationUrlParamsClass{IURLQueryParamsClass: g.NewURLQueryParamsClass()}
-	newClass.route = g.NewStringField(newClass, "Route", false)
-	newClass.part = g.NewStringField(newClass, "Part", false)
+	newClass.namespace = g.NewStringField(newClass, "Namespace", false)
 	newClass.key = g.NewStringField(newClass, "Key", false)
 
 	return newClass
@@ -48,12 +46,8 @@ func init() {
 
 // accessing all the TranslationUrlParams class' properties and relationships
 
-func (t *translationUrlParamsClass) Route() *g.StringField {
-	return t.route
-}
-
-func (t *translationUrlParamsClass) Part() *g.StringField {
-	return t.part
+func (t *translationUrlParamsClass) Namespace() *g.StringField {
+	return t.namespace
 }
 
 func (t *translationUrlParamsClass) Key() *g.StringField {

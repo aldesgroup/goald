@@ -11,10 +11,8 @@ func (thisUtils *TranslationUrlParamsClassUtils) GetValueAsString(bo goald.IBusi
 	switch propertyName {
 	case "Key":
 		return bo.(*i18n.TranslationUrlParams).Key
-	case "Part":
-		return bo.(*i18n.TranslationUrlParams).Part
-	case "Route":
-		return bo.(*i18n.TranslationUrlParams).Route
+	case "Namespace":
+		return bo.(*i18n.TranslationUrlParams).Namespace
 	default:
 		return "unknown property: " + propertyName
 	}
@@ -25,10 +23,8 @@ func (thisUtils *TranslationUrlParamsClassUtils) SetValueAsString(bo goald.IBusi
 	switch propertyName {
 	case "Key":
 		bo.(*i18n.TranslationUrlParams).Key = valueAsString
-	case "Part":
-		bo.(*i18n.TranslationUrlParams).Part = valueAsString
-	case "Route":
-		bo.(*i18n.TranslationUrlParams).Route = valueAsString
+	case "Namespace":
+		bo.(*i18n.TranslationUrlParams).Namespace = valueAsString
 	}
 
 	return goald.Error("Unknown property: %T.%s", bo, propertyName)

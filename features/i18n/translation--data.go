@@ -13,15 +13,14 @@ import (
 )
 
 func init() {
-	// g.RegisterDataLoader(loadTranslations, true)
+	g.RegisterDataLoader(loadTranslations, false)
 }
 
 // the structure of the translation file as downloaded by Aldev
 type translationRow struct {
-	Route  string   `json:"r"`
-	Part   string   `json:"p"`
-	Key    string   `json:"k"`
-	Values []string `json:"v"`
+	Namespace string   `json:"n"`
+	Key       string   `json:"k"`
+	Values    []string `json:"v"`
 }
 
 func loadTranslations(ctx g.BloContext, params map[string]string) error {
@@ -65,11 +64,10 @@ func loadTranslations(ctx g.BloContext, params map[string]string) error {
 			lang, value := getLangAndValue(translation)
 
 			// adding the value to the right route
-			allTranslations[lang][row.Route] = append(allTranslations[lang][row.Route], &Translation{
-				Route: row.Route,
-				Part:  row.Part,
-				Key:   row.Key,
-				Value: value,
+			allTranslations[lang][row.Namespace] = append(allTranslations[lang][row.Namespace], &Translation{
+				Namespace: row.Namespace,
+				Key:       row.Key,
+				Value:     value,
 			})
 		}
 	}

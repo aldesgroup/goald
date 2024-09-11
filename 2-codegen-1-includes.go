@@ -1,7 +1,6 @@
 // ------------------------------------------------------------------------------------------------
-// Here is the code used to generate:
-// - the BO registry files, which allows to register the corresponding ClassUtils objects
-// - all the ClassUtils files
+// Here is the code used to generate the "includes", which are utils packages
+// that we should import when we want to be able to use the corresponding applicative packages
 // ------------------------------------------------------------------------------------------------
 package goald
 
@@ -22,15 +21,15 @@ import (
 
 const sourceFILExSUFFIX = "--.go"
 const sourceCLSUxSUFFIX = "--clsu.go"
-const sourceREGISTRYxNAME = "0-registry.go"
+const sourceREGISTRYxNAME = "registry.go"
 const sourceCLASSxUTILSxDIR = "classutils"
 
 // ------------------------------------------------------------------------------------------------
 // Going over all the physical source code files and generating stuff along the way
 // ------------------------------------------------------------------------------------------------
 
-func (thisServer *server) generateObjectRegistry(srcdir, currentPath string, _ bool,
-	allEntriesInCodeSoFar map[className]*classUtilsCore, regen bool) {
+func (thisServer *server) generateIncludes(srcdir, currentPath string, _ bool,
+	allEntriesInCodeSoFar map[packageName]map[className]*classUtilsCore, regen bool) {
 	// we want all the entities we find in the code to build 1 global registry
 	allClsuCoresInCode := allEntriesInCodeSoFar
 
@@ -41,17 +40,31 @@ func (thisServer *server) generateObjectRegistry(srcdir, currentPath string, _ b
 	dirEntries, errDir := os.ReadDir(readingPath)
 	utils.PanicErrf(errDir, "could not read '%s'", readingPath)
 
+	// are we currently dealing with a package with business objects ?
+	var currentPackage packageName
+
 	// going through the resources found withing the current directory
 	for _, entry := range dirEntries {
 		if entry.IsDir() {
-			// not going into the vendor
+			// not going into the vendor, nor the git folder obviously
 			if entry.Name() != "vendor" && entry.Name() != ".git" {
 				// found another directory, let's dive deeper!
-				thisServer.generateObjectRegistry(srcdir, path.Join(currentPath, entry.Name()), false, allClsuCoresInCode, regen)
+				thisServer.generateIncludes(srcdir, path.Join(currentPath, entry.Name()), false, allClsuCoresInCode, regen)
 			}
 		} else {
 			// found a file... but we're only interested in files containing Business Objects, which must end with sourceFILExSUFFIX
 			if strings.HasSuffix(entry.Name(), sourceFILExSUFFIX) {
+				// hadn't we figured out yet we're dealing with a BO package?
+				if currentPackage == "" {
+					// now we have
+					currentPackage = packageName(path.Base(currentPath))
+
+					// but at this point the package should not exist yet, or it means we have 2 packages with the same name
+					utils.PanicIff(allEntriesInCodeSoFar[currentPackage] != nil, "there are 2 packages named %s which is not allowed!", currentPackage)
+					allEntriesInCodeSoFar[currentPackage] = map[className]*classUtilsCore{}
+					slog.Error("Found new package " + string(currentPackage))
+				}
+
 				// getting the business object entry for the egustry, from the current file
 				if clsuCore := getClassUtilsFromFile(srcdir, currentPath, entry.Name()); clsuCore != nil {
 					// checking the biz obj / file naming
@@ -65,12 +78,12 @@ func (thisServer *server) generateObjectRegistry(srcdir, currentPath string, _ b
 					}
 
 					// checking the unicity of each biz obj name
-					if allClsuCoresInCode[clsuCore.class] != nil {
+					if allClsuCoresInCode[currentPackage][clsuCore.class] != nil {
 						utils.Panicf("We can't have 2 business objects with the same name '%s'."+
 							" This would lead to the same REST path. You have to rename one.", clsuCore.class)
 					} else {
 						// adding one more BO to our list
-						allClsuCoresInCode[clsuCore.class] = clsuCore
+						allClsuCoresInCode[currentPackage][clsuCore.class] = clsuCore
 
 						// generating the corresponding ClassUtils file, if it doesn't exist yet
 						genClassUtilsFile(srcdir, clsuCore)
@@ -83,7 +96,7 @@ func (thisServer *server) generateObjectRegistry(srcdir, currentPath string, _ b
 	// if we're at root here, this means we've browsed through all the code already,
 	// and can now decide to (re-)generate the object registry - or not
 	if currentPath == "." {
-		writeRegistryFileIfNeeded(srcdir, allClsuCoresInCode, regen)
+		writeRegistryFilesIfNeeded(srcdir, allClsuCoresInCode, regen)
 	}
 }
 
@@ -104,80 +117,84 @@ func init() {
 }
 `
 
-func writeRegistryFileIfNeeded(srcdir string, allClsuCoresInCode map[className]*classUtilsCore, regen bool) {
+func writeRegistryFilesIfNeeded(srcdir string, allClsuCoresInCode map[packageName]map[className]*classUtilsCore, regen bool) {
 	// do we need to regenerate the object registry at the current path?
 	needRegen := regen
 
-	// let's check the current class utilS, the ones coded right now
-	for clsName, clsuCoreInCode := range allClsuCoresInCode {
-		classUtilsInRegistry := classUtilsRegistry.content[clsName]
-		if classUtilsInRegistry == nil {
-			slog.Info(fmt.Sprintf("Business object '%s' has appeared since the last generation!", clsName))
-			needRegen = true
+	// iterating over all the packages we've found
+	for currentPackage, allClsuCoresInPackage := range allClsuCoresInCode {
 
-			break
-		} else if classUtilsInRegistry.getLastBOMod().Before(clsuCoreInCode.getLastBOMod()) {
-			slog.Info(fmt.Sprintf("Business object '%s' has changed since the last generation!", clsName))
-			needRegen = true
-
-			break
-		}
-	}
-
-	// if we're not doing regen because of added or changed biz objs,
-	// maybe we have to because of deleted ones!
-	if !needRegen {
-		for clsName := range classUtilsRegistry.content {
-			if allClsuCoresInCode[clsName] == nil {
+		// let's check the current class utilS, the ones coded right now
+		for clsName, clsuCoreInCode := range allClsuCoresInPackage {
+			classUtilsInRegistry := classUtilsRegistry.content[clsName]
+			if classUtilsInRegistry == nil {
+				slog.Info(fmt.Sprintf("Business object '%s' has appeared since the last generation!", clsName))
 				needRegen = true
-				slog.Info(fmt.Sprintf("Business object '%s' has disappeard since the last generation!", clsName))
+
+				break
+			} else if classUtilsInRegistry.getLastBOMod().Before(clsuCoreInCode.getLastBOMod()) {
+				slog.Info(fmt.Sprintf("Business object '%s' has changed since the last generation!", clsName))
+				needRegen = true
 
 				break
 			}
 		}
-	}
 
-	// now let's write the registry file, if needed, and if we're at root
-	if nbEntries := len(allClsuCoresInCode); nbEntries > 0 && needRegen {
-		// gathering the biz objs in order
-		registrationLines := []string{fmt.Sprintf("\tg.In(\"%s\")", getCurrentModuleName())}
+		// if we're not doing regen because of added or changed biz objs,
+		// maybe we have to because of deleted ones!
+		if !needRegen {
+			for clsName := range classUtilsRegistry.content {
+				if allClsuCoresInPackage[clsName] == nil {
+					needRegen = true
+					slog.Info(fmt.Sprintf("Business object '%s' has disappeard since the last generation!", clsName))
 
-		// and the imports, but only once per import, hence the map
-		imports := []string{}
-		imported := map[string]bool{}
-
-		// going over all the class utils cores
-		for _, clsuCore := range utils.GetSortedValues[className, *classUtilsCore](allClsuCoresInCode) {
-			// adding 1 registration line per business object
-			boPath := path.Base(clsuCore.srcPath)
-			registrationLines = append(registrationLines,
-				fmt.Sprintf(
-					"%sRegister(%s.ClassUtilsFor%s(\"%s\", \"%s\"))", "\t\t",
-					boPath, clsuCore.class, clsuCore.srcPath, clsuCore.getLastBOMod().Add(time.Second).Format(time.RFC3339)),
-			)
-
-			// adding the corresponding import
-			if !imported[clsuCore.srcPath] {
-				imports = append(imports, boPath+" \""+path.Join(getCurrentModule(), clsuCore.srcPath, sourceCLASSxUTILSxDIR)+"\"")
-				imported[clsuCore.srcPath] = true
+					break
+				}
 			}
 		}
 
-		// where to write the file?
-		genPath := "main"
+		// now let's write the registry file, if needed, and if we're at root
+		if nbEntries := len(allClsuCoresInPackage); nbEntries > 0 && needRegen {
+			// gathering the biz objs in order
+			registrationLines := []string{fmt.Sprintf("\tg.In(\"%s\")", getCurrentModuleName())}
 
-		// which package?
-		pkgName := path.Base(genPath)
+			// and the imports, but only once per import, hence the map
+			imports := []string{}
+			imported := map[string]bool{}
 
-		// which file?
-		filename := path.Join(srcdir, genPath, sourceREGISTRYxNAME)
+			// going over all the class utils cores
+			for _, clsuCore := range utils.GetSortedValues[className, *classUtilsCore](allClsuCoresInPackage) {
+				// adding 1 registration line per business object
+				boPath := path.Base(clsuCore.srcPath)
+				registrationLines = append(registrationLines,
+					fmt.Sprintf(
+						"%sRegister(%s.ClassUtilsFor%s(\"%s\", \"%s\"))", "\t\t",
+						boPath, clsuCore.class, clsuCore.srcPath, clsuCore.getLastBOMod().Add(time.Second).Format(time.RFC3339)),
+				)
 
-		// which content?
-		dot := "." + newline
-		content := fmt.Sprintf(registryFileTemplate, pkgName, strings.Join(imports, newline), strings.Join(registrationLines, dot))
+				// adding the corresponding import
+				if !imported[clsuCore.srcPath] {
+					imports = append(imports, boPath+" \""+path.Join(getCurrentModule(), clsuCore.srcPath, sourceCLASSxUTILSxDIR)+"\"")
+					imported[clsuCore.srcPath] = true
+				}
+			}
 
-		// writing to the file
-		utils.WriteToFile(content, filename)
+			// where to write the file?
+			genPath := "_include"
+
+			// which package?
+			pkgName := string(currentPackage)
+
+			// which file?
+			filename := path.Join(srcdir, genPath, pkgName, sourceREGISTRYxNAME)
+
+			// which content?
+			dot := "." + newline
+			content := fmt.Sprintf(registryFileTemplate, pkgName, strings.Join(imports, newline), strings.Join(registrationLines, dot))
+
+			// writing to the file
+			utils.WriteToFile(content, filename)
+		}
 	}
 }
 

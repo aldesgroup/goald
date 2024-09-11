@@ -10,23 +10,29 @@ import "strings"
 type Language int
 
 const (
-	LanguageUNDEFINED Language = iota
-	LanguageENGLISH   Language = 1
-	LanguageFRENCH    Language = 2
-	LanguageGERMAN    Language = 3
-	LanguageSPANISH   Language = 4
-	LanguageITALIAN   Language = 5
-	LanguageDUTCH     Language = 6
+	LanguageUNDEFINED  Language = 0
+	LanguageENGLISH    Language = 1
+	LanguageFRENCH     Language = 2
+	LanguageGERMAN     Language = 3
+	LanguageSPANISH    Language = 4
+	LanguageITALIAN    Language = 5
+	LanguageDUTCH      Language = 6
+	LanguageCHINESE    Language = 19
+	LanguageENGLISHxUK Language = 98
+	LanguageENGLISHxUS Language = 99
 )
 
 var languages = map[int]string{
-	int(LanguageUNDEFINED): "- undefined -",
-	int(LanguageENGLISH):   "en",
-	int(LanguageFRENCH):    "fr",
-	int(LanguageGERMAN):    "de",
-	int(LanguageSPANISH):   "es",
-	int(LanguageITALIAN):   "it",
-	int(LanguageDUTCH):     "nl",
+	int(LanguageUNDEFINED):  "- undefined -",
+	int(LanguageENGLISH):    "en",
+	int(LanguageFRENCH):     "fr",
+	int(LanguageGERMAN):     "de",
+	int(LanguageSPANISH):    "es",
+	int(LanguageITALIAN):    "it",
+	int(LanguageDUTCH):      "nl",
+	int(LanguageCHINESE):    "zh",
+	int(LanguageENGLISHxUK): "en-US",
+	int(LanguageENGLISHxUS): "en-UK",
 }
 
 func (thisLanguage Language) String() string {

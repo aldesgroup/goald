@@ -60,7 +60,7 @@ $$accessors$$
 
 `
 
-const classFOLDER = "_generated/class"
+const classFOLDER = "_include/_class"
 const classFILExSUFFIX = "--cls.go"
 const classFILExSUFFIXxLEN = len(classFILExSUFFIX)
 const classNAMExSUFFIX = "Class"
