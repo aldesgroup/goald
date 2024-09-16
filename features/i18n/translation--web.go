@@ -2,7 +2,6 @@ package i18n
 
 import (
 	"fmt"
-	"log/slog"
 
 	g "github.com/aldesgroup/goald"
 	class "github.com/aldesgroup/goald/_include/_class"
@@ -18,8 +17,6 @@ func init() {
 func listTranslations(webCtx g.WebContext, params *TranslationUrlParams) ([]*Translation, hstatus.Code, string) {
 	// getting the targeted language
 	langStr := webCtx.GetTargetRefOrID()
-
-	slog.Error(fmt.Sprintf("Getting translation for %s & %s", langStr, params.Namespace))
 
 	// not translating english - FOR NOW // TODO refine
 	if langStr == "en" {

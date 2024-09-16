@@ -19,6 +19,7 @@ type IBusinessObjectClass interface {
 
 	SetNotPersisted() // to indicate this class has no instance persisted in a database
 	SetInDB(db *DB)   // to associate the class with the DB where its instances are stored
+	SetAbstract()     // to indicate this class does not model concrete business objects, but most probably a super class
 
 	// access to generic properties (fields & relationships)
 	ID() IField
@@ -41,6 +42,7 @@ type businessObjectClass struct {
 	relationships           map[string]*Relationship  // the relationships to other classes
 	inDB                    *DB                       // the associated DB, if any
 	inNoDB                  bool                      // if true, then no associated DB
+	abstract                bool                      // if true, then is class is mainly used as a super class for others
 	tableName               string                    // if persisted, the name of the corresponding DB table - should be the same as the class name most of the time
 	persistedProperties     []iBusinessObjectProperty // all the properties - fields or relationships - persisted on this class
 	relationshipsWithColumn []*Relationship           // all the relationships for which this class has a column in its table
@@ -68,6 +70,10 @@ func (boClass *businessObjectClass) SetInDB(db *DB) {
 func (boClass *businessObjectClass) SetNotPersisted() {
 	boClass.inNoDB = true
 	boClass.inDB = nil
+}
+
+func (boClass *businessObjectClass) SetAbstract() {
+	boClass.abstract = true
 }
 
 func (boClass *businessObjectClass) getInDB() *DB {
@@ -337,6 +343,13 @@ type DateField struct {
 
 type EnumField struct {
 	field
+	enumName   string
+	onlyValues []IEnum
+}
+
+func (f *EnumField) Only(values ...IEnum) *EnumField {
+	f.onlyValues = values
+	return f
 }
 
 func NewBoolField(owner IBusinessObjectClass, name string, multiple bool) *BoolField {
@@ -380,9 +393,10 @@ func NewDateField(owner IBusinessObjectClass, name string, multiple bool) *DateF
 	}).(*DateField)
 }
 
-func NewEnumField(owner IBusinessObjectClass, name string, multiple bool) *EnumField {
+func NewEnumField(owner IBusinessObjectClass, name string, multiple bool, enumName string) *EnumField {
 	return owner.addField(&EnumField{
-		field: newField(owner, name, multiple, utils.TypeFamilyENUM),
+		field:    newField(owner, name, multiple, utils.TypeFamilyENUM),
+		enumName: enumName,
 	}).(*EnumField)
 }
 

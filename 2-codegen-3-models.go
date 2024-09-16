@@ -37,11 +37,11 @@ func (thisServer *server) generateWebAppModels(webdir string, regen bool) {
 	for _, ep := range restRegistry.endpoints {
 		if ep.isFromWebApp() {
 			// generating the model for the endpoint resource
-			generateWebAppModel(webdir, ep.getResourceClass(), enums, regen)
+			thisServer.generateWebAppModel(webdir, ep, false, enums, regen)
 
 			// if the endpoint admits a BO as an input (body or URL params), then we also need the model in the webapp
-			if inputOrParamsClass := ep.getInputOrParamsClass(); inputOrParamsClass != "" {
-				generateWebAppModel(webdir, inputOrParamsClass, enums, regen)
+			if ep.getInputOrParamsClass() != "" {
+				thisServer.generateWebAppModel(webdir, ep, true, enums, regen)
 			}
 		}
 	}
@@ -63,7 +63,10 @@ func (ctx *codeContext) getEnumType(field IField) string {
 	return ctx.bObjType.FieldByName(field.getName()).Type().Name()
 }
 
-func generateWebAppModel(webdir string, clsName className, enums map[string]IEnum, regen bool) {
+func (thisServer *server) generateWebAppModel(webdir string, ep iEndpoint, useInputClass bool, enums map[string]IEnum, regen bool) {
+	// which model to generate?
+	clsName := utils.IfThenElse(useInputClass, ep.getInputOrParamsClass(), ep.getResourceClass())
+
 	// the business object we're dealing with
 	boClass := classForName(clsName)
 	clUtils := getClassUtils(boClass)
@@ -93,7 +96,7 @@ func generateWebAppModel(webdir string, clsName className, enums map[string]IEnu
 	}
 
 	// getting the file content - which might be empty if the file does not exist yet
-	code := parseCode(filepath).addImportsIfNeeded()
+	code := parseCode(filepath).addImportsIfNeeded(thisServer.config.commonPart().HTTP.ApiPath + ep.getFullPath())
 
 	// browsing the entity's properties to fill the get / set cases in the 2 switch
 	for _, field := range boFields {
@@ -125,14 +128,14 @@ func generateWebAppModel(webdir string, clsName className, enums map[string]IEnu
 // ------------------------------------------------------------------------------------------------
 
 // initiating the code
-func (thisCode *codeFile) addImportsIfNeeded() *codeFile {
+func (thisCode *codeFile) addImportsIfNeeded(endpointPath string) *codeFile {
 	if len(thisCode.blocks) == 0 {
 		thisCode.addNewBlock("import { fieldAtom, formAtom, useFieldActions, useFieldValue, useInputField } from \"form-atoms\";", true, "", false)
 		thisCode.addNewBlock("import { atom, useSetAtom } from \"jotai\";", true, "", false)
 		thisCode.addNewBlock("import { useEffect } from \"react\";", true, "", false)
 		thisCode.addNewBlock("import { fieldConfigAtom } from \"~/vendor/goaldr\";", true, "", false)
+		thisCode.addNewBlock("export const URL = \""+endpointPath+"\"", true, "", true)
 		thisCode.addNewBlock("export const "+formBlockID+" = formAtom({", true, formBlockID, true).appendLine("});", true)
-
 	}
 
 	return thisCode
@@ -199,8 +202,18 @@ func (thisCode *codeFile) addFieldIfNeeded(codeCtx *codeContext, field IField) {
 			}
 
 			// linking the enum's options to the field, if needed
-			if (typeFamily == utils.TypeFamilyENUM) && (missingConfigAtom || !thisCode.blockHasLineStartingWith(field.getName(), "options:")) {
-				thisCode.insertLineIntoBlockBeforePrefix(field.getName(), fmt.Sprintf("    options: %s.Options,", enumVar), "}")
+			if typeFamily == utils.TypeFamilyENUM {
+				if missingConfigAtom || !thisCode.blockHasLineStartingWith(field.getName(), "options:") {
+					thisCode.insertLineIntoBlockBeforePrefix(field.getName(), fmt.Sprintf("    options: %s.Options,", enumVar), "}")
+				}
+
+				if enumField := field.(*EnumField); len(enumField.onlyValues) > 0 {
+					restrictedValues := []string{}
+					for _, restrictedValue := range enumField.onlyValues {
+						restrictedValues = append(restrictedValues, fmt.Sprintf("%s.%s", enumVar, makeEnumName(restrictedValue.String())))
+					}
+					thisCode.updateLineIntoBlockWithPrefix(field.getName(), fmt.Sprintf("    optionsOnly: [%s],", strings.Join(restrictedValues, ", ")), "optionsOnly:", "}")
+				}
 			}
 
 			// handling the constraints

@@ -14,7 +14,7 @@ func CreateBO(bloCtx BloContext, bObj IBusinessObject) error {
 
 	// the business object should not have an ID already
 	if bObj.GetID() != 0 {
-		return Error("Could not create object since it already has an ID (%s)", bObj.GetID())
+		return Error("Could not create object since it already has an ID (%d)", bObj.GetID())
 	}
 
 	// do we have stuff to perform on the __BOBJ__ before inserting it ?
@@ -90,7 +90,7 @@ func DeleteBO(bloCtx BloContext, idProp IField, idPropVal string) (IBusinessObje
 
 func UpdateBO(bloCtx BloContext, input IBusinessObject, loadingType LoadingType) error {
 	if errUpd := dbUpdate(bloCtx.GetDaoContext(), input); errUpd != nil {
-		return ErrorC(errUpd, "error while updating one instance of '%T' (ID = %s)", input, input.GetID())
+		return ErrorC(errUpd, "error while updating one instance of '%T' (ID = %d)", input, input.GetID())
 	}
 
 	return nil

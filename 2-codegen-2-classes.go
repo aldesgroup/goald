@@ -188,6 +188,8 @@ func buildPropDecl(classUtils IClassUtils, context *classGenContext) (result str
 			if typeFamily == u.TypeFamilyRELATIONSHIP { // ... but it does for relationships
 				entityType := u.IfThenElse(multiple, field.Type().Elem(), field.Type())
 				targetType = entityType.Elem().Name()
+			} else if typeFamily == u.TypeFamilyENUM { // or enums.
+				targetType = field.Type().String()
 			}
 
 			context.propertiesMap[field.Name()] = &classGenPropertyInfo{typeFamily, multiple, targetType}
@@ -260,8 +262,13 @@ func buildPropInit(classUtils IClassUtils, context *classGenContext) string {
 			propLine += fmt.Sprintf("g.NewRelationship(%s, \"%s\", %s, %s)",
 				"newClass", propName, multiple, u.PascalToCamel(propInfo.targetType))
 		} else {
-			propLine += fmt.Sprintf("g.New%s(%s, \"%s\", %s)",
-				getFieldForType(propInfo.propType), "newClass", propName, multiple)
+			if propInfo.propType == u.TypeFamilyENUM {
+				propLine += fmt.Sprintf("g.New%s(%s, \"%s\", %s, %s)",
+					getFieldForType(propInfo.propType), "newClass", propName, multiple, "\""+propInfo.targetType+"\"")
+			} else {
+				propLine += fmt.Sprintf("g.New%s(%s, \"%s\", %s)",
+					getFieldForType(propInfo.propType), "newClass", propName, multiple)
+			}
 		}
 
 		propLines = append(propLines, propLine+"")

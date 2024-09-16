@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/aldesgroup/goald/features/utils"
 	"github.com/julienschmidt/httprouter"
@@ -114,25 +113,25 @@ func (thisServer *server) initRoutes() {
 		utils.Panicf("No path provided for the API!")
 	}
 
-	// configuring the static routes
-	for _, route := range thisServer.config.commonPart().HTTP.StaticRoutes {
-		if fileToServe := route.ServeFile; fileToServe != "" {
-			thisServer.router.HandlerFunc(http.MethodGet, route.For, func(w http.ResponseWriter, r *http.Request) { // e.g.: "/"
-				slog.Debug(fmt.Sprintf("Serving file %s for %s", fileToServe, r.URL.Path))
-				http.ServeFile(w, r, fileToServe) // e.g. serving "webapp/dist/index.html"
-			})
-		} else {
-			path := route.For
-			if strings.HasSuffix(path, "*") {
-				path += "filepath"
-			}
+	// configuring the static routes TODO not used for now
+	// for _, route := range thisServer.config.commonPart().HTTP.StaticRoutes {
+	// 	if fileToServe := route.ServeFile; fileToServe != "" {
+	// 		thisServer.router.HandlerFunc(http.MethodGet, route.For, func(w http.ResponseWriter, r *http.Request) { // e.g.: "/"
+	// 			slog.Debug(fmt.Sprintf("Serving file %s for %s", fileToServe, r.URL.Path))
+	// 			http.ServeFile(w, r, fileToServe) // e.g. serving "webapp/dist/index.html"
+	// 		})
+	// 	} else {
+	// 		path := route.For
+	// 		if strings.HasSuffix(path, "*") {
+	// 			path += "filepath"
+	// 		}
 
-			thisServer.router.HandlerFunc(http.MethodGet, path, func(w http.ResponseWriter, r *http.Request) {
-				slog.Debug(fmt.Sprintf("Serving file %s from %s", r.URL.Path, route.ServeDir))
-				http.ServeFile(w, r, route.ServeDir+r.URL.Path) // e.g. serving index.html
-			})
-		}
-	}
+	// 		thisServer.router.HandlerFunc(http.MethodGet, path, func(w http.ResponseWriter, r *http.Request) {
+	// 			slog.Debug(fmt.Sprintf("Serving file %s from %s", r.URL.Path, route.ServeDir))
+	// 			http.ServeFile(w, r, route.ServeDir+r.URL.Path) // e.g. serving index.html
+	// 		})
+	// 	}
+	// }
 }
 
 // ------------------------------------------------------------------------------------------------
