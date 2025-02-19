@@ -13,6 +13,6 @@ type Translation struct {
 	Value     string
 }
 
-func init() { //
+func init() {
 	class.Translation().SetNotPersisted()
 }

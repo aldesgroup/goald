@@ -29,7 +29,7 @@ const sourceCLASSxUTILSxDIR = "classutils"
 // ------------------------------------------------------------------------------------------------
 
 func (thisServer *server) generateIncludes(srcdir, currentPath string, _ bool,
-	allEntriesInCodeSoFar map[packageName]map[className]*classUtilsCore, regen bool) {
+	allEntriesInCodeSoFar map[packageName]map[className]*classUtilsCore, regen bool) (codeChanged bool) {
 	// we want all the entities we find in the code to build 1 global registry
 	allClsuCoresInCode := allEntriesInCodeSoFar
 
@@ -49,7 +49,7 @@ func (thisServer *server) generateIncludes(srcdir, currentPath string, _ bool,
 			// not going into the vendor, nor the git folder obviously
 			if entry.Name() != "vendor" && entry.Name() != ".git" {
 				// found another directory, let's dive deeper!
-				thisServer.generateIncludes(srcdir, path.Join(currentPath, entry.Name()), false, allClsuCoresInCode, regen)
+				codeChanged = thisServer.generateIncludes(srcdir, path.Join(currentPath, entry.Name()), false, allClsuCoresInCode, regen) || codeChanged
 			}
 		} else {
 			// found a file... but we're only interested in files containing Business Objects, which must end with sourceFILExSUFFIX
@@ -62,7 +62,7 @@ func (thisServer *server) generateIncludes(srcdir, currentPath string, _ bool,
 					// but at this point the package should not exist yet, or it means we have 2 packages with the same name
 					utils.PanicIff(allEntriesInCodeSoFar[currentPackage] != nil, "there are 2 packages named %s which is not allowed!", currentPackage)
 					allEntriesInCodeSoFar[currentPackage] = map[className]*classUtilsCore{}
-					slog.Error("Found new package " + string(currentPackage))
+					slog.Warn("Found new package " + string(currentPackage))
 				}
 
 				// getting the business object entry for the egustry, from the current file
@@ -86,8 +86,10 @@ func (thisServer *server) generateIncludes(srcdir, currentPath string, _ bool,
 						allClsuCoresInCode[currentPackage][clsuCore.class] = clsuCore
 
 						// generating the corresponding ClassUtils file, if it doesn't exist yet
-						genClassUtilsFile(srcdir, clsuCore)
+						codeChanged = genClassUtilsFile(srcdir, clsuCore) || codeChanged
 					}
+				} else {
+					slog.Error("No business object found in file " + entry.Name())
 				}
 			}
 		}
@@ -96,8 +98,10 @@ func (thisServer *server) generateIncludes(srcdir, currentPath string, _ bool,
 	// if we're at root here, this means we've browsed through all the code already,
 	// and can now decide to (re-)generate the object registry - or not
 	if currentPath == "." {
-		writeRegistryFilesIfNeeded(srcdir, allClsuCoresInCode, regen)
+		codeChanged = writeRegistryFilesIfNeeded(srcdir, allClsuCoresInCode, regen) || codeChanged
 	}
+
+	return
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -117,13 +121,12 @@ func init() {
 }
 `
 
-func writeRegistryFilesIfNeeded(srcdir string, allClsuCoresInCode map[packageName]map[className]*classUtilsCore, regen bool) {
+func writeRegistryFilesIfNeeded(srcdir string, allClsuCoresInCode map[packageName]map[className]*classUtilsCore, regen bool) (codeChanged bool) {
 	// do we need to regenerate the object registry at the current path?
 	needRegen := regen
 
 	// iterating over all the packages we've found
 	for currentPackage, allClsuCoresInPackage := range allClsuCoresInCode {
-
 		// let's check the current class utilS, the ones coded right now
 		for clsName, clsuCoreInCode := range allClsuCoresInPackage {
 			classUtilsInRegistry := classUtilsRegistry.content[clsName]
@@ -143,10 +146,10 @@ func writeRegistryFilesIfNeeded(srcdir string, allClsuCoresInCode map[packageNam
 		// if we're not doing regen because of added or changed biz objs,
 		// maybe we have to because of deleted ones!
 		if !needRegen {
-			for clsName := range classUtilsRegistry.content {
-				if allClsuCoresInPackage[clsName] == nil {
+			for clsName, clsu := range classUtilsRegistry.content {
+				if clsu.getModule() == getCurrentModuleName() && allClsuCoresInPackage[clsName] == nil {
 					needRegen = true
-					slog.Info(fmt.Sprintf("Business object '%s' has disappeard since the last generation!", clsName))
+					slog.Info(fmt.Sprintf("Business object '%s' has disappeared since the last generation!", clsName))
 
 					break
 				}
@@ -194,8 +197,12 @@ func writeRegistryFilesIfNeeded(srcdir string, allClsuCoresInCode map[packageNam
 
 			// writing to the file
 			utils.WriteToFile(content, filename)
+
+			codeChanged = true
 		}
 	}
+
+	return
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -300,7 +307,7 @@ func (thisUtils *$$CLASSNAME$$ClassUtils) NewSlice() any {
 }
 `
 
-func genClassUtilsFile(srcdir string, clsuCore *classUtilsCore) {
+func genClassUtilsFile(srcdir string, clsuCore *classUtilsCore) (codeChanged bool) {
 	// the class utils filename
 	clsuFilename := path.Join(srcdir, clsuCore.srcPath, sourceCLASSxUTILSxDIR,
 		fmt.Sprintf("%s%s", utils.PascalToKebab(string(clsuCore.class)), sourceCLSUxSUFFIX))
@@ -313,5 +320,8 @@ func genClassUtilsFile(srcdir string, clsuCore *classUtilsCore) {
 		content = strings.ReplaceAll(content, "$$CLASSNAME$$", string(clsuCore.class))
 		content = strings.ReplaceAll(content, "$$PKG$$", path.Base(importPkg))
 		utils.WriteToFile(content, clsuFilename)
+		return true
 	}
+
+	return false
 }

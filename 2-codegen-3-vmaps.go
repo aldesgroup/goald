@@ -40,7 +40,7 @@ $$setcases$$
 
 const valueMapperFILExSUFFIX = "--vmap.go"
 
-func (thisServer *server) generateObjectValueMappers(srcdir, currentPath string, regen bool) {
+func (thisServer *server) generateObjectValueMappers(srcdir, currentPath string, regen bool) (codeChanged bool) {
 	// the path we're currently reading at e.g. go/pkg1/pkg2
 	readingPath := path.Join(srcdir, currentPath)
 
@@ -55,7 +55,7 @@ func (thisServer *server) generateObjectValueMappers(srcdir, currentPath string,
 			// not going into the vendor
 			if entry.Name() != "vendor" && entry.Name() != ".git" {
 				// found another directory, let's dive deeper!
-				thisServer.generateObjectValueMappers(srcdir, path.Join(currentPath, entry.Name()), regen)
+				codeChanged = thisServer.generateObjectValueMappers(srcdir, path.Join(currentPath, entry.Name()), regen) || codeChanged
 			}
 		} else {
 			// found a file... but we're only interested in files containing Business Objects, which must end with sourceFILExSUFFIX
@@ -65,21 +65,37 @@ func (thisServer *server) generateObjectValueMappers(srcdir, currentPath string,
 				classUtils := classUtilsRegistry.content[clsuCore.class]
 
 				// the corresponding Value Mapper file, if it exist
-				vmapFilename := path.Join(sourceCLASSxUTILSxDIR, strings.Replace(entry.Name(), sourceFILExSUFFIX, valueMapperFILExSUFFIX, 1))
+				vmapFilepath := path.Join(srcdir, classUtils.getSrcPath(), sourceCLASSxUTILSxDIR,
+					strings.Replace(entry.Name(), sourceFILExSUFFIX, valueMapperFILExSUFFIX, 1))
 
 				// generating the Value Mapper file, if not existing yet, or too old
-				if regen || !utils.FileExists(vmapFilename) || utils.EnsureModTime(vmapFilename).Before(classUtils.getLastBOMod()) {
-					generateObjectValueMappersForBO(srcdir, classUtils, vmapFilename)
+				if regen || !utils.FileExists(vmapFilepath) || utils.EnsureModTime(vmapFilepath).Before(classUtils.getLastBOMod()) {
+					generateObjectValueMappersForBO(classUtils, vmapFilepath)
+					codeChanged = true
 				}
 			}
 		}
 	}
+
+	return
 }
 
-func generateObjectValueMappersForBO(srcdir string, classUtils IClassUtils, filename string) {
+func generateObjectValueMappersForBO(classUtils IClassUtils, filepath string) {
 	// the corresponding class
 	className := classUtils.getClass()
 	boClass := classForName(className)
+
+	// checking the BO code makes use of its class
+	// TODO - auto-add this code block to the BO code + the import
+	if boClass == nil {
+		utils.Panicf("It looks like class '%s' has never been imported and thus not initialized and registered. \n"+
+			"Add this - and complete as necessary - to your business object definition code: \n\n"+
+			"import (class \"%s/_include/_class\") \n"+
+			"func init() { \n"+
+			"	class.%s().SetNotPersisted() \n"+
+			"}",
+			className, getCurrentModule(), className)
+	}
 
 	// the corresponding package
 	classPkg := path.Join(getCurrentModule(), classUtils.getSrcPath())
@@ -189,7 +205,7 @@ func generateObjectValueMappersForBO(srcdir string, classUtils IClassUtils, file
 	content = strings.Replace(content, "$$otherimports$$", imports, 1)
 
 	// write out the file
-	utils.WriteToFile(content, srcdir, classUtils.getSrcPath(), filename)
+	utils.WriteToFile(content, filepath)
 }
 
 func getBits(fieldTypeAlias, getBit string) (string, string, string) {

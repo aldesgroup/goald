@@ -66,7 +66,7 @@ const classFILExSUFFIXxLEN = len(classFILExSUFFIX)
 const classNAMExSUFFIX = "Class"
 const newline = "\n"
 
-func (thisServer *server) generateObjectClasses(srcdir string, regen bool) {
+func (thisServer *server) generateObjectClasses(srcdir string, regen bool) (codeChanged bool) {
 	// a type just used here
 	type classFile struct {
 		modTime  time.Time
@@ -101,6 +101,9 @@ func (thisServer *server) generateObjectClasses(srcdir string, regen bool) {
 				existingClass == nil || existingClass.modTime.Before(classUtils.getLastBOMod()) {
 				// generating the missing or outdated class
 				generateObjectClass(classDir, classUtils)
+
+				// the code has changed
+				codeChanged = true
 			}
 
 			// flagging this business object class as NOT unneeded (i.e. needed)
@@ -110,11 +113,13 @@ func (thisServer *server) generateObjectClasses(srcdir string, regen bool) {
 
 	// removing the unneeded classes
 	for _, unneededClass := range existingClassFiles {
-		slog.Info(fmt.Sprintf("removing " + unneededClass.filename))
+		slog.Info(fmt.Sprintf("removing %s", unneededClass.filename))
 		if errRem := os.Remove(path.Join(classDir, unneededClass.filename)); errRem != nil {
 			u.PanicErrf(errRem, "Could not delete class file '%s'", unneededClass.filename)
 		}
 	}
+
+	return
 }
 
 type classGenContext struct {
