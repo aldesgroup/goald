@@ -11,9 +11,10 @@ import (
 
 // GetSortedKeys returns a sorted slice of keys from a map.
 // K must be a comparable type, which is a constraint satisfied by all types that can be map keys.
+// TODO not optimal!
 func GetSortedKeys[K cmp.Ordered, V any](m map[K]V) (keys []K) {
 	for k := range m {
-		keys = append(keys, k)
+		keys = append(keys, k) // do not append + make a fixed-length slice
 	}
 
 	sort.Slice(keys, func(i, j int) bool {
@@ -26,7 +27,7 @@ func GetSortedKeys[K cmp.Ordered, V any](m map[K]V) (keys []K) {
 // GetSortedKeys returns a sorted slice of values from a map.
 // K must be a comparable type, which is a constraint satisfied by all types that can be map keys.
 func GetSortedValues[K cmp.Ordered, V any](m map[K]V) (values []V) {
-	for _, key := range GetSortedKeys[K, V](m) {
+	for _, key := range GetSortedKeys(m) {
 		values = append(values, m[key])
 	}
 
@@ -45,7 +46,7 @@ func GetOneMapValue[K cmp.Ordered, V any](m map[K]V) (value V) {
 
 // GetFirstMapValue returns the value corresponding to the first key, having sorted the keys beforehand
 func GetFirstMapValue[K cmp.Ordered, V any](m map[K]V) (value V) {
-	for _, key := range GetSortedKeys[K, V](m) {
+	for _, key := range GetSortedKeys(m) {
 		value = m[key]
 		return
 	}
@@ -62,4 +63,13 @@ func InSlice[V comparable](s []V, el V) bool {
 	}
 
 	return false
+}
+
+// Generic Map function for slices
+func MapFn[T any](input []T, transform func(T) T) []T {
+	output := make([]T, len(input))
+	for i, v := range input {
+		output[i] = transform(v)
+	}
+	return output
 }

@@ -19,9 +19,9 @@ func dbInsert(_ DaoContext, bObj IBusinessObject) error {
 	return nil
 }
 
-// func dbLoadList(_ DaoContext, boClass IBusinessObjectClass) (result []IBusinessObject, err error) {
+// func dbLoadList(_ DaoContext, boSpecs IBusinessObjectSpecs) (result []IBusinessObject, err error) {
 // 	for _, bObj := range mockDatabase {
-// 		if boClass == bObj.Class() {
+// 		if boSpecs == bObj.Class() {
 // 			result = append(result, bObj)
 // 		}
 // 	}
@@ -29,33 +29,33 @@ func dbInsert(_ DaoContext, bObj IBusinessObject) error {
 // 	return
 // }
 
-func dbLoadList[ResourceType IBusinessObject](_ DaoContext, boClass IBusinessObjectClass) (result []ResourceType, err error) {
-	clsu := getClassUtils(boClass)
+func dbLoadList[ResourceType IBusinessObject](_ DaoContext, boSpecs IBusinessObjectSpecs) (result []ResourceType, err error) {
+	class := getClass(boSpecs)
 
-	println(clsu)
+	println(class)
 
 	return
 }
 
 func dbLoadOne(_ DaoContext, idProp IField, idPropVal string) (result IBusinessObject, err error) {
 	// for _, bObj := range mockDatabase {
-	// 	if idProp.ownerClass() == bObj.Class() && idPropVal == bObj.GetValueAsString(idPropVal) {
+	// 	if idProp.ownerSpecs() == bObj.Class() && idPropVal == bObj.GetValueAsString(idPropVal) {
 	// 		return bObj, nil
 	// 	}
 	// }
 
-	return nil, Error("No '%s' found with '%s = %s'", idProp.ownerClass().base().name, idProp.getName(), idPropVal)
+	return nil, Error("No '%s' found with '%s = %s'", idProp.ownerSpecs().base().name, idProp.getName(), idPropVal)
 }
 
 func dbRemoveOne(_ DaoContext, idProp IField, idPropVal string) (result IBusinessObject, err error) {
 	// for _, bObj := range mockDatabase {
-	// 	if idProp.ownerClass() == bObj.Class() && idPropVal == bObj.GetValueAsString(idPropVal) {
+	// 	if idProp.ownerSpecs() == bObj.Class() && idPropVal == bObj.GetValueAsString(idPropVal) {
 	// 		delete(mockDatabase, string(bObj.GetID()))
 	// 		return bObj, nil
 	// 	}
 	// }
 
-	return nil, Error("No '%s' found with '%s = %s'", idProp.ownerClass().base().name, idProp.getName(), idPropVal)
+	return nil, Error("No '%s' found with '%s = %s'", idProp.ownerSpecs().base().name, idProp.getName(), idPropVal)
 }
 
 func dbUpdate(_ DaoContext, input IBusinessObject) error {

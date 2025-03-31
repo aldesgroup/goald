@@ -1,5 +1,5 @@
 // Generated file, do not edit!
-package classutils
+package class
 
 import (
 	"github.com/aldesgroup/goald"
@@ -8,7 +8,7 @@ import (
 )
 
 // getting a property's value as a string, without using reflection
-func (thisUtils *TranslationClassUtils) GetValueAsString(bo goald.IBusinessObject, propertyName string) string {
+func (thisClass *TranslationClass) GetValueAsString(bo goald.IBusinessObject, propertyName string) string {
 	switch propertyName {
 	case "ID":
 		return utils.Int64ToString(int64(bo.(*i18n.Translation).ID))
@@ -26,7 +26,7 @@ func (thisUtils *TranslationClassUtils) GetValueAsString(bo goald.IBusinessObjec
 }
 
 // setting a property's value with a given string value, without using reflection
-func (thisUtils *TranslationClassUtils) SetValueAsString(bo goald.IBusinessObject, propertyName string, valueAsString string) error {
+func (thisClass *TranslationClass) SetValueAsString(bo goald.IBusinessObject, propertyName string, valueAsString string) error {
 	switch propertyName {
 	case "ID":
 		bo.(*i18n.Translation).ID = goald.BObjID(utils.StringToInt64(valueAsString, "(*i18n.Translation).ID"))

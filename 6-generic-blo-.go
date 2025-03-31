@@ -48,13 +48,13 @@ func CreateBO(bloCtx BloContext, bObj IBusinessObject) error {
 	return nil
 }
 
-func LoadBOs[ResourceType IBusinessObject](bloCtx BloContext, boClass IBusinessObjectClass, loadingType LoadingType) ([]ResourceType, error) {
-	// func LoadBOs(bloCtx BloContext, boClass IBusinessObjectClass, loadingType LoadingType) ([]ResourceType, error) {
-	loadedBOs, errLoad := dbLoadList[ResourceType](bloCtx.GetDaoContext(), boClass)
-	// loadedBOs, errLoad := dbLoadList(bloCtx.GetDaoContext(), boClass)
+func LoadBOs[ResourceType IBusinessObject](bloCtx BloContext, boSpecs IBusinessObjectSpecs, loadingType LoadingType) ([]ResourceType, error) {
+	// func LoadBOs(bloCtx BloContext, boSpecs IBusinessObjectSpecs, loadingType LoadingType) ([]ResourceType, error) {
+	loadedBOs, errLoad := dbLoadList[ResourceType](bloCtx.GetDaoContext(), boSpecs)
+	// loadedBOs, errLoad := dbLoadList(bloCtx.GetDaoContext(), boSpecs)
 
 	if errLoad != nil {
-		return nil, ErrorC(errLoad, "error while loading a list of '%s'", boClass.base().name)
+		return nil, ErrorC(errLoad, "error while loading a list of '%s'", boSpecs.base().name)
 	}
 
 	// TODO add post read, i.e.:
@@ -68,7 +68,7 @@ func ReadBO(bloCtx BloContext, idProp IField, idPropVal string, loadingType Load
 	loadedBOs, errLoad := dbLoadOne(bloCtx.GetDaoContext(), idProp, idPropVal)
 
 	if errLoad != nil {
-		return nil, ErrorC(errLoad, "error while loading one instance of '%s' (%s)", idProp.ownerClass().base().name, idPropVal)
+		return nil, ErrorC(errLoad, "error while loading one instance of '%s' (%s)", idProp.ownerSpecs().base().name, idPropVal)
 	}
 
 	// TODO add post read
@@ -80,7 +80,7 @@ func DeleteBO(bloCtx BloContext, idProp IField, idPropVal string) (IBusinessObje
 	loadedBOs, errLoad := dbRemoveOne(bloCtx.GetDaoContext(), idProp, idPropVal)
 
 	if errLoad != nil {
-		return nil, ErrorC(errLoad, "error while deleting one instance of '%s' (%s)", idProp.ownerClass().base().name, idPropVal)
+		return nil, ErrorC(errLoad, "error while deleting one instance of '%s' (%s)", idProp.ownerSpecs().base().name, idPropVal)
 	}
 
 	// TODO add post read

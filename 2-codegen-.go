@@ -15,8 +15,8 @@ import (
 type codeGenLevel int
 type packageName string
 
-const codeGenOBJECTS codeGenLevel = 1
-const codeGenCLASSES codeGenLevel = 2
+const codeGenCLASSES codeGenLevel = 1
+const codeGenSPECS codeGenLevel = 2
 const codeGenUTILS codeGenLevel = 3
 const dirtyFILENAME = "dirty"
 
@@ -24,7 +24,7 @@ const dirtyFILENAME = "dirty"
 // can be used as a development server, generating code for us
 func (thisServer *server) runCodeGen(srcdir string, level codeGenLevel, webdir string, regen bool, bindir string) {
 	switch level {
-	case codeGenOBJECTS:
+	case codeGenCLASSES:
 		start := time.Now()
 
 		// TODO optimize with go routines here (?)
@@ -32,8 +32,8 @@ func (thisServer *server) runCodeGen(srcdir string, level codeGenLevel, webdir s
 		// we're making all the databases globally accessible
 		thisServer.generateDatabasesList(srcdir)
 
-		// generating the class utils and the packages that register them, and make the corresponding business objects "importable"
-		codeChanged := thisServer.generateIncludes(srcdir, ".", false, map[packageName]map[className]*classUtilsCore{}, regen)
+		// generating the classes and the packages that register them, and make the corresponding business objects "importable"
+		codeChanged := thisServer.generateAllClasses(srcdir, ".", false, map[packageName]map[className]*classCore{}, regen)
 
 		// saving the dirty state
 		utils.WriteToFile(fmt.Sprintf("%t", codeChanged), bindir, dirtyFILENAME)
@@ -41,16 +41,16 @@ func (thisServer *server) runCodeGen(srcdir string, level codeGenLevel, webdir s
 		slog.Info(fmt.Sprintf("done generating the DB & BO registries in %s", time.Since(start)))
 		os.Exit(0)
 
-	case codeGenCLASSES:
+	case codeGenSPECS:
 		start := time.Now()
 
 		// now, using the `reflect` package, we can "easily" build a static representation of our BOs
-		codeChanged := thisServer.generateObjectClasses(srcdir, regen)
+		codeChanged := thisServer.generateAllObjectSpecs(srcdir, regen)
 
 		// saving the dirty state
 		utils.WriteToFile(fmt.Sprintf("%t", codeChanged), bindir, dirtyFILENAME)
 
-		slog.Info(fmt.Sprintf("done generating the BO classes in %s", time.Since(start)))
+		slog.Info(fmt.Sprintf("done generating the BO specs in %s", time.Since(start)))
 		os.Exit(0)
 
 	case codeGenUTILS:
@@ -58,10 +58,10 @@ func (thisServer *server) runCodeGen(srcdir string, level codeGenLevel, webdir s
 
 		// now, using the `reflect` package, we can "easily" build utils for our BOs,
 		// that should help us avoid using the `reflect` package at runtime;
-		codeChanged := thisServer.generateObjectValueMappers(srcdir, ".", regen)
+		codeChanged := thisServer.generateAllObjectValueMappers(srcdir, ".", regen)
 
 		// codegen in the webapp!
-		thisServer.generateWebAppModels(webdir, regen)
+		thisServer.generateAllWebAppModels(webdir, regen)
 
 		// saving the dirty state
 		utils.WriteToFile(fmt.Sprintf("%t", codeChanged), bindir, dirtyFILENAME)

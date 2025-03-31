@@ -15,14 +15,14 @@ import (
 func (thisServer *server) runCodeChecks() {
 	start := time.Now()
 
-	for clsName, boClass := range getAllClasses() {
-		thisServer.checkClass(clsName, boClass)
+	for clsName, boSpecs := range getAllSpecs() {
+		thisServer.checkSpecs(clsName, boSpecs)
 	}
 
 	slog.Info(fmt.Sprintf("done checking the code in %s", time.Since(start)))
 }
 
-func (thisServer *server) checkClass(clsName className, boClass IBusinessObjectClass) {
+func (thisServer *server) checkSpecs(clsName className, boSpecs IBusinessObjectSpecs) {
 	nbChildToParentRelationships := 0
 
 	// class-level controls
@@ -30,9 +30,9 @@ func (thisServer *server) checkClass(clsName className, boClass IBusinessObjectC
 		utils.Panicf("The class name '%s' should be pascal-cased, i.e. %s", clsName, utils.ToPascal(string(clsName)))
 	}
 
-	if !boClass.base().abstract {
+	if !boSpecs.base().abstract {
 		// various check, wether there's persistence or not
-		for _, field := range boClass.base().fields {
+		for _, field := range boSpecs.base().fields {
 			if enumField, ok := field.(*EnumField); ok {
 				for _, restrictedValue := range enumField.onlyValues {
 					if fmt.Sprintf("%T", restrictedValue) != enumField.enumName {
@@ -44,14 +44,14 @@ func (thisServer *server) checkClass(clsName className, boClass IBusinessObjectC
 		}
 
 		// checks for the persistency requirements
-		if boClass.base().isPersisted() {
+		if boSpecs.base().isPersisted() {
 			// checking there's an actual DB configured for this BO class
-			if boClass.getInDB() == nil {
+			if boSpecs.getInDB() == nil {
 				utils.Panicf("Class '%s' should be SetNotPersisted, or associated with a DB", clsName)
 			}
 
 			// checking the fields
-			for _, field := range boClass.base().fields {
+			for _, field := range boSpecs.base().fields {
 				switch field := field.(type) {
 				case *StringField:
 					if field.name != "ID" && field.size == 0 && !field.isNotPersisted() {
@@ -61,7 +61,7 @@ func (thisServer *server) checkClass(clsName className, boClass IBusinessObjectC
 			}
 
 			// checking the relationships
-			for _, relationship := range boClass.base().relationships {
+			for _, relationship := range boSpecs.base().relationships {
 				if relationship.relationType == 0 {
 					utils.Panicf("Relationship '%s.%s' should have a defined type, with SetChildToParent(), "+
 						"SetSourceToTarget() or SetOneWay()", clsName, relationship.name)

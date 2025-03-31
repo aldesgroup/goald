@@ -2,7 +2,7 @@
 // Ensuring we have a very limited use of the 'reflect' package.
 // THIS FILE SHOULD BE THE ONLY PLACE WHERE WE IMPORT THE REFLECT PACKAGE!
 // Basically, we only want to use reflection:
-// - 1) when generating code (which precisely allows to avoid reflection)
+// - 1) when generating code (which then precisely allows to avoid reflection)
 // - 2) in init functions
 // NEVER DURING THE RUNTIME! At least not in OUR code (but some 3rd party libraries prolly do)
 // ------------------------------------------------------------------------------------------------
@@ -22,32 +22,32 @@ import (
 
 type GoaldType struct {
 	val    reflect.Type
-	fields map[string]*GoaldField
+	fields map[string]GoaldField
 }
 
-func newType(val reflect.Type) *GoaldType {
-	return &GoaldType{val, nil}
+func newType(val reflect.Type) GoaldType {
+	return GoaldType{val, nil}
 }
 
 type GoaldField struct {
 	val reflect.StructField
-	typ *GoaldType
+	typ GoaldType
 }
 
-func newField(val reflect.StructField) *GoaldField {
-	return &GoaldField{val: val, typ: newType(val.Type)}
+func newField(val reflect.StructField) GoaldField {
+	return GoaldField{val: val, typ: newType(val.Type)}
 }
 
-func TypeOf(arg any, bare bool) *GoaldType {
+func TypeOf(arg any, bare bool) GoaldType {
 	if bare {
-		// getting the name of "MyType" rather than "*MyType"
+		// getting the type as "MyType" rather than "*MyType"
 		return newType(reflect.TypeOf(arg).Elem())
 	}
 
 	return newType(reflect.TypeOf(arg))
 }
 
-func PointerTo(arg *GoaldType) *GoaldType {
+func PointerTo(arg GoaldType) GoaldType {
 	return newType(reflect.PointerTo(arg.val))
 }
 
@@ -66,31 +66,31 @@ func TypeNameOf(arg any, bare bool) string {
 
 // --- types -----------------------------------------------------------------------------------
 
-func (t *GoaldType) Field(index int) *GoaldField {
+func (t GoaldType) Field(index int) GoaldField {
 	return newField(t.val.Field(index))
 }
 
-func (t *GoaldType) NumField() int {
+func (t GoaldType) NumField() int {
 	return t.val.NumField()
 }
 
-func (t *GoaldType) Implements(other *GoaldType) bool {
+func (t GoaldType) Implements(other GoaldType) bool {
 	return t.val.Implements(other.val)
 }
 
-func (t *GoaldType) Equals(other *GoaldType) bool {
+func (t GoaldType) Equals(other GoaldType) bool {
 	return t.val == other.val
 }
 
-func (t *GoaldType) Name() string {
+func (t GoaldType) Name() string {
 	return t.val.Name()
 }
 
-func (t *GoaldType) Elem() *GoaldType {
+func (t GoaldType) Elem() GoaldType {
 	return newType(t.val.Elem())
 }
 
-func (t *GoaldType) FieldByName(name string) *GoaldField {
+func (t GoaldType) FieldByName(name string) GoaldField {
 	f, found := t.val.FieldByName(name)
 	if !found {
 		panic(fmt.Sprintf("no field '%s' on type '%s'", name, t.Name()))
@@ -98,25 +98,25 @@ func (t *GoaldType) FieldByName(name string) *GoaldField {
 	return newField(f)
 }
 
-func (t *GoaldType) String() string {
+func (t GoaldType) String() string {
 	return t.val.String()
 }
 
-func (t *GoaldType) PkgPath() string {
+func (t GoaldType) PkgPath() string {
 	return t.val.PkgPath()
 }
 
 // --- fields ----------------------------------------------------------------------------------
 
-func (f *GoaldField) Type() *GoaldType {
+func (f GoaldField) Type() GoaldType {
 	return f.typ
 }
 
-func (f *GoaldField) IsAnonymous() bool {
+func (f GoaldField) IsAnonymous() bool {
 	return f.val.Anonymous
 }
 
-func (f *GoaldField) Name() string {
+func (f GoaldField) Name() string {
 	return f.val.Name
 }
 
@@ -145,20 +145,22 @@ const (
 	TypeFamilyDOUBLE
 	TypeFamilyDATE
 	TypeFamilyENUM
-	TypeFamilyRELATIONSHIP
+	TypeFamilyRELATIONSHIPxMONOM
+	TypeFamilyRELATIONSHIPxPOLYM
 )
 
 var typeFamilies = map[int]string{
-	int(TypeFamilyUNKNOWN):      "unknown",
-	int(TypeFamilyBOOL):         "boolean",
-	int(TypeFamilySTRING):       "string",
-	int(TypeFamilyINT):          "integer",
-	int(TypeFamilyBIGINT):       "bigint",
-	int(TypeFamilyREAL):         "real number",
-	int(TypeFamilyDOUBLE):       "real number 64",
-	int(TypeFamilyDATE):         "date",
-	int(TypeFamilyENUM):         "enum",
-	int(TypeFamilyRELATIONSHIP): "relationship",
+	int(TypeFamilyUNKNOWN):            "unknown",
+	int(TypeFamilyBOOL):               "boolean",
+	int(TypeFamilySTRING):             "string",
+	int(TypeFamilyINT):                "integer",
+	int(TypeFamilyBIGINT):             "bigint",
+	int(TypeFamilyREAL):               "real number",
+	int(TypeFamilyDOUBLE):             "real number 64",
+	int(TypeFamilyDATE):               "date",
+	int(TypeFamilyENUM):               "enum",
+	int(TypeFamilyRELATIONSHIPxMONOM): "relationship (monomorphic)",
+	int(TypeFamilyRELATIONSHIPxPOLYM): "relationship (polymorphic)",
 }
 
 func (thisProperty TypeFamily) String() string {
@@ -175,64 +177,92 @@ func (thisProperty TypeFamily) Values() map[int]string {
 	return typeFamilies
 }
 
+// Tells if we have a relationship here
+func (thisProperty TypeFamily) IsRelationship() bool {
+	return thisProperty == TypeFamilyRELATIONSHIPxMONOM || thisProperty == TypeFamilyRELATIONSHIPxPOLYM
+}
+
 // GetTypeFamily returns the type family of a given structfield
-func GetTypeFamily(field *GoaldField, iBoTypeFamily, enumTypeFamily *GoaldType) (TypeFamily TypeFamily, multiple bool) {
+func GetTypeFamily(field GoaldField, iBoTypeFamily, enumTypeFamily GoaldType) (TypeFamily TypeFamily, multiple bool) {
 
 	// to debug - to comment/uncomment when needed
 	// if structField.Name == "Num" {
 	// fmt.Printf("\n--------------------------")
-	// fmt.Printf("\nName: %s ", structField.Name)
-	// fmt.Printf("\nType: %s ", structField.Type)
-	// fmt.Printf("\nKind: %s ", structField.Type.Kind())
+	// fmt.Printf("\nName: %s ", field.Name())
+	// fmt.Printf("\nType: %s ", field.Type())
+	// fmt.Printf("\nType: %s ", field.Type().val.Kind())
+	// fmt.Printf("\nKind: %s ", field.Type().Kind)
 	// }
 
 	// a business object's real property must be exported, and therefore PkgPath should be empty
 	// Cf. https://golang.org/pkg/reflect/#StructField
 	if fieldType := field.Type(); field.val.PkgPath == "" {
-		// detecting an enum
-		if fieldType.Implements(enumTypeFamily) {
-			return TypeFamilyENUM, false
-		}
+		// getting the field kind
+		fieldKind := fieldType.val.Kind()
 
-		// detecting a time
-		if fieldType.Equals(typeTIMExPTR) {
-			return TypeFamilyDATE, false
-		}
+		// handling the case where we have a slice in here
+		if fieldKind == reflect.Slice {
+			// what's in there?
+			innerSliceType := fieldType.Elem()
+			innerSliceKind := innerSliceType.val.Kind()
 
-		// detecting the basic types here
-		switch fieldKind := fieldType.val.Kind(); fieldKind {
-		case reflect.Bool:
-			return TypeFamilyBOOL, false
+			// detecting an enum
+			if innerSliceType.Implements(enumTypeFamily) {
+				return TypeFamilyENUM, true
+			}
 
-		case reflect.String:
-			return TypeFamilySTRING, false
+			// detecting a polymorphic type, i.e. an interface; this should point to something implementing IBusinessObject
+			if innerSliceKind == reflect.Interface && innerSliceType.Implements(iBoTypeFamily) {
+				return TypeFamilyRELATIONSHIPxPOLYM, true
+			}
 
-		case reflect.Int:
-			return TypeFamilyINT, false
+			// detecting a single relationship to a business object
+			if innerSliceKind == reflect.Ptr && innerSliceType.Implements(iBoTypeFamily) {
+				return TypeFamilyRELATIONSHIPxMONOM, true
+			}
 
-		case reflect.Int64:
-			return TypeFamilyBIGINT, false
+		} else { // we have a single element here
 
-		case reflect.Float32:
-			return TypeFamilyREAL, false
+			// detecting an enum
+			if fieldType.Implements(enumTypeFamily) {
+				return TypeFamilyENUM, false
+			}
 
-		case reflect.Float64:
-			return TypeFamilyDOUBLE, false
+			// detecting a time
+			if fieldType.Equals(typeTIMExPTR) {
+				return TypeFamilyDATE, false
+			}
 
-			// // detecting an enum list
-			// if innerSliceType := fieldType.Elem(); fieldKind == reflect.Slice && innerSliceType.Implements(TypeIENUM) {
-			// 	return TypeFamilyENUM, true
-			// }
-		}
+			// detecting the basic types here
+			switch fieldKind {
+			case reflect.Bool:
+				return TypeFamilyBOOL, false
 
-		// detecting a multiple relationship to business objects
-		if innerSliceType := fieldType.Elem(); fieldType.val.Kind() == reflect.Slice && innerSliceType.Implements(iBoTypeFamily) {
-			return TypeFamilyRELATIONSHIP, true
-		}
+			case reflect.String:
+				return TypeFamilySTRING, false
 
-		// detecting a single relationship to a business object
-		if fieldType.val.Kind() == reflect.Ptr && fieldType.Implements(iBoTypeFamily) {
-			return TypeFamilyRELATIONSHIP, false
+			case reflect.Int:
+				return TypeFamilyINT, false
+
+			case reflect.Int64:
+				return TypeFamilyBIGINT, false
+
+			case reflect.Float32:
+				return TypeFamilyREAL, false
+
+			case reflect.Float64:
+				return TypeFamilyDOUBLE, false
+			}
+
+			// detecting a polymorphic type, i.e. an interface; this should point to something implementing IBusinessObject
+			if fieldKind == reflect.Interface && fieldType.Implements(iBoTypeFamily) {
+				return TypeFamilyRELATIONSHIPxPOLYM, false
+			}
+
+			// detecting a single relationship to a business object
+			if fieldKind == reflect.Ptr && fieldType.Implements(iBoTypeFamily) {
+				return TypeFamilyRELATIONSHIPxMONOM, false
+			}
 		}
 	}
 
@@ -248,15 +278,15 @@ type GoaldValue struct {
 	val reflect.Value
 }
 
-func newValue(val reflect.Value) *GoaldValue {
-	return &GoaldValue{val}
+func newValue(val reflect.Value) GoaldValue {
+	return GoaldValue{val}
 }
 
-func ValueOf(arg any) *GoaldValue {
+func ValueOf(arg any) GoaldValue {
 	return newValue(reflect.ValueOf(arg).Elem())
 }
 
-func (thisValue *GoaldValue) GetFieldValue(fieldName string) any {
+func (thisValue GoaldValue) GetFieldValue(fieldName string) any {
 	field := thisValue.val.FieldByName(fieldName)
 	// TODO  if !field.CanInterface() { return nil, fmt.Errorf("cannot access unexported field: %s", fieldName) }
 	return field.Interface()

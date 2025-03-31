@@ -11,7 +11,7 @@ import "fmt"
 
 type IBusinessObject interface {
 	// identification
-	Class() IBusinessObjectClass
+	Specs() IBusinessObjectSpecs
 	getClassName() className
 	setClassName(className)
 	GetID() BObjID
@@ -31,23 +31,23 @@ type IBusinessObject interface {
 type BObjID int64 // probably a UUID here
 
 type BusinessObject struct {
-	class     IBusinessObjectClass
+	specs     IBusinessObjectSpecs
 	className className
 	ID        BObjID `json:",omitempty"`
 }
 
 var _ IBusinessObject = (*BusinessObject)(nil)
 
-func (thisBO *BusinessObject) Class() IBusinessObjectClass {
-	if thisBO.class == nil {
-		thisBO.class = classForName(thisBO.className)
+func (thisBO *BusinessObject) Specs() IBusinessObjectSpecs {
+	if thisBO.specs == nil {
+		thisBO.specs = specsForName(thisBO.className)
 	}
 
-	if thisBO.class == nil {
+	if thisBO.specs == nil {
 		panic("unknown class for a business object!")
 	}
 
-	return thisBO.class
+	return thisBO.specs
 }
 
 /* default implementations */
@@ -68,14 +68,4 @@ type IEnum interface {
 	fmt.Stringer // each enum value has a default label
 	Val() int
 	Values() map[int]string
-}
-
-// ------------------------------------------------------------------------------------------------
-// Utils
-// ------------------------------------------------------------------------------------------------
-
-func InstanceOf(class IBusinessObjectClass) BusinessObject {
-	return BusinessObject{
-		class: class,
-	}
 }

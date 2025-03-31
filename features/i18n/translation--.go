@@ -2,7 +2,7 @@ package i18n
 
 import (
 	"github.com/aldesgroup/goald"
-	class "github.com/aldesgroup/goald/_include/_class"
+	specs "github.com/aldesgroup/goald/_include/_specs"
 )
 
 type Translation struct {
@@ -14,5 +14,5 @@ type Translation struct {
 }
 
 func init() {
-	class.Translation().SetNotPersisted()
+	specs.Translation().SetNotPersisted()
 }

@@ -4,13 +4,13 @@ import (
 	"fmt"
 
 	g "github.com/aldesgroup/goald"
-	class "github.com/aldesgroup/goald/_include/_class"
+	specs "github.com/aldesgroup/goald/_include/_specs"
 	"github.com/aldesgroup/goald/features/hstatus"
 )
 
 func init() {
 	g.GetManyWithParams[*Translation, *TranslationUrlParams](listTranslations, "").
-		TargetWith(class.Translation().Lang()).
+		TargetWith(specs.Translation().Lang()).
 		Label("Returns the translations for the given route")
 }
 

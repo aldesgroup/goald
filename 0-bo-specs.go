@@ -1,5 +1,6 @@
 // ------------------------------------------------------------------------------------------------
-// The code here is about describing the business objects through "classes"
+// The code here is about having tools to describe the properties (fields & relationships) of a
+// business object class, and specifying things for these properties
 // ------------------------------------------------------------------------------------------------
 package goald
 
@@ -12,9 +13,9 @@ import (
 // TODO generate stuff for enums ?
 
 // ------------------------------------------------------------------------------------------------
-// Business object classes
+// Specs for a business object classes
 // ------------------------------------------------------------------------------------------------
-type IBusinessObjectClass interface {
+type IBusinessObjectSpecs interface {
 	/* public generic methods */
 
 	SetNotPersisted() // to indicate this class has no instance persisted in a database
@@ -30,14 +31,14 @@ type IBusinessObjectClass interface {
 	getTableName() string
 
 	// access to the base implementation
-	base() *businessObjectClass
+	base() *businessObjectSpecs
 	addField(field IField) IField
 }
 
 type className string
 
-type businessObjectClass struct {
-	name                    className                 // this class' name
+type businessObjectSpecs struct {
+	name                    className                 // the corresponding class name
 	fields                  map[string]IField         // the objet's simple properties
 	relationships           map[string]*Relationship  // the relationships to other classes
 	inDB                    *DB                       // the associated DB, if any
@@ -47,52 +48,51 @@ type businessObjectClass struct {
 	persistedProperties     []iBusinessObjectProperty // all the properties - fields or relationships - persisted on this class
 	relationshipsWithColumn []*Relationship           // all the relationships for which this class has a column in its table
 	idField                 IField                    // accessor to the ID field
-	// allProperties           []iBusinessObjectProperty // all the properties - fields or relationships
 }
 
-func NewClass() IBusinessObjectClass {
-	class := &businessObjectClass{
+func NewBusinessObjectSpecs() IBusinessObjectSpecs {
+	specs := &businessObjectSpecs{
 		fields:        map[string]IField{},
 		relationships: map[string]*Relationship{},
 	}
 
 	// adding the generic fields
-	class.idField = NewBigIntField(class, "ID", false)
+	specs.idField = NewBigIntField(specs, "ID", false)
 
-	return class
+	return specs
 }
 
-func (boClass *businessObjectClass) SetInDB(db *DB) {
+func (boClass *businessObjectSpecs) SetInDB(db *DB) {
 	boClass.inNoDB = false
 	boClass.inDB = db
 }
 
-func (boClass *businessObjectClass) SetNotPersisted() {
+func (boClass *businessObjectSpecs) SetNotPersisted() {
 	boClass.inNoDB = true
 	boClass.inDB = nil
 }
 
-func (boClass *businessObjectClass) SetAbstract() {
+func (boClass *businessObjectSpecs) SetAbstract() {
 	boClass.abstract = true
 }
 
-func (boClass *businessObjectClass) getInDB() *DB {
+func (boClass *businessObjectSpecs) getInDB() *DB {
 	return boClass.inDB
 }
 
-func (boClass *businessObjectClass) isNotPersisted() bool {
+func (boClass *businessObjectSpecs) isNotPersisted() bool {
 	return boClass.inNoDB
 }
 
-func (boClass *businessObjectClass) isPersisted() bool {
+func (boClass *businessObjectSpecs) isPersisted() bool {
 	return !boClass.isNotPersisted()
 }
 
-func (boClass *businessObjectClass) ID() IField {
+func (boClass *businessObjectSpecs) ID() IField {
 	return boClass.idField
 }
 
-func (boClass *businessObjectClass) getTableName() string {
+func (boClass *businessObjectSpecs) getTableName() string {
 	if boClass.tableName == "" {
 		boClass.tableName = utils.PascalToSnake(string(boClass.name))
 	}
@@ -100,11 +100,11 @@ func (boClass *businessObjectClass) getTableName() string {
 	return boClass.tableName
 }
 
-func (boClass *businessObjectClass) base() *businessObjectClass {
+func (boClass *businessObjectSpecs) base() *businessObjectSpecs {
 	return boClass
 }
 
-func (boClass *businessObjectClass) addField(field IField) IField {
+func (boClass *businessObjectSpecs) addField(field IField) IField {
 	boClass.fields[field.getName()] = field
 
 	return field
@@ -114,8 +114,8 @@ func (boClass *businessObjectClass) addField(field IField) IField {
 // Business object properties, wether fields or relationships
 // ------------------------------------------------------------------------------------------------
 type iBusinessObjectProperty interface {
-	ownerClass() IBusinessObjectClass
-	setOwner(IBusinessObjectClass)
+	ownerSpecs() IBusinessObjectSpecs
+	setOwner(IBusinessObjectSpecs)
 	getName() string
 	getTypeFamily() utils.TypeFamily
 	isMultiple() bool
@@ -125,7 +125,7 @@ type iBusinessObjectProperty interface {
 }
 
 type businessObjectProperty struct {
-	owner        IBusinessObjectClass // the property's owner class
+	owner        IBusinessObjectSpecs // the property's owner class
 	name         string               // the property's name, as declared in the struct
 	typeFamily   utils.TypeFamily     // the property's type, as detected by the codegen phase
 	multiple     bool                 // the property's multiplicity; false = 1, true = N
@@ -134,11 +134,11 @@ type businessObjectProperty struct {
 	notPersisted bool                 // if true, then this property does not have a corresponding column in the BO's table
 }
 
-func (prop *businessObjectProperty) ownerClass() IBusinessObjectClass {
+func (prop *businessObjectProperty) ownerSpecs() IBusinessObjectSpecs {
 	return prop.owner
 }
 
-func (prop *businessObjectProperty) setOwner(owner IBusinessObjectClass) {
+func (prop *businessObjectProperty) setOwner(owner IBusinessObjectSpecs) {
 	prop.owner = owner
 }
 
@@ -153,7 +153,7 @@ func (prop *businessObjectProperty) getTypeFamily() utils.TypeFamily {
 func (prop *businessObjectProperty) getColumnName() string {
 	if prop.columnName == "" {
 		prop.columnName = utils.PascalToSnake(prop.name)
-		if prop.typeFamily == utils.TypeFamilyRELATIONSHIP {
+		if prop.typeFamily == utils.TypeFamilyRELATIONSHIPxMONOM {
 			prop.columnName += "_id"
 		}
 	}
@@ -202,7 +202,7 @@ type numericField struct {
 	maxSet bool
 }
 
-func newField(owner IBusinessObjectClass, name string, multiple bool, typeFamily utils.TypeFamily) field {
+func newField(owner IBusinessObjectSpecs, name string, multiple bool, typeFamily utils.TypeFamily) field {
 	return field{
 		businessObjectProperty: businessObjectProperty{
 			owner:      owner,
@@ -352,48 +352,48 @@ func (f *EnumField) Only(values ...IEnum) *EnumField {
 	return f
 }
 
-func NewBoolField(owner IBusinessObjectClass, name string, multiple bool) *BoolField {
+func NewBoolField(owner IBusinessObjectSpecs, name string, multiple bool) *BoolField {
 	return owner.addField(&BoolField{
 		field: newField(owner, name, multiple, utils.TypeFamilyBOOL),
 	}).(*BoolField)
 }
 
-func NewStringField(owner IBusinessObjectClass, name string, multiple bool) *StringField {
+func NewStringField(owner IBusinessObjectSpecs, name string, multiple bool) *StringField {
 	return owner.addField(&StringField{
 		field: newField(owner, name, multiple, utils.TypeFamilySTRING),
 	}).(*StringField)
 }
 
-func NewIntField(owner IBusinessObjectClass, name string, multiple bool) *IntField {
+func NewIntField(owner IBusinessObjectSpecs, name string, multiple bool) *IntField {
 	return owner.addField(&IntField{numericField: numericField{
 		field: newField(owner, name, multiple, utils.TypeFamilyINT),
 	}}).(*IntField)
 }
 
-func NewBigIntField(owner IBusinessObjectClass, name string, multiple bool) *BigIntField {
+func NewBigIntField(owner IBusinessObjectSpecs, name string, multiple bool) *BigIntField {
 	return owner.addField(&BigIntField{numericField: numericField{
 		field: newField(owner, name, multiple, utils.TypeFamilyBIGINT),
 	}}).(*BigIntField)
 }
 
-func NewRealField(owner IBusinessObjectClass, name string, multiple bool) *RealField {
+func NewRealField(owner IBusinessObjectSpecs, name string, multiple bool) *RealField {
 	return owner.addField(&RealField{numericField: numericField{
 		field: newField(owner, name, multiple, utils.TypeFamilyREAL),
 	}}).(*RealField)
 }
-func NewDoubleField(owner IBusinessObjectClass, name string, multiple bool) *DoubleField {
+func NewDoubleField(owner IBusinessObjectSpecs, name string, multiple bool) *DoubleField {
 	return owner.addField(&DoubleField{numericField: numericField{
 		field: newField(owner, name, multiple, utils.TypeFamilyDOUBLE),
 	}}).(*DoubleField)
 }
 
-func NewDateField(owner IBusinessObjectClass, name string, multiple bool) *DateField {
+func NewDateField(owner IBusinessObjectSpecs, name string, multiple bool) *DateField {
 	return owner.addField(&DateField{
 		field: newField(owner, name, multiple, utils.TypeFamilyDATE),
 	}).(*DateField)
 }
 
-func NewEnumField(owner IBusinessObjectClass, name string, multiple bool, enumName string) *EnumField {
+func NewEnumField(owner IBusinessObjectSpecs, name string, multiple bool, enumName string) *EnumField {
 	return owner.addField(&EnumField{
 		field:    newField(owner, name, multiple, utils.TypeFamilyENUM),
 		enumName: enumName,
@@ -427,23 +427,24 @@ const (
 
 type Relationship struct {
 	businessObjectProperty
-	target       IBusinessObjectClass // the type of BO pointed by this relationship
-	relationType relationshipType     // valued from the business object's init
-	backRef      *Relationship        // valued from the business object's init
+	targets      []IBusinessObjectSpecs // the type of BO pointed by this relationship
+	relationType relationshipType       // valued from the business object's init
+	backRef      *Relationship          // valued from the business object's init
+	polymorphic  bool                   // if true, then it's a polymorphic relationship
 }
 
 // Allows to declare a new relationship on a given class
-func NewRelationship(owner IBusinessObjectClass, name string, multiple bool, target IBusinessObjectClass) *Relationship {
+func NewRelationship(owner IBusinessObjectSpecs, name string, multiple bool, targets ...IBusinessObjectSpecs) *Relationship {
 	relationship := &Relationship{
 		businessObjectProperty: businessObjectProperty{
 			owner:    owner,
 			name:     name,
 			multiple: multiple,
 		},
-		target: target,
+		targets:     targets,
+		polymorphic: len(targets) > 1,
 	}
 
-	// owner.addRelationship(name, relationship)
 	owner.base().relationships[name] = relationship
 
 	return relationship

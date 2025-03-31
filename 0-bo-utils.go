@@ -17,49 +17,49 @@ var (
 )
 
 // // GetAllProperties returns all this class' properties
-// func (boClass *businessObjectClass) GetAllProperties() []iBusinessObjectProperty {
-// 	if boClass.allProperties == nil {
-// 		for _, field := range boClass.fields {
-// 			boClass.allProperties = append(boClass.allProperties, field)
+// func (boSpecs *businessObjectClass) GetAllProperties() []iBusinessObjectProperty {
+// 	if boSpecs.allProperties == nil {
+// 		for _, field := range boSpecs.fields {
+// 			boSpecs.allProperties = append(boSpecs.allProperties, field)
 // 		}
 
-// 		for _, relationship := range boClass.getRelationshipsWithColumn() {
-// 			boClass.allProperties = append(boClass.allProperties, relationship)
+// 		for _, relationship := range boSpecs.getRelationshipsWithColumn() {
+// 			boSpecs.allProperties = append(boSpecs.allProperties, relationship)
 // 		}
 
-// 		sort.SliceStable(boClass.allProperties, func(i, j int) bool {
-// 			return boClass.allProperties[i].getName() < boClass.allProperties[j].getName()
+// 		sort.SliceStable(boSpecs.allProperties, func(i, j int) bool {
+// 			return boSpecs.allProperties[i].getName() < boSpecs.allProperties[j].getName()
 // 		})
 // 	}
 
-// 	return boClass.allProperties
+// 	return boSpecs.allProperties
 // }
 
 // getPersistedProperties returns the sorted list of the properties persisted
 // within the BO class' table, i.e. the persisted single Relationships + the persisted fields
-func (boClass *businessObjectClass) getPersistedProperties() []iBusinessObjectProperty {
-	if boClass.persistedProperties == nil {
+func (boSpecs *businessObjectSpecs) getPersistedProperties() []iBusinessObjectProperty {
+	if boSpecs.persistedProperties == nil {
 		// how many persisted properties - fields + single Relationships - do we have ?
-		// nbFields := len(boClass.fields)
-		// size := nbFields + len(boClass.getRelationshipsWithColumn())
+		// nbFields := len(boSpecs.fields)
+		// size := nbFields + len(boSpecs.getRelationshipsWithColumn())
 
 		// let's gather all the persisted properties
-		// boClass.persistedProperties = make([]iBusinessObjectProperty, size)
-		for _, field := range boClass.fields {
+		// boSpecs.persistedProperties = make([]iBusinessObjectProperty, size)
+		for _, field := range boSpecs.fields {
 			if !field.isNotPersisted() {
-				boClass.persistedProperties = append(boClass.persistedProperties, field)
+				boSpecs.persistedProperties = append(boSpecs.persistedProperties, field)
 			}
 		}
 
-		for _, relationship := range boClass.getRelationshipsWithColumn() {
-			boClass.persistedProperties = append(boClass.persistedProperties, relationship)
+		for _, relationship := range boSpecs.getRelationshipsWithColumn() {
+			boSpecs.persistedProperties = append(boSpecs.persistedProperties, relationship)
 		}
 
 		// now, let's sort them to have a nicely sorted list of columns for each table
 		// we make sure the ID column is always at 1st position
-		sort.SliceStable(boClass.persistedProperties, func(i, j int) bool {
-			property1Name := boClass.persistedProperties[i].getColumnName()
-			property2Name := boClass.persistedProperties[j].getColumnName()
+		sort.SliceStable(boSpecs.persistedProperties, func(i, j int) bool {
+			property1Name := boSpecs.persistedProperties[i].getColumnName()
+			property2Name := boSpecs.persistedProperties[j].getColumnName()
 			if property1Name == "id" {
 				return true
 			}
@@ -71,17 +71,17 @@ func (boClass *businessObjectClass) getPersistedProperties() []iBusinessObjectPr
 		})
 	}
 
-	return boClass.persistedProperties
+	return boSpecs.persistedProperties
 }
 
 // getRelationshipsWithColumn returns the sorted list of the fields that are persisted
-func (boClass *businessObjectClass) getRelationshipsWithColumn() []*Relationship {
+func (boSpecs *businessObjectSpecs) getRelationshipsWithColumn() []*Relationship {
 	// initialising it, the first time we need it
-	if boClass.relationshipsWithColumn == nil {
+	if boSpecs.relationshipsWithColumn == nil {
 		// first, we retrieve a list of IDs of the Relationships that are persisted
 		relationshipsWithColumnNames := []string{}
 
-		for relationshipName, relationship := range boClass.relationships {
+		for relationshipName, relationship := range boSpecs.relationships {
 			if relationship.needsColumn() {
 				relationshipsWithColumnNames = append(relationshipsWithColumnNames, string(relationshipName))
 			}
@@ -91,13 +91,13 @@ func (boClass *businessObjectClass) getRelationshipsWithColumn() []*Relationship
 		sort.Strings(relationshipsWithColumnNames)
 
 		// creating the list of persisted relationships
-		boClass.relationshipsWithColumn = make([]*Relationship, len(relationshipsWithColumnNames))
+		boSpecs.relationshipsWithColumn = make([]*Relationship, len(relationshipsWithColumnNames))
 
 		// using that list to build a sorted list of persisted relationships
 		for i := 0; i < len(relationshipsWithColumnNames); i++ {
-			boClass.relationshipsWithColumn[i] = boClass.relationships[relationshipsWithColumnNames[i]]
+			boSpecs.relationshipsWithColumn[i] = boSpecs.relationships[relationshipsWithColumnNames[i]]
 		}
 	}
 
-	return boClass.relationshipsWithColumn
+	return boSpecs.relationshipsWithColumn
 }

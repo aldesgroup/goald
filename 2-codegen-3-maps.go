@@ -20,7 +20,7 @@ import (
 )
 
 // getting a property's value as a string, without using reflection
-func (thisUtils *$$Upper$$ClassUtils) GetValueAsString(bo goald.IBusinessObject, propertyName string) string {
+func (thisClass *$$Upper$$Class) GetValueAsString(bo goald.IBusinessObject, propertyName string) string {
 	switch propertyName {
 $$getcases$$
 	default:
@@ -29,7 +29,7 @@ $$getcases$$
 }
 
 // setting a property's value with a given string value, without using reflection
-func (thisUtils *$$Upper$$ClassUtils) SetValueAsString(bo goald.IBusinessObject, propertyName string, valueAsString string) error {
+func (thisClass *$$Upper$$Class) SetValueAsString(bo goald.IBusinessObject, propertyName string, valueAsString string) error {
 	switch propertyName {
 $$setcases$$
 	}
@@ -38,9 +38,9 @@ $$setcases$$
 }
 `
 
-const valueMapperFILExSUFFIX = "--vmap.go"
+const valueMapperFILExSUFFIX = "--map.go"
 
-func (thisServer *server) generateObjectValueMappers(srcdir, currentPath string, regen bool) (codeChanged bool) {
+func (thisServer *server) generateAllObjectValueMappers(srcdir, currentPath string, regen bool) (codeChanged bool) {
 	// the path we're currently reading at e.g. go/pkg1/pkg2
 	readingPath := path.Join(srcdir, currentPath)
 
@@ -55,23 +55,27 @@ func (thisServer *server) generateObjectValueMappers(srcdir, currentPath string,
 			// not going into the vendor
 			if entry.Name() != "vendor" && entry.Name() != ".git" {
 				// found another directory, let's dive deeper!
-				codeChanged = thisServer.generateObjectValueMappers(srcdir, path.Join(currentPath, entry.Name()), regen) || codeChanged
+				codeChanged = thisServer.generateAllObjectValueMappers(srcdir, path.Join(currentPath, entry.Name()), regen) || codeChanged
 			}
 		} else {
 			// found a file... but we're only interested in files containing Business Objects, which must end with sourceFILExSUFFIX
 			if strings.HasSuffix(entry.Name(), sourceFILExSUFFIX) {
 				// getting the business object entry within this file, then the registred entry in the code
-				clsuCore := getClassUtilsFromFile(srcdir, currentPath, entry.Name())
-				classUtils := classUtilsRegistry.content[clsuCore.class]
+				classCore := getClassFromFile(srcdir, currentPath, entry.Name())
+				class := classRegistry.items[classCore.class]
 
 				// the corresponding Value Mapper file, if it exist
-				vmapFilepath := path.Join(srcdir, classUtils.getSrcPath(), sourceCLASSxUTILSxDIR,
+				vmapFilepath := path.Join(srcdir, class.getSrcPath(), sourceCLASSxDIR,
 					strings.Replace(entry.Name(), sourceFILExSUFFIX, valueMapperFILExSUFFIX, 1))
 
-				// generating the Value Mapper file, if not existing yet, or too old
-				if regen || !utils.FileExists(vmapFilepath) || utils.EnsureModTime(vmapFilepath).Before(classUtils.getLastBOMod()) {
-					generateObjectValueMappersForBO(classUtils, vmapFilepath)
-					codeChanged = true
+				// no value mapper for interfaces
+				if !class.isInterface() {
+
+					// generating the Value Mapper file, if not existing yet, or too old
+					if regen || !utils.FileExists(vmapFilepath) || utils.EnsureModTime(vmapFilepath).Before(class.getLastBOMod()) {
+						generateObjectValueMappersForBO(class, vmapFilepath)
+						codeChanged = true
+					}
 				}
 			}
 		}
@@ -80,30 +84,30 @@ func (thisServer *server) generateObjectValueMappers(srcdir, currentPath string,
 	return
 }
 
-func generateObjectValueMappersForBO(classUtils IClassUtils, filepath string) {
+func generateObjectValueMappersForBO(class IClass, filepath string) {
 	// the corresponding class
-	className := classUtils.getClass()
-	boClass := classForName(className)
+	className := class.getClassName()
+	boSpecs := specsForName(className)
 
 	// checking the BO code makes use of its class
 	// TODO - auto-add this code block to the BO code + the import
-	if boClass == nil {
+	if boSpecs == nil {
 		utils.Panicf("It looks like class '%s' has never been imported and thus not initialized and registered. \n"+
 			"Add this - and complete as necessary - to your business object definition code: \n\n"+
-			"import (class \"%s/_include/_class\") \n"+
+			"import (class \"%s/_include/_specs\") \n"+
 			"func init() { \n"+
-			"	class.%s().SetNotPersisted() \n"+
+			"	specs.%s().SetNotPersisted() \n"+
 			"}",
 			className, getCurrentModule(), className)
 	}
 
 	// the corresponding package
-	classPkg := path.Join(getCurrentModule(), classUtils.getSrcPath())
+	classPkg := path.Join(getCurrentModule(), class.getSrcPath())
 	shortPkg := path.Base(classPkg)
 
 	// starting the content
-	content := strings.ReplaceAll(vmapFileTEMPLATE, "$$package$$", sourceCLASSxUTILSxDIR)
-	content = strings.ReplaceAll(content, "$$Upper$$", string(classUtils.getClass()))
+	content := strings.ReplaceAll(vmapFileTEMPLATE, "$$package$$", sourceCLASSxDIR)
+	content = strings.ReplaceAll(content, "$$Upper$$", string(class.getClassName()))
 
 	getCases := []string{}
 	setCases := []string{}
@@ -116,12 +120,12 @@ func generateObjectValueMappersForBO(classUtils IClassUtils, filepath string) {
 	var importUtils bool
 
 	// getting the type of business object
-	bObjectType := utils.TypeOf(classUtils.NewObject(), true)
+	bObjectType := utils.TypeOf(class.NewObject(), true)
 
 	// browsing the entity's properties to fill the get / set cases in the 2 switch
-	for _, field := range utils.GetSortedValues(boClass.base().fields) {
+	for _, field := range utils.GetSortedValues(boSpecs.base().fields) {
 		// adding to the context, and the class file content
-		if typeFamily := field.getTypeFamily(); typeFamily != utils.TypeFamilyUNKNOWN && typeFamily != utils.TypeFamilyRELATIONSHIP {
+		if typeFamily := field.getTypeFamily(); typeFamily != utils.TypeFamilyUNKNOWN && typeFamily != utils.TypeFamilyRELATIONSHIPxMONOM {
 			// not handling multiple properties for now
 			if fieldName := field.getName(); !field.isMultiple() {
 				// is the field type a type alias, or a built-in type?
@@ -216,7 +220,7 @@ func getBits(fieldTypeAlias, getBit string) (string, string, string) {
 	return "", "", ""
 }
 
-func getNonBuiltInFieldType(bOjbType *utils.GoaldType, fieldName string, toBeImported map[string]bool) string {
+func getNonBuiltInFieldType(bOjbType utils.GoaldType, fieldName string, toBeImported map[string]bool) string {
 	fieldType := bOjbType.FieldByName(fieldName).Type()
 	fieldPkg := fieldType.PkgPath()
 

@@ -40,24 +40,6 @@ const (
 
 	// PropertyTypeRELATIONSHIP : for relationships to other entities
 	PropertyTypeRELATIONSHIP
-
-	// // PropertyTypeENTITYREFERENCE : for entity references
-	// PropertyTypeENTITYREFERENCE
-
-	// // PropertyTypeURL : for URL string properties
-	// PropertyTypeURL
-
-	// // PropertyTypeEMAIL : for email properties
-	// PropertyTypeEMAIL
-
-	// // PropertyTypeENTITYID : for entity IDs
-	// PropertyTypeENTITYID
-
-	// // PropertyTypeAMOUNT : for amount of money (which is a float64)
-	// PropertyTypeAMOUNT
-
-	// // PropertyTypeJSON : for JSON strings
-	// PropertyTypeJSON
 )
 
 var propertyTypes = map[int]string{
@@ -70,11 +52,6 @@ var propertyTypes = map[int]string{
 	int(PropertyTypeREAL64):       "real number (double precision)",
 	int(PropertyTypeENUM):         "enum",
 	int(PropertyTypeRELATIONSHIP): "relationship",
-	// int(PropertyTypeENTITYREFERENCE): "entity reference",
-	// int(PropertyTypeURL):             "URL",
-	// int(PropertyTypeAMOUNT):          "amount",
-	// int(PropertyTypeEMAIL):           "email",
-	// int(PropertyTypeJSON):            "json string",
 }
 
 func (thisProperty PropertyType) String() string {
@@ -90,30 +67,3 @@ func (thisProperty PropertyType) Val() int {
 func (thisProperty PropertyType) Values() map[int]string {
 	return propertyTypes
 }
-
-// // codeName returns the property's name, as written in the code
-// func (thisProperty PropertyType) codeName() string {
-// 	switch thisProperty {
-// 	case PropertyTypeBOOL:
-// 		return "PropertyTypeBOOL"
-// 	case PropertyTypeDATE:
-// 		return "PropertyTypeDATE"
-// 	case PropertyTypeUNKNOWN:
-// 		return "PropertyTypeUNKNOWN"
-// 	case PropertyTypeSTRING:
-// 		return "PropertyTypeSTRING"
-// 	case PropertyTypeINT:
-// 		return "PropertyTypeINT"
-// 	case PropertyTypeREAL32:
-// 		return "PropertyTypeREAL32"
-// 	case PropertyTypeREAL64:
-// 		return "PropertyTypeREAL64"
-// 	case PropertyTypeENUM:
-// 		return "PropertyTypeENUM"
-// 	case PropertyTypeRELATIONSHIP:
-// 		return "PropertyTypeRELATIONSHIP"
-// 	default:
-// 		utils.Panicf("Unhandle property type %d", thisProperty)
-// 		return ""
-// 	}
-// }

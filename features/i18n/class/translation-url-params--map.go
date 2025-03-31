@@ -1,5 +1,5 @@
 // Generated file, do not edit!
-package classutils
+package class
 
 import (
 	"github.com/aldesgroup/goald"
@@ -7,7 +7,7 @@ import (
 )
 
 // getting a property's value as a string, without using reflection
-func (thisUtils *TranslationUrlParamsClassUtils) GetValueAsString(bo goald.IBusinessObject, propertyName string) string {
+func (thisClass *TranslationUrlParamsClass) GetValueAsString(bo goald.IBusinessObject, propertyName string) string {
 	switch propertyName {
 	case "Key":
 		return bo.(*i18n.TranslationUrlParams).Key
@@ -19,7 +19,7 @@ func (thisUtils *TranslationUrlParamsClassUtils) GetValueAsString(bo goald.IBusi
 }
 
 // setting a property's value with a given string value, without using reflection
-func (thisUtils *TranslationUrlParamsClassUtils) SetValueAsString(bo goald.IBusinessObject, propertyName string, valueAsString string) error {
+func (thisClass *TranslationUrlParamsClass) SetValueAsString(bo goald.IBusinessObject, propertyName string, valueAsString string) error {
 	switch propertyName {
 	case "Key":
 		bo.(*i18n.TranslationUrlParams).Key = valueAsString

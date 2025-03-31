@@ -29,7 +29,7 @@ const (
 
 // TODO maybe do not collocate everything on the server... let's change the receiver here
 
-func (thisServer *server) generateWebAppModels(webdir string, regen bool) {
+func (thisServer *server) generateAllWebAppModels(webdir string, regen bool) {
 	// the enum files to generate
 	enums := map[string]IEnum{}
 
@@ -55,8 +55,8 @@ func (thisServer *server) generateWebAppModels(webdir string, regen bool) {
 
 type codeContext struct {
 	enums      map[string]IEnum
-	bObjType   *utils.GoaldType
-	boInstance *utils.GoaldValue
+	bObjType   utils.GoaldType
+	boInstance utils.GoaldValue
 }
 
 func (ctx *codeContext) getEnumType(field IField) string {
@@ -68,9 +68,9 @@ func (thisServer *server) generateWebAppModel(webdir string, ep iEndpoint, useIn
 	clsName := utils.IfThenElse(useInputClass, ep.getInputOrParamsClass(), ep.getResourceClass())
 
 	// the business object we're dealing with
-	boClass := classForName(clsName)
-	clUtils := getClassUtils(boClass)
-	boFields := utils.GetSortedValues(boClass.base().fields)
+	boSpecs := specsForName(clsName)
+	boClass := getClass(boSpecs)
+	boFields := utils.GetSortedValues(boSpecs.base().fields)
 
 	// the file we're dealing with
 	filename := utils.PascalToCamel(string(clsName)) + ".ts"
@@ -79,8 +79,8 @@ func (thisServer *server) generateWebAppModel(webdir string, ep iEndpoint, useIn
 	// gathering needed info into a context
 	codeCtx := &codeContext{
 		enums:      enums,
-		bObjType:   utils.TypeOf(clUtils.NewObject(), true),
-		boInstance: utils.ValueOf(clUtils.NewObject()),
+		bObjType:   utils.TypeOf(boClass.NewObject(), true),
+		boInstance: utils.ValueOf(boClass.NewObject()),
 	}
 
 	// gathering the needed enums
@@ -91,7 +91,7 @@ func (thisServer *server) generateWebAppModel(webdir string, ep iEndpoint, useIn
 	}
 
 	// TODO remove
-	if !regen && utils.FileExists(filepath) && utils.EnsureModTime(filepath).After(clUtils.getLastBOMod()) {
+	if !regen && utils.FileExists(filepath) && utils.EnsureModTime(filepath).After(boClass.getLastBOMod()) {
 		return // the file already exists and is older than our changes in the BO class file
 	}
 
@@ -108,10 +108,8 @@ func (thisServer *server) generateWebAppModel(webdir string, ep iEndpoint, useIn
 	for _, block := range code.blocks {
 		// the block should at least have a non-nil code line
 		if block.lines[0] != nil {
-			// codeLines = append(codeLines, fmt.Sprintf("// --- block [%s] ---------------------------", block.id))
 			for _, line := range block.lines {
 				if line != nil {
-					// codeLines = append(codeLines, line.content+fmt.Sprintf(" // %d", line.num))
 					codeLines = append(codeLines, line.rawline)
 				}
 			}
@@ -144,7 +142,7 @@ func (thisCode *codeFile) addImportsIfNeeded(endpointPath string) *codeFile {
 // handling a field, adding it if not in the code already, flagging an enum for generation if it's an enum field
 func (thisCode *codeFile) addFieldIfNeeded(codeCtx *codeContext, field IField) {
 	// adding to the context, and the class file content
-	if typeFamily := field.getTypeFamily(); typeFamily != utils.TypeFamilyUNKNOWN && typeFamily != utils.TypeFamilyRELATIONSHIP {
+	if typeFamily := field.getTypeFamily(); typeFamily != utils.TypeFamilyUNKNOWN && typeFamily != utils.TypeFamilyRELATIONSHIPxMONOM {
 		// not handling multiple properties for now - nor the ID field
 		if !field.isMultiple() && field.getName() != "ID" {
 			var (

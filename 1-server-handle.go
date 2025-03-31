@@ -175,7 +175,7 @@ func retrieveInputData(request *http.Request, webContext *webContextImpl, ep iEn
 
 	if ep.isMultipleInput() {
 		// Handling array of bObj input: []*package.BObj
-		bObjSlice := classUtilsRegistry.content[ep.getInputOrParamsClass()].NewSlice()
+		bObjSlice := classRegistry.items[ep.getInputOrParamsClass()].NewSlice()
 
 		// Unmarshaling *[]*package.BObj as an interface - which is expected by the Unmarshal function
 		if jsonErr := json.Unmarshal(inputBodyBytes, &bObjSlice); jsonErr != nil {
@@ -187,7 +187,7 @@ func retrieveInputData(request *http.Request, webContext *webContextImpl, ep iEn
 
 	} else {
 		// Handling single bObj input: *package.BObj
-		bObj := classUtilsRegistry.content[ep.getInputOrParamsClass()].NewObject()
+		bObj := classRegistry.items[ep.getInputOrParamsClass()].NewObject()
 
 		if jsonErr := json.Unmarshal(inputBodyBytes, bObj); jsonErr != nil {
 			return nil, ErrorC(jsonErr, "Could not unmarshall the JSON object!")
@@ -200,13 +200,13 @@ func retrieveInputData(request *http.Request, webContext *webContextImpl, ep iEn
 // parsing the request's URL to build the expected URLQueryParams object
 func retrieveURLParams(request *http.Request, _ *webContextImpl, ep iEndpoint) (any, error) {
 	// getting the right class utils
-	classUtils := classUtilsRegistry.content[ep.getInputOrParamsClass()]
+	classUtils := classRegistry.items[ep.getInputOrParamsClass()]
 
 	// new URLQueryParams object
 	urlParams := classUtils.NewObject().(IURLQueryParams)
 
 	// transferring the URL param values from the URL to the object
-	for _, field := range classForName(ep.getInputOrParamsClass()).base().fields {
+	for _, field := range specsForName(ep.getInputOrParamsClass()).base().fields {
 		valueToSet := request.URL.Query().Get(field.getName())
 		if valueToSet == "" {
 			valueToSet = field.getDefaultValue()

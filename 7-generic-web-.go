@@ -35,7 +35,7 @@ func GenericHandleRead[BOTYPE IBusinessObject](idProp IField, loadingType Loadin
 			output, errRead := ReadBO(webCtx.GetBloContext(), idProp, webCtx.GetTargetRefOrID(), loadingType)
 			if errRead != nil {
 				return *new(BOTYPE), hstatus.InternalServerError,
-					fmt.Sprintf("Failed reading '%s' instance '%s': %s", idProp.ownerClass().base().name, webCtx.GetTargetRefOrID(), errRead)
+					fmt.Sprintf("Failed reading '%s' instance '%s': %s", idProp.ownerSpecs().base().name, webCtx.GetTargetRefOrID(), errRead)
 			}
 
 			return output.(BOTYPE), hstatus.OK, fmt.Sprintf("Found the targeted '%T' instance", output)
@@ -73,7 +73,7 @@ func GenericHandleDelete[BOTYPE IBusinessObject](idProp IField) *oneForNoneEndpo
 			output, errRead := DeleteBO(webCtx.GetBloContext(), idProp, webCtx.GetTargetRefOrID())
 			if errRead != nil {
 				return *new(BOTYPE), hstatus.InternalServerError,
-					fmt.Sprintf("Failed reading '%s' instance '%s': %s", idProp.ownerClass().base().name, webCtx.GetTargetRefOrID(), errRead)
+					fmt.Sprintf("Failed reading '%s' instance '%s': %s", idProp.ownerSpecs().base().name, webCtx.GetTargetRefOrID(), errRead)
 			}
 
 			return output.(BOTYPE), hstatus.OK, fmt.Sprintf("Deleted the targeted '%T' instance", output)

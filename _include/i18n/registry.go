@@ -3,11 +3,11 @@ package i18n
 
 import (
 	g "github.com/aldesgroup/goald"
-	i18n "github.com/aldesgroup/goald/features/i18n/classutils"
+	i18n "github.com/aldesgroup/goald/features/i18n/class"
 )
 
 func init() {
 	g.In("goald").
-		Register(i18n.ClassUtilsForTranslation("features/i18n", "2024-09-09T07:50:18+02:00")).
-		Register(i18n.ClassUtilsForTranslationUrlParams("features/i18n", "2024-09-09T07:50:37+02:00"))
+		Register(i18n.ClassForTranslation("features/i18n", "2025-03-29T01:23:53+01:00")).
+		Register(i18n.ClassForTranslationUrlParams("features/i18n", "2025-03-29T01:24:03+01:00"))
 }
