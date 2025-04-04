@@ -26,7 +26,8 @@ type iEndpoint interface {
 	isBodyInputRequired() bool
 	isMultipleInput() bool
 	getInputOrParamsClass() className
-	isFromWebApp() bool
+	isCalledFromWebApp() bool
+	isCalledFromNativeApp() bool
 	returnOne(webCtx WebContext) (any, hstatus.Code, string)
 	returnMany(webCtx WebContext) (any, hstatus.Code, string)
 	returnOneForOne(webCtx WebContext, input any) (any, hstatus.Code, string)
@@ -38,19 +39,20 @@ type iEndpoint interface {
 // an endpoint object is parametrized by the potential objects of type I,
 // and the output objects of type O, i.e. the resource type
 type endpoint[ResourceType IBusinessObject] struct {
-	method             string      // get, post, put...
-	resourceClass      className   // the class of the objects reached through this endpoint
-	basePath           string      // the endpoint's base path, which is the lower-cased resource type name
-	actionPath         string      // do we need an additional path for a non-CRUD action, like "reduce" in: "GET /document/reduce/:id"
-	idProp             IField      // if a specific BO is targeted, this has to be through one of its properties
-	fullPath           string      // resulting from the parameter type, action path and id property
-	label              string      // short label to describe the endpoint
-	multipleOutput     bool        // if true, then the endpoint delivers arrays of BOs, rather than a single one
-	loadingType        LoadingType // how the returned resource(s) are loaded
-	bodyInputRequired  bool        // if true, then we expect something in the request body
-	multipleInput      bool        // if true, then we expect an array of BOs in the body, rather than a single one
-	inputOrParamsClass className   // if bodyInputRequired = true, then this is the type of the input
-	fromWebApp         bool        // if true then this endpoint can be called from the webapp, so the BOs involved might be synced through codegen
+	method              string      // get, post, put...
+	resourceClass       className   // the class of the objects reached through this endpoint
+	basePath            string      // the endpoint's base path, which is the lower-cased resource type name
+	actionPath          string      // do we need an additional path for a non-CRUD action, like "reduce" in: "GET /document/reduce/:id"
+	idProp              IField      // if a specific BO is targeted, this has to be through one of its properties
+	fullPath            string      // resulting from the parameter type, action path and id property
+	label               string      // short label to describe the endpoint
+	multipleOutput      bool        // if true, then the endpoint delivers arrays of BOs, rather than a single one
+	loadingType         LoadingType // how the returned resource(s) are loaded
+	bodyInputRequired   bool        // if true, then we expect something in the request body
+	multipleInput       bool        // if true, then we expect an array of BOs in the body, rather than a single one
+	inputOrParamsClass  className   // if bodyInputRequired = true, then this is the type of the input
+	calledFromWebApp    bool        // if true then this endpoint can be called from the webapp, so the BOs involved might be synced through codegen
+	calledFromNativeApp bool        // if true then this endpoint can be called from the native app, so the BOs involved might be synced through codegen
 }
 
 func (ep *endpoint[ResourceType]) getMethod() string {
@@ -111,8 +113,12 @@ func (ep *endpoint[ResourceType]) getInputOrParamsClass() className {
 	return ep.inputOrParamsClass
 }
 
-func (ep *endpoint[ResourceType]) isFromWebApp() bool {
-	return ep.fromWebApp
+func (ep *endpoint[ResourceType]) isCalledFromWebApp() bool {
+	return ep.calledFromWebApp
+}
+
+func (ep *endpoint[ResourceType]) isCalledFromNativeApp() bool {
+	return ep.calledFromNativeApp
 }
 
 func (ep *endpoint[ResourceType]) returnOne(webCtx WebContext) (any, hstatus.Code, string) {
@@ -194,8 +200,28 @@ func (thisEndpoint *endpoint[ResourceType]) Label(label string) *endpoint[Resour
 
 // Indicating that this endpoint can be called from the associated web app (through Aldev),
 // so that I/O code can be automatically generated within it
-func (thisEndpoint *endpoint[ResourceType]) FromWebApp() *endpoint[ResourceType] {
-	thisEndpoint.fromWebApp = true
+func (thisEndpoint *endpoint[ResourceType]) SetCalledFromWebApp() *endpoint[ResourceType] {
+	thisEndpoint.calledFromWebApp = true
+
+	// taking the opportunity to enrich the class specs that are impacted here
+	specsForName(thisEndpoint.resourceClass).base().usedInWebApp = true
+	if thisEndpoint.inputOrParamsClass != "" {
+		specsForName(thisEndpoint.inputOrParamsClass).base().usedInWebApp = true
+	}
+
+	return thisEndpoint
+}
+
+// Indicating that this endpoint can be called from the associated native app (through Aldev),
+// so that I/O code can be automatically generated within it
+func (thisEndpoint *endpoint[ResourceType]) SetCalledFromNativeApp() *endpoint[ResourceType] {
+	thisEndpoint.calledFromNativeApp = true
+
+	// taking the opportunity to enrich the class specs that are impacted here
+	specsForName(thisEndpoint.resourceClass).base().usedInNativeApp = true
+	if thisEndpoint.inputOrParamsClass != "" {
+		specsForName(thisEndpoint.inputOrParamsClass).base().usedInNativeApp = true
+	}
 
 	return thisEndpoint
 }

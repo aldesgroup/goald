@@ -180,10 +180,6 @@ func specsForName(clsName className) IBusinessObjectSpecs {
 	return specsRegistry.items[clsName]
 }
 
-func getAllSpecs() map[className]IBusinessObjectSpecs {
-	return specsRegistry.items
-}
-
 // ------------------------------------------------------------------------------------------------
 // Endpoints registry
 // ------------------------------------------------------------------------------------------------

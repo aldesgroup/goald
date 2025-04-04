@@ -23,19 +23,21 @@ import (
 // This function should be called in each Goald-based app
 func NewServer() ServerContext {
 	// reading the program's arguments
-	var confPath string // the path to the config file
-	var srcdir string   // if codegen > 0, this is where to find the go source code
-	var migrate bool    // if true, then the configured databases are auto-migrated to fit the BOs' persistency requirements
-	var codegen int     // if > 0, the server cannot be started, but code is generated instead
-	var webdir string   // if codegen > 0, this is where to find the web app source code, if any
-	var regen bool      // if true, then all the generated code is regenerated
-	var bindir string   // if codegen > 0, this is where to find the compilated code
+	var confPath string  // the path to the config file
+	var srcdir string    // if codegen > 0, this is where to find the go source code
+	var migrate bool     // if true, then the configured databases are auto-migrated to fit the BOs' persistency requirements
+	var codegen int      // if > 0, the server cannot be started, but code is generated instead
+	var webdir string    // if codegen > 0, this is where to find the web app source code, if any
+	var nativedir string // if codegen > 0, this is where to find the native app source code, if any
+	var regen bool       // if true, then all the generated code is regenerated
+	var bindir string    // if codegen > 0, this is where to find the compilated code
 
 	flag.StringVar(&confPath, "config", "", "the path to the config file")
 	flag.StringVar(&srcdir, "srcdir", "api", "where to find all the Go code, from the project's root")
 	flag.BoolVar(&migrate, "migrate", false, "activates the auto-migration of the configured databases")
 	flag.IntVar(&codegen, "codegen", 0, "if > 0, runs code generation and exits; 1 = objects, 2 = classes")
 	flag.StringVar(&webdir, "webdir", "webapp", "where to find all the Web app code, from the project's root")
+	flag.StringVar(&nativedir, "nativedir", "webapp", "where to find all the Native app code, from the project's root")
 	flag.BoolVar(&regen, "regen", false, "forces the code regeneration")
 	flag.StringVar(&bindir, "bindir", "bin", "where to find the compilated code")
 	flag.Parse()
@@ -54,7 +56,7 @@ func NewServer() ServerContext {
 
 	// running the app in code generation mode, i.e. no server started here - should only be used by devs
 	if codegen > 0 {
-		server.runCodeGen(srcdir, codeGenLevel(codegen), webdir, regen, bindir)
+		server.runCodeGen(srcdir, codeGenLevel(codegen), webdir, nativedir, regen, bindir)
 	}
 
 	// performing some checks on the code - but only in dev mode of course

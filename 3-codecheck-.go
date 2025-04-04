@@ -15,7 +15,7 @@ import (
 func (thisServer *server) runCodeChecks() {
 	start := time.Now()
 
-	for clsName, boSpecs := range getAllSpecs() {
+	for clsName, boSpecs := range specsRegistry.items {
 		thisServer.checkSpecs(clsName, boSpecs)
 	}
 
@@ -47,7 +47,7 @@ func (thisServer *server) checkSpecs(clsName className, boSpecs IBusinessObjectS
 		if boSpecs.base().isPersisted() {
 			// checking there's an actual DB configured for this BO class
 			if boSpecs.getInDB() == nil {
-				utils.Panicf("Class '%s' should be SetNotPersisted, or associated with a DB", clsName)
+				utils.Panicf("Class '%s' should be SetNotPersisted, SetAbstract, or associated with a DB", clsName)
 			}
 
 			// checking the fields
@@ -59,8 +59,10 @@ func (thisServer *server) checkSpecs(clsName className, boSpecs IBusinessObjectS
 					}
 				}
 			}
+		}
 
-			// checking the relationships
+		// checking the relationships
+		if boSpecs.base().isPersisted() || boSpecs.base().usedInNativeApp || boSpecs.base().usedInWebApp {
 			for _, relationship := range boSpecs.base().relationships {
 				if relationship.relationType == 0 {
 					utils.Panicf("Relationship '%s.%s' should have a defined type, with SetChildToParent(), "+
@@ -73,11 +75,6 @@ func (thisServer *server) checkSpecs(clsName className, boSpecs IBusinessObjectS
 
 				if nbChildToParentRelationships > 1 {
 					utils.Panicf("There cannot be more than one child to parent relationship in '%s'", clsName)
-				}
-
-				if relationship.relationType == relationshipTypePARENTxTOxCHILDREN && !relationship.multiple {
-					utils.Panicf("We do not handle 1-1 child-parent relationship for now. "+
-						"Please re-design relationship '%s.%s'", clsName, relationship.name)
 				}
 			}
 		}

@@ -29,19 +29,19 @@ const (
 
 // TODO maybe do not collocate everything on the server... let's change the receiver here
 
-func (thisServer *server) generateAllWebAppModels(webdir string, regen bool) {
+func (thisServer *server) generateAllClientAppModels(destdir string, regen bool, isWebapp bool) {
 	// the enum files to generate
 	enums := map[string]IEnum{}
 
 	// scanning for BOs involved in endpoints used from the web app
 	for _, ep := range restRegistry.endpoints {
-		if ep.isFromWebApp() {
+		if (isWebapp && ep.isCalledFromWebApp()) || (!isWebapp && ep.isCalledFromNativeApp()) {
 			// generating the model for the endpoint resource
-			thisServer.generateWebAppModel(webdir, ep, false, enums, regen)
+			thisServer.generateClientAppModel(destdir, ep, false, enums, regen, isWebapp)
 
 			// if the endpoint admits a BO as an input (body or URL params), then we also need the model in the webapp
 			if ep.getInputOrParamsClass() != "" {
-				thisServer.generateWebAppModel(webdir, ep, true, enums, regen)
+				thisServer.generateClientAppModel(destdir, ep, true, enums, regen, isWebapp)
 			}
 		}
 	}
@@ -49,7 +49,7 @@ func (thisServer *server) generateAllWebAppModels(webdir string, regen bool) {
 	// enum files generation
 	for enumType, enum := range enums {
 		// TODO run in go routines
-		generateWebAppEnum(webdir, enumType, enum)
+		generateWebAppEnum(destdir, enumType, enum)
 	}
 }
 
@@ -63,7 +63,8 @@ func (ctx *codeContext) getEnumType(field IField) string {
 	return ctx.bObjType.FieldByName(field.getName()).Type().Name()
 }
 
-func (thisServer *server) generateWebAppModel(webdir string, ep iEndpoint, useInputClass bool, enums map[string]IEnum, regen bool) {
+func (thisServer *server) generateClientAppModel(destdir string, ep iEndpoint, useInputClass bool,
+	enums map[string]IEnum, regen bool, isWebapp bool) {
 	// which model to generate?
 	clsName := utils.IfThenElse(useInputClass, ep.getInputOrParamsClass(), ep.getResourceClass())
 
@@ -74,7 +75,7 @@ func (thisServer *server) generateWebAppModel(webdir string, ep iEndpoint, useIn
 
 	// the file we're dealing with
 	filename := utils.PascalToCamel(string(clsName)) + ".ts"
-	filepath := path.Join(webdir, modelsDIRPATH, filename)
+	filepath := path.Join(destdir, modelsDIRPATH, filename)
 
 	// gathering needed info into a context
 	codeCtx := &codeContext{
@@ -90,13 +91,13 @@ func (thisServer *server) generateWebAppModel(webdir string, ep iEndpoint, useIn
 		}
 	}
 
-	// TODO remove
+	// do we need to (re)generate the file?
 	if !regen && utils.FileExists(filepath) && utils.EnsureModTime(filepath).After(boClass.getLastBOMod()) {
 		return // the file already exists and is older than our changes in the BO class file
 	}
 
 	// getting the file content - which might be empty if the file does not exist yet
-	code := parseCode(filepath).addImportsIfNeeded(thisServer.config.commonPart().HTTP.ApiPath + ep.getFullPath())
+	code := parseCode(filepath).addImportsIfNeeded(thisServer.config.commonPart().HTTP.ApiPath+ep.getFullPath(), isWebapp)
 
 	// browsing the entity's properties to fill the get / set cases in the 2 switch
 	for _, field := range boFields {
@@ -126,13 +127,17 @@ func (thisServer *server) generateWebAppModel(webdir string, ep iEndpoint, useIn
 // ------------------------------------------------------------------------------------------------
 
 // initiating the code
-func (thisCode *codeFile) addImportsIfNeeded(endpointPath string) *codeFile {
+func (thisCode *codeFile) addImportsIfNeeded(endpointPath string, isWebapp bool) *codeFile {
 	if len(thisCode.blocks) == 0 {
-		thisCode.addNewBlock("import { fieldAtom, formAtom, useFieldActions, useFieldValue, useInputField } from \"form-atoms\";", true, "", false)
-		thisCode.addNewBlock("import { atom, useSetAtom } from \"jotai\";", true, "", false)
-		thisCode.addNewBlock("import { useEffect } from \"react\";", true, "", false)
-		thisCode.addNewBlock("import { fieldConfigAtom } from \"~/vendor/goaldr\";", true, "", false)
-		thisCode.addNewBlock("export const URL = \""+endpointPath+"\"", true, "", true)
+		thisCode.addNewBlock("import { fieldAtom, formAtom, useFieldActions, useFieldValue, useInputField } from 'form-atoms';", true, "", false)
+		thisCode.addNewBlock("import { atom, useSetAtom } from 'jotai';", true, "", false)
+		thisCode.addNewBlock("import { useEffect } from 'react';", true, "", false)
+		if isWebapp {
+			thisCode.addNewBlock("import { fieldConfigAtom } from '~/vendor/goaldr/utils/fields';", true, "", false)
+		} else {
+			thisCode.addNewBlock("import { fieldConfigAtom } from '~/vendor/goaldn/utils/fields';", true, "", false)
+		}
+		thisCode.addNewBlock("export const URL = '"+endpointPath+"'", true, "", true)
 		thisCode.addNewBlock("export const "+formBlockID+" = formAtom({", true, formBlockID, true).appendLine("});", true)
 	}
 
@@ -268,9 +273,9 @@ func (thisCode *codeFile) findLastImportPosition() (pos int) {
 // enum files generation
 // ------------------------------------------------------------------------------------------------
 
-func generateWebAppEnum(webdir string, enumType string, enum IEnum) {
+func generateWebAppEnum(destdir string, enumType string, enum IEnum) {
 	filename := "_" + utils.PascalToCamel(enumType) + ".ts"
-	filepath := path.Join(webdir, modelsDIRPATH, filename)
+	filepath := path.Join(destdir, modelsDIRPATH, filename)
 
 	content := "// Generated by Aldev, do not edit!" + newline
 	allTypes := []string{}

@@ -22,7 +22,7 @@ const dirtyFILENAME = "dirty"
 
 // this function shows that our server, when run in dev with the right arguments,
 // can be used as a development server, generating code for us
-func (thisServer *server) runCodeGen(srcdir string, level codeGenLevel, webdir string, regen bool, bindir string) {
+func (thisServer *server) runCodeGen(srcdir string, level codeGenLevel, webdir, nativedir string, regen bool, bindir string) {
 	switch level {
 	case codeGenCLASSES:
 		start := time.Now()
@@ -60,8 +60,9 @@ func (thisServer *server) runCodeGen(srcdir string, level codeGenLevel, webdir s
 		// that should help us avoid using the `reflect` package at runtime;
 		codeChanged := thisServer.generateAllObjectValueMappers(srcdir, ".", regen)
 
-		// codegen in the webapp!
-		thisServer.generateAllWebAppModels(webdir, regen)
+		// codegen in the webapp! and / or the native app
+		thisServer.generateAllClientAppModels(webdir, regen, true)
+		thisServer.generateAllClientAppModels(nativedir, regen, false)
 
 		// saving the dirty state
 		utils.WriteToFile(fmt.Sprintf("%t", codeChanged), bindir, dirtyFILENAME)

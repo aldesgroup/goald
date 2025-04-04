@@ -107,7 +107,7 @@ func createMissingTables(db *DB, existingSpecs map[className]IBusinessObjectSpec
 // getting all the BO classes associated with the given DBs
 func getBOClassesInDB(db *DB) (result map[className]IBusinessObjectSpecs) {
 	result = map[className]IBusinessObjectSpecs{}
-	for name, specs := range getAllSpecs() {
+	for name, specs := range specsRegistry.items {
 		if specs.getInDB() == db {
 			result[name] = specs
 		}

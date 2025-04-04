@@ -5,6 +5,8 @@
 package goald
 
 import (
+	"sync"
+
 	"github.com/aldesgroup/goald/features/utils"
 )
 
@@ -48,6 +50,8 @@ type businessObjectSpecs struct {
 	persistedProperties     []iBusinessObjectProperty // all the properties - fields or relationships - persisted on this class
 	relationshipsWithColumn []*Relationship           // all the relationships for which this class has a column in its table
 	idField                 IField                    // accessor to the ID field
+	usedInNativeApp         bool                      // true if this class is used in the native app
+	usedInWebApp            bool                      // true if this class is used in the web app
 }
 
 func NewBusinessObjectSpecs() IBusinessObjectSpecs {
@@ -429,8 +433,9 @@ type Relationship struct {
 	businessObjectProperty
 	targets      []IBusinessObjectSpecs // the type of BO pointed by this relationship
 	relationType relationshipType       // valued from the business object's init
-	backRef      *Relationship          // valued from the business object's init
+	backRefs     []*Relationship        // valued from the business object's init
 	polymorphic  bool                   // if true, then it's a polymorphic relationship
+	mx           sync.Mutex             // a mutex for the operations on the slices in here
 }
 
 // Allows to declare a new relationship on a given class
@@ -450,14 +455,24 @@ func NewRelationship(owner IBusinessObjectSpecs, name string, multiple bool, tar
 	return relationship
 }
 
+func (r *Relationship) addBackRef(backRef *Relationship) {
+	r.mx.Lock()
+	if r.polymorphic || len(r.backRefs) == 0 {
+		r.backRefs = append(r.backRefs, backRef)
+	}
+	r.mx.Unlock()
+}
+
 // Sets a relationship as a "child to parent" one; the backref relationship is needed
 func (r *Relationship) SetChildToParent(backRefRelation *Relationship) *Relationship {
 	r.relationType = relationshipTypeCHILDxTOxPARENT
-	r.backRef = backRefRelation
 
-	// automatically setting on the backref the inverse relation type and this relationship as the backref
+	// taking the opportunity here to enrich the backref relationship...
+	r.addBackRef(backRefRelation)
+
+	// ... like automatically setting on the backref the inverse relation type and this relationship as the backref
 	backRefRelation.relationType = relationshipTypePARENTxTOxCHILDREN
-	backRefRelation.backRef = r
+	backRefRelation.addBackRef(r)
 
 	return r
 }
@@ -465,11 +480,13 @@ func (r *Relationship) SetChildToParent(backRefRelation *Relationship) *Relation
 // Sets a relationship as a "parent to children" one; the backref relationship is needed
 func (r *Relationship) SetSourceToTarget(backRefRelation *Relationship) *Relationship {
 	r.relationType = relationshipTypeSOURCExTOxTARGET
-	r.backRef = backRefRelation
+
+	// taking the opportunity here to enrich the backref relationship...
+	r.addBackRef(backRefRelation)
 
 	// automatically setting on the backref the inverse relation type and this relationship as the backref
 	backRefRelation.relationType = relationshipTypeTARGETxTOxSOURCE
-	backRefRelation.backRef = r
+	backRefRelation.addBackRef(r)
 
 	return r
 }
