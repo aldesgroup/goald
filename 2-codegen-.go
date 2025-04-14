@@ -67,7 +67,7 @@ func (thisServer *server) runCodeGen(srcdir string, level codeGenLevel, webdir, 
 		// saving the dirty state
 		utils.WriteToFile(fmt.Sprintf("%t", codeChanged), bindir, dirtyFILENAME)
 
-		slog.Info(fmt.Sprintf("done generating the BO utils in %s", time.Since(start)))
+		slog.Info(fmt.Sprintf("done generating the BO utils & models in %s", time.Since(start)))
 		os.Exit(0)
 
 	default:

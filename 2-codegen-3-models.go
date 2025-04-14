@@ -23,8 +23,9 @@ var (
 )
 
 const (
-	fieldAtomSUFFIX = "FieldAtom"
-	formBlockID     = "Form"
+	fieldAtomSUFFIX    = "FieldAtom"
+	blockIDxFORMxDECL  = "Form"
+	blockIDxVALIDATION = "getValidationError"
 )
 
 // TODO maybe do not collocate everything on the server... let's change the receiver here
@@ -97,14 +98,14 @@ func (thisServer *server) generateClientAppModel(destdir string, ep iEndpoint, u
 	}
 
 	// getting the file content - which might be empty if the file does not exist yet
-	code := parseCode(filepath).addImportsIfNeeded(thisServer.config.commonPart().HTTP.ApiPath+ep.getFullPath(), isWebapp)
+	code := parseCode(filepath).initFixedBlocks(thisServer.config.commonPart().HTTP.ApiPath+ep.getFullPath(), isWebapp)
 
 	// browsing the entity's properties to fill the get / set cases in the 2 switch
 	for _, field := range boFields {
 		code.addFieldIfNeeded(codeCtx, field)
 	}
 
-	// "unpacking" the code blocks to code lins
+	// "unpacking" the code blocks to code lines
 	codeLines := []string{}
 	for _, block := range code.blocks {
 		// the block should at least have a non-nil code line
@@ -126,19 +127,24 @@ func (thisServer *server) generateClientAppModel(destdir string, ep iEndpoint, u
 // code editing
 // ------------------------------------------------------------------------------------------------
 
-// initiating the code
-func (thisCode *codeFile) addImportsIfNeeded(endpointPath string, isWebapp bool) *codeFile {
+// initiating the code, with its structure, i.e. with its required imports, and the fixed variables / functions
+func (thisCode *codeFile) initFixedBlocks(endpointPath string, isWebapp bool) *codeFile {
 	if len(thisCode.blocks) == 0 {
 		thisCode.addNewBlock("import { fieldAtom, formAtom, useFieldActions, useFieldValue, useInputField } from 'form-atoms';", true, "", false)
 		thisCode.addNewBlock("import { atom, useSetAtom } from 'jotai';", true, "", false)
 		thisCode.addNewBlock("import { useEffect } from 'react';", true, "", false)
 		if isWebapp {
-			thisCode.addNewBlock("import { fieldConfigAtom } from '~/vendor/goaldr/utils/fields';", true, "", false)
+			thisCode.addNewBlock("import { fieldConfigAtom, getFieldValidationError } from '~/vendor/goaldr';", true, "", false)
 		} else {
-			thisCode.addNewBlock("import { fieldConfigAtom } from '~/vendor/goaldn/utils/fields';", true, "", false)
+			thisCode.addNewBlock("import { fieldConfigAtom, getFieldValidationError } from '~/vendor/goaldn';", true, "", false)
 		}
 		thisCode.addNewBlock("export const URL = '"+endpointPath+"'", true, "", true)
-		thisCode.addNewBlock("export const "+formBlockID+" = formAtom({", true, formBlockID, true).appendLine("});", true)
+		thisCode.addNewBlock("export const "+blockIDxFORMxDECL+" = formAtom({", true, blockIDxFORMxDECL, true).appendLine("});", true)
+		thisCode.addNewBlock("export function "+blockIDxVALIDATION+"() {", true, blockIDxVALIDATION, true).
+			appendLine("    return (", true).
+			appendLine("        null", true).
+			appendLine("    );", true).
+			appendLine("};", true)
 	}
 
 	return thisCode
@@ -186,22 +192,33 @@ func (thisCode *codeFile) addFieldIfNeeded(codeCtx *codeContext, field IField) {
 			fieldAtomName := field.getName() + fieldAtomSUFFIX
 			if thisCode.blocksMap[fieldAtomName] == nil {
 				fieldAtomDecl := fmt.Sprintf("const %s = fieldAtom({ value: %s? });", fieldAtomName, initVal)
-				thisCode.addNewBlockBeforeLast(fieldAtomDecl, true, fieldAtomName, true)
+				thisCode.addNewBlockBeforeEndPosition(fieldAtomDecl, true, fieldAtomName, true, 2)
 			}
 
 			// adding the field atom to the form if needed
-			if !thisCode.blockHasLineStartingWith(formBlockID, field.getName()+":") {
-				thisCode.insertLineIntoBlockBeforePrefix(formBlockID, fmt.Sprintf("    %s: %s,", field.getName(), fieldAtomName), "}")
+			if !thisCode.blockHasLineStartingWith(blockIDxFORMxDECL, field.getName()+":") {
+				thisCode.insertLineIntoBlockBeforePrefix(blockIDxFORMxDECL, fmt.Sprintf("    %s: %s,", field.getName(), fieldAtomName), "}")
+			}
+
+			// adding the field atom config to the validation if needed
+			if typeFamily != utils.TypeFamilyBOOL && !thisCode.blockHasLineStartingWith(blockIDxVALIDATION, "const "+field.getName()) {
+				thisCode.insertLineIntoBlockBeforePrefix(
+					blockIDxVALIDATION,
+					fmt.Sprintf("    const %sValidErr = getFieldValidationError(%s);", field.getName(), field.getName()),
+					"    return")
+				thisCode.insertLineIntoBlockBeforePrefix(
+					blockIDxVALIDATION,
+					fmt.Sprintf("        %sValidErr || //", field.getName()),
+					"        null")
 			}
 
 			// adding the field config atom if needed
 			missingConfigAtom := thisCode.blocksMap[field.getName()] == nil
 			if missingConfigAtom {
 				fieldConfigAtomDecl := fmt.Sprintf("export const %s = fieldConfigAtom({", field.getName())
-				newBlock := thisCode.addNewBlockBeforeLast(fieldConfigAtomDecl, true, field.getName(), false)
+				newBlock := thisCode.addNewBlockBeforeEndPosition(fieldConfigAtomDecl, true, field.getName(), false, 2)
 				newBlock.appendLine(fmt.Sprintf("    fieldAtom: %s,", fieldAtomName), true)
 				newBlock.appendLine("});", true)
-
 			}
 
 			// linking the enum's options to the field, if needed
@@ -219,7 +236,7 @@ func (thisCode *codeFile) addFieldIfNeeded(codeCtx *codeContext, field IField) {
 				}
 			}
 
-			// handling the constraints
+			// handling the constraints - for numeric fields
 			if numField, ok := field.(iNumericField); ok {
 				// min constraint
 				if numField.isMinSet() {
@@ -248,6 +265,21 @@ func (thisCode *codeFile) addFieldIfNeeded(codeCtx *codeContext, field IField) {
 						thisCode.updateLineIntoBlockWithPrefix(field.getName(), fmt.Sprintf("    max: %f,", nf.max), "max:", "}")
 					}
 				}
+			}
+
+			// handling the constraints - for string fields
+			if sf, ok := field.(*StringField); ok {
+				if sf.size > 0 {
+					thisCode.updateLineIntoBlockWithPrefix(field.getName(), fmt.Sprintf("    max: %d,", sf.size), "max:", "}")
+				}
+				if sf.atLeast > 0 {
+					thisCode.updateLineIntoBlockWithPrefix(field.getName(), fmt.Sprintf("    min: %d,", sf.atLeast), "min:", "}")
+				}
+			}
+
+			// handling the constraints - misc
+			if field.isMandatory() {
+				thisCode.updateLineIntoBlockWithPrefix(field.getName(), "    mandatory: true,", "mandatory:", "}")
 			}
 		}
 	}
@@ -348,8 +380,9 @@ type codeBlock struct {
 }
 
 // how to add a line to a code block
-func (block *codeBlock) appendLine(rawline string, isCode bool) {
+func (block *codeBlock) appendLine(rawline string, isCode bool) *codeBlock {
 	block.lines = append(block.lines, newCodeLine(rawline, isCode))
+	return block
 }
 
 type codeFile struct {
@@ -364,9 +397,11 @@ func (thisCode *codeFile) addNewBlock(rawline string, isCode bool, id string, bl
 	return thisCode.addNewBlockAtPosition(rawline, isCode, id, blankBefore, -1)
 }
 
-// adding a new block of code before the last one already present
-func (thisCode *codeFile) addNewBlockBeforeLast(rawline string, isCode bool, id string, blankBefore bool) *codeBlock {
-	return thisCode.addNewBlockAtPosition(rawline, isCode, id, blankBefore, len(thisCode.blocks)-1)
+// adding a new block of code before the one counted from the end, with indexFromEnd, which must be >= 1;
+// if we use indexFromEnd = 1, then we're inserting something before the last code block;
+// if we use indexFromEnd = 2, then it's before the before-the-last; etc...
+func (thisCode *codeFile) addNewBlockBeforeEndPosition(rawline string, isCode bool, id string, blankBefore bool, indexFromEnd int) *codeBlock {
+	return thisCode.addNewBlockAtPosition(rawline, isCode, id, blankBefore, len(thisCode.blocks)-indexFromEnd)
 }
 
 // adding a new code block starting with the given line, possibly with an ID; if the given position is > 0,
@@ -437,7 +472,14 @@ func (thisCode *codeFile) insertLineIntoBlockBeforePrefix(blockID string, newLin
 		}
 
 		// inserting the new line at the right position
-		block.lines = append(block.lines[:pos], append([]*codeLine{newCodeLine(newLine, true)}, block.lines[pos:]...)...)
+		if pos >= 0 {
+			block.lines = append(block.lines[:pos], append([]*codeLine{newCodeLine(newLine, true)}, block.lines[pos:]...)...)
+		} else {
+			slog.Error(fmt.Sprintf("Could not insert '%s' into block '%s' before '%s'. Block =", newLine, blockID, insertBeforePrefix))
+			for _, line := range block.lines {
+				slog.Error(line.rawline)
+			}
+		}
 	} else {
 		slog.Error("No block found with ID: " + blockID)
 	}
@@ -545,6 +587,10 @@ func parseCode(filepath string) (code *codeFile) {
 		case strings.HasPrefix(content, "export const"):
 			// using what's between "export const" and "=" as an ID
 			code.addNewBlock(rawline, true, extractBlockID(content, 12, "="), false)
+
+		case strings.HasPrefix(content, "export function"):
+			// using what's between "export const" and "=" as an ID
+			code.addNewBlock(rawline, true, extractBlockID(content, 15, "("), false)
 
 		default:
 			code.addLineToCurrentBlock(rawline, true, content)

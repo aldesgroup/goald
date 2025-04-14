@@ -254,11 +254,15 @@ type BoolField struct {
 
 type StringField struct {
 	field
-	size int
+	size    int
+	atLeast int
 }
 
-func (sf *StringField) SetSize(size int) *field {
+func (sf *StringField) SetSize(size int, atLeast ...int) *field {
 	sf.size = size
+	if len(atLeast) > 0 {
+		sf.atLeast = atLeast[0]
+	}
 	return &sf.field
 }
 
