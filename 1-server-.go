@@ -64,9 +64,6 @@ func NewServer() ServerContext {
 		server.runCodeChecks()
 	}
 
-	// init the router
-	server.initRoutes()
-
 	// initialising the DBs
 	for _, dbConfig := range serverConfig.commonPart().Databases {
 		initAndRegisterDB(dbConfig)
@@ -85,6 +82,9 @@ func NewServer() ServerContext {
 
 		os.Exit(0)
 	}
+
+	// init the router
+	server.initRoutes()
 
 	// loading some data for each instance of this server
 	server.loadData(false)

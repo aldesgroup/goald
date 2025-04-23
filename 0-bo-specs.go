@@ -115,7 +115,7 @@ func (boClass *businessObjectSpecs) addField(field IField) IField {
 }
 
 // ------------------------------------------------------------------------------------------------
-// Business object properties, wether fields or relationships
+// Business object properties, whether fields or relationships
 // ------------------------------------------------------------------------------------------------
 type iBusinessObjectProperty interface {
 	ownerSpecs() IBusinessObjectSpecs

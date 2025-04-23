@@ -31,7 +31,7 @@ func (thisServer *server) checkSpecs(clsName className, boSpecs IBusinessObjectS
 	}
 
 	if !boSpecs.base().abstract {
-		// various check, wether there's persistence or not
+		// various check, whether there's persistence or not
 		for _, field := range boSpecs.base().fields {
 			if enumField, ok := field.(*EnumField); ok {
 				for _, restrictedValue := range enumField.onlyValues {
