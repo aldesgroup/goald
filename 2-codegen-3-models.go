@@ -19,7 +19,8 @@ import (
 // ------------------------------------------------------------------------------------------------
 
 var (
-	modelsDIRPATH = path.Join("src", "components", "models")
+	modelsDIRPATH  = path.Join("src", "components", "models")
+	handledClasses = map[className]bool{}
 )
 
 const (
@@ -68,6 +69,14 @@ func (thisServer *server) generateClientAppModel(destdir string, ep iEndpoint, u
 	enums map[string]IEnum, regen bool, isWebapp bool) {
 	// which model to generate?
 	clsName := utils.IfThenElse(useInputClass, ep.getInputOrParamsClass(), ep.getResourceClass())
+
+	// already done this?
+	if handledClasses[clsName] {
+		return
+	}
+
+	// but we're doing this now
+	handledClasses[clsName] = true
 
 	// the business object we're dealing with
 	boSpecs := specsForName(clsName)
@@ -157,7 +166,7 @@ func (thisCode *codeFile) addFieldIfNeeded(codeCtx *codeContext, field IField) {
 		// not handling multiple properties for now - nor the ID field
 		if !field.isMultiple() && field.getName() != "ID" {
 			var (
-				enumType, enumVar, initVal string
+				enumType, enumVar, initVal, fieldAtomType string
 			)
 
 			// dealing with some field specificities
@@ -174,6 +183,9 @@ func (thisCode *codeFile) addFieldIfNeeded(codeCtx *codeContext, field IField) {
 					thisCode.addEnumImport(enumVar)
 				}
 
+				// setting the field atom's type
+				fieldAtomType = fmt.Sprintf("<%s.%s>", enumVar, enumType)
+
 				// proposing an init value
 				initVal = fmt.Sprintf("%s.%s", enumVar, makeEnumName(utils.GetFirstMapValue(codeCtx.enums[enumType].Values())))
 
@@ -186,12 +198,22 @@ func (thisCode *codeFile) addFieldIfNeeded(codeCtx *codeContext, field IField) {
 			case utils.TypeFamilyBOOL:
 				// proposing an init value
 				initVal = "false"
+
+			// --- dates ----------------------------------------------------------------
+			case utils.TypeFamilyDATE:
+				// setting the field atom's type
+				fieldAtomType = "<Date | null>"
+
+				// proposing an init value
+				initVal = "null"
+
+				// SWITCH END
 			}
 
 			// adding the field atom declaration if needed
 			fieldAtomName := field.getName() + fieldAtomSUFFIX
 			if thisCode.blocksMap[fieldAtomName] == nil {
-				fieldAtomDecl := fmt.Sprintf("const %s = fieldAtom({ value: %s? });", fieldAtomName, initVal)
+				fieldAtomDecl := fmt.Sprintf("const %s = fieldAtom%s({ value: %s? });", fieldAtomName, fieldAtomType, initVal)
 				thisCode.addNewBlockBeforeEndPosition(fieldAtomDecl, true, fieldAtomName, true, 2)
 			}
 
@@ -281,7 +303,7 @@ func (thisCode *codeFile) addFieldIfNeeded(codeCtx *codeContext, field IField) {
 			if field.isMandatory() {
 				thisCode.updateLineIntoBlockWithPrefix(field.getName(), "    mandatory: true,", "mandatory:", "}")
 			} else {
-				thisCode.updateLineIntoBlockWithPrefix(field.getName(), "    mandatory: false,", "mandatory:", "")
+				thisCode.updateLineIntoBlockWithPrefix(field.getName(), "    mandatory: false,", "mandatory: true", "")
 			}
 		}
 	}
@@ -361,7 +383,6 @@ type codeLine struct {
 	rawline string
 	isCode  bool
 	content string
-	// num     int
 }
 
 func (line *codeLine) with(content string) *codeLine {
@@ -374,7 +395,6 @@ func newCodeLine(rawline string, isCode bool) *codeLine {
 	return &codeLine{
 		rawline: rawline,
 		isCode:  isCode,
-		// num:     num,
 	}
 }
 
@@ -394,7 +414,6 @@ type codeFile struct {
 	blocks    []*codeBlock
 	blocksMap map[string]*codeBlock // some code blocks mapped with their ID
 	current   *codeBlock            // used during the parsing
-	// counter   int                   // line counter
 }
 
 // adding a new block of code after the last one already present
@@ -437,14 +456,10 @@ func (thisCode *codeFile) addNewBlockAtPosition(rawline string, isCode bool, id 
 
 	// adding a blank line if needed
 	if blankBefore {
-		// thisCode.counter++
-		// thisCode.current.lines = append(thisCode.current.lines, newCodeLine("", thisCode.counter, isCode)) TODO remove TODO change
 		thisCode.current.appendLine("", isCode)
 	}
 
 	// adding the code line
-	// thisCode.counter++
-	// thisCode.current.lines = append(thisCode.current.lines, newCodeLine(line, thisCode.counter, isCode)) TODO remove TODO change
 	thisCode.current.appendLine(rawline, isCode)
 
 	// adding the block
@@ -532,8 +547,6 @@ func (thisCode *codeFile) addLineToCurrentBlock(rawline string, isCode bool, con
 		// forcing "isCode = false" here, since a block started this way can't be code
 		thisCode.addNewBlock(rawline, false, "", false)
 	} else {
-		// thisCode.counter++
-		// thisCode.current.lines = append(thisCode.current.lines, newCodeLine(line, thisCode.counter, isCode))
 		thisCode.current.lines = append(thisCode.current.lines, newCodeLine(rawline, isCode).with(content))
 	}
 }
