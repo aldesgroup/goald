@@ -7,6 +7,7 @@ package goald
 import (
 	"sync"
 
+	core "github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald/features/utils"
 )
 
@@ -98,7 +99,7 @@ func (boClass *businessObjectSpecs) ID() IField {
 
 func (boClass *businessObjectSpecs) getTableName() string {
 	if boClass.tableName == "" {
-		boClass.tableName = utils.PascalToSnake(string(boClass.name))
+		boClass.tableName = core.PascalToSnake(string(boClass.name))
 	}
 
 	return boClass.tableName
@@ -156,7 +157,7 @@ func (prop *businessObjectProperty) getTypeFamily() utils.TypeFamily {
 
 func (prop *businessObjectProperty) getColumnName() string {
 	if prop.columnName == "" {
-		prop.columnName = utils.PascalToSnake(prop.name)
+		prop.columnName = core.PascalToSnake(prop.name)
 		if prop.typeFamily == utils.TypeFamilyRELATIONSHIPxMONOM {
 			prop.columnName += "_id"
 		}

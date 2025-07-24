@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/aldesgroup/goald/features/utils"
+	core "github.com/aldesgroup/corego"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -48,7 +48,7 @@ func NewServer() ServerContext {
 	// new server
 	server := &server{
 		config:   serverConfig,
-		instance: utils.RandomString(3), // TODO remove ?
+		instance: core.RandomString(3), // TODO remove ?
 	}
 
 	// init the logger
@@ -99,7 +99,7 @@ func NewServer() ServerContext {
 func (thisServer *server) initRoutes() {
 	// no HTTP configured? Let's WARN about it
 	if thisServer.config.commonPart().HTTP == nil {
-		utils.Panicf("No \"HTTP\" section configured!")
+		core.PanicMsg("No \"HTTP\" section configured!")
 	}
 
 	// new router
@@ -114,7 +114,7 @@ func (thisServer *server) initRoutes() {
 			thisServer.router.Handle(endpoint.getMethod(), apiPath+endpoint.getFullPath(), thisServer.handleFor(endpoint))
 		}
 	} else {
-		utils.Panicf("No path provided for the API!")
+		core.PanicMsg("No path provided for the API!")
 	}
 
 	// configuring the static routes TODO not used for now
@@ -175,7 +175,7 @@ func (thisServer *server) Start() {
 	addr := fmt.Sprintf(":%d", port)
 	slog.Info(fmt.Sprintf("Serving at: http://localhost:%d/", port))
 	if errListen := http.ListenAndServe(addr, thisServer); errListen != nil && errListen != http.ErrServerClosed {
-		utils.PanicErrf(errListen, "Could not start the server!")
+		core.PanicMsgIfErr(errListen, "Could not start the server!")
 	}
 
 	// TODO shutdown

@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/aldesgroup/goald/features/utils"
+	core "github.com/aldesgroup/corego"
 )
 
 // // kindMaxLength defined the max length we allow for __REPLACE__ kinds
@@ -55,7 +55,7 @@ func autoMigrateDBs() {
 func migrate(db *DB) {
 	// getting all the classes associated with the current DB
 	existingSpecs := getBOClassesInDB(db)
-	slog.Debug(fmt.Sprintf("Existing classes: %+v\n", utils.GetSortedKeys(existingSpecs)))
+	slog.Debug(fmt.Sprintf("Existing classes: %+v\n", core.GetSortedKeys(existingSpecs)))
 
 	// getting the names of the tables existing in the current DB
 	existingTables := getTableNames(db)
@@ -86,7 +86,7 @@ func createMissingTables(db *DB, existingSpecs map[className]IBusinessObjectSpec
 		// requiredTableNames = append(requiredTableNames, __REPLACE__Schema.GetTable(dbContext))
 
 		// adding the table if it does not exist yet
-		if !utils.InSlice[string](existingTables, boSpecs.getTableName()) {
+		if !core.InSlice[string](existingTables, boSpecs.getTableName()) {
 			createMissingTable(db, boSpecs)
 		}
 	}

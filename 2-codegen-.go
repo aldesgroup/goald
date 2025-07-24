@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/aldesgroup/goald/features/utils"
+	core "github.com/aldesgroup/corego"
 )
 
 type codeGenLevel int
@@ -36,7 +36,7 @@ func (thisServer *server) runCodeGen(srcdir string, level codeGenLevel, webdir, 
 		codeChanged := thisServer.generateAllClasses(srcdir, ".", false, map[packageName]map[className]*classCore{}, regen)
 
 		// saving the dirty state
-		utils.WriteToFile(fmt.Sprintf("%t", codeChanged), bindir, dirtyFILENAME)
+		core.WriteToFile(fmt.Sprintf("%t", codeChanged), bindir, dirtyFILENAME)
 
 		slog.Info(fmt.Sprintf("done generating the DB & BO registries in %s", time.Since(start)))
 		os.Exit(0)
@@ -48,7 +48,7 @@ func (thisServer *server) runCodeGen(srcdir string, level codeGenLevel, webdir, 
 		codeChanged := thisServer.generateAllObjectSpecs(srcdir, regen)
 
 		// saving the dirty state
-		utils.WriteToFile(fmt.Sprintf("%t", codeChanged), bindir, dirtyFILENAME)
+		core.WriteToFile(fmt.Sprintf("%t", codeChanged), bindir, dirtyFILENAME)
 
 		slog.Info(fmt.Sprintf("done generating the BO specs in %s", time.Since(start)))
 		os.Exit(0)
@@ -65,13 +65,13 @@ func (thisServer *server) runCodeGen(srcdir string, level codeGenLevel, webdir, 
 		thisServer.generateAllClientAppModels(nativedir, regen, false)
 
 		// saving the dirty state
-		utils.WriteToFile(fmt.Sprintf("%t", codeChanged), bindir, dirtyFILENAME)
+		core.WriteToFile(fmt.Sprintf("%t", codeChanged), bindir, dirtyFILENAME)
 
 		slog.Info(fmt.Sprintf("done generating the BO utils & models in %s", time.Since(start)))
 		os.Exit(0)
 
 	default:
-		utils.Panicf("Not handling to code generation level: %d", level)
+		core.PanicMsg("Not handling to code generation level: %d", level)
 	}
 }
 

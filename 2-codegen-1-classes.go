@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aldesgroup/goald/features/utils"
+	core "github.com/aldesgroup/corego"
 )
 
 const sourceFILExSUFFIX = "--.go"
@@ -38,7 +38,7 @@ func (thisServer *server) generateAllClasses(srcdir, currentPath string, _ bool,
 
 	// reading the current directory
 	dirEntries, errDir := os.ReadDir(readingPath)
-	utils.PanicErrf(errDir, "could not read '%s'", readingPath)
+	core.PanicMsgIfErr(errDir, "could not read '%s'", readingPath)
 
 	// are we currently dealing with a package with business objects ?
 	var currentPackage packageName
@@ -60,7 +60,7 @@ func (thisServer *server) generateAllClasses(srcdir, currentPath string, _ bool,
 					currentPackage = packageName(path.Base(currentPath))
 
 					// but at this point the package should not exist yet, or it means we have 2 packages with the same name
-					utils.PanicIff(allEntriesInCodeSoFar[currentPackage] != nil, "there are 2 packages named %s which is not allowed!", currentPackage)
+					core.PanicMsgIf(allEntriesInCodeSoFar[currentPackage] != nil, "there are 2 packages named %s which is not allowed!", currentPackage)
 					allEntriesInCodeSoFar[currentPackage] = map[className]*classCore{}
 					slog.Warn("Found new package " + string(currentPackage))
 				}
@@ -68,18 +68,18 @@ func (thisServer *server) generateAllClasses(srcdir, currentPath string, _ bool,
 				// getting the business object entry for the egustry, from the current file
 				if clsCore := getClassFromFile(srcdir, currentPath, entry.Name()); clsCore != nil {
 					// checking the biz obj / file naming
-					if expected := utils.PascalToKebab(string(clsCore.class)) + sourceFILExSUFFIX; expected != entry.Name() {
-						utils.Panicf("The business object's name should be the file name Pascal-cased, i.e. we should have: "+
+					if expected := core.PascalToKebab(string(clsCore.class)) + sourceFILExSUFFIX; expected != entry.Name() {
+						core.PanicMsg("The business object's name should be the file name Pascal-cased, i.e. we should have: "+
 							"%s in file %s, "+
 							"or %s in file %s",
 							clsCore.class, expected,
-							utils.KebabToPascal(strings.Replace(entry.Name(), sourceFILExSUFFIX, "", 1)), entry.Name(),
+							core.KebabToPascal(strings.Replace(entry.Name(), sourceFILExSUFFIX, "", 1)), entry.Name(),
 						)
 					}
 
 					// checking the unicity of each biz obj name
 					if allClassCoresInCode[currentPackage][clsCore.class] != nil {
-						utils.Panicf("We can't have 2 business objects with the same name '%s'."+
+						core.PanicMsg("We can't have 2 business objects with the same name '%s'."+
 							" This would lead to the same REST path. You have to rename one.", clsCore.class)
 					} else {
 						// adding one more BO to our list
@@ -166,7 +166,7 @@ func writeRegistryFilesIfNeeded(srcdir string, allClassCoresInCode map[packageNa
 			imported := map[string]bool{}
 
 			// going over all the class cores
-			for _, clsCore := range utils.GetSortedValues(allClassCoresInPackage) {
+			for _, clsCore := range core.GetSortedValues(allClassCoresInPackage) {
 				// adding 1 registration line per business object
 				boPath := path.Base(clsCore.srcPath)
 				registrationLines = append(registrationLines,
@@ -195,7 +195,7 @@ func writeRegistryFilesIfNeeded(srcdir string, allClassCoresInCode map[packageNa
 			content := fmt.Sprintf(registryFileTemplate, pkgName, strings.Join(imports, newline), strings.Join(registrationLines, dot))
 
 			// writing to the file
-			utils.WriteToFile(content, filename)
+			core.WriteToFile(content, filename)
 
 			codeChanged = true
 		}
@@ -212,11 +212,11 @@ func getClassFromFile(srcdir, currentPath, boFileName string) (clsCore *classCor
 	// controlling the file
 	filename := path.Join(srcdir, currentPath, boFileName)
 	stat, errStat := os.Stat(filename)
-	utils.PanicErrf(errStat, "Could not check the modification time for file '%s'", filename)
+	core.PanicMsgIfErr(errStat, "Could not check the modification time for file '%s'", filename)
 
 	// parsing the file to get the AST (Abstract Syntax Tree)
 	file, errParse := parser.ParseFile(token.NewFileSet(), filename, nil, 0)
-	utils.PanicErrf(errParse, "Error while parsing '%s'", filename)
+	core.PanicMsgIfErr(errParse, "Error while parsing '%s'", filename)
 
 	// going through the declarations in the file
 	for _, node := range file.Decls {
@@ -240,7 +240,7 @@ func getClassFromFile(srcdir, currentPath, boFileName string) (clsCore *classCor
 								intrface:  isInterface,
 							}
 						} else {
-							utils.Panicf("More than one struct declared in the BusinessObject file '%s'!", filename)
+							core.PanicMsg("More than one struct declared in the BusinessObject file '%s'!", filename)
 						}
 					}
 				}
@@ -261,7 +261,7 @@ func getCurrentModule() string {
 	if currentModule == "" {
 		bi, ok := debug.ReadBuildInfo()
 		if !ok {
-			utils.Panicf("Could not read the build infos!")
+			core.PanicMsg("Could not read the build infos!")
 		}
 
 		currentModule = bi.Main.Path
@@ -322,10 +322,10 @@ func (thisClass *$$CLASSNAME$$Class) NewSlice() any {
 func genClassFile(srcdir string, clsCore *classCore, regen bool) (codeChanged bool) {
 	// the class filename
 	classFilename := path.Join(srcdir, clsCore.srcPath, sourceCLASSxDIR,
-		utils.PascalToKebab(string(clsCore.class))+sourceCLSxSUFFIX)
+		core.PascalToKebab(string(clsCore.class))+sourceCLSxSUFFIX)
 
 	// does it exist?
-	if !utils.FileExists(classFilename) || regen {
+	if !core.FileExists(classFilename) || regen {
 		slog.Info(fmt.Sprintf("Will generate class: %s", classFilename))
 		content := classFileTemplateBase
 		importPkg := path.Join(getCurrentModule(), clsCore.srcPath)
@@ -341,7 +341,7 @@ func genClassFile(srcdir string, clsCore *classCore, regen bool) (codeChanged bo
 		content = fmt.Sprintf(content, sourceCLASSxDIR, toImport, asInterface)
 		content = strings.ReplaceAll(content, "$$CLASSNAME$$", string(clsCore.class))
 		content = strings.ReplaceAll(content, "$$PKG$$", path.Base(importPkg))
-		utils.WriteToFile(content, classFilename)
+		core.WriteToFile(content, classFilename)
 		return true
 	}
 

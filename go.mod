@@ -1,8 +1,9 @@
 module github.com/aldesgroup/goald
 
-go 1.22.0
+go 1.24.4
 
 require (
+	github.com/aldesgroup/corego v0.0.0-20250702125456-37c8fae81395
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/microsoft/go-mssqldb v1.7.0
 	sigs.k8s.io/yaml v1.4.0

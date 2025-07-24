@@ -12,7 +12,8 @@ import (
 	"strings"
 	"time"
 
-	u "github.com/aldesgroup/goald/features/utils"
+	core "github.com/aldesgroup/corego"
+	"github.com/aldesgroup/goald/features/utils"
 )
 
 const specsTEMPLATE = `// Generated file, do not edit!
@@ -75,18 +76,18 @@ func (thisServer *server) generateAllObjectSpecs(srcdir string, regen bool) (cod
 	}
 
 	// where the class files will be generated
-	specsDir := u.EnsureDir(srcdir, specsFOLDER)
+	specsDir := core.EnsureDir(srcdir, specsFOLDER)
 
 	// we'll gather all the existing class files
 	existingSpecsFiles := map[className]*specsFile{}
 
 	// so, let's read the class folder
 	specsEntries, errDir := os.ReadDir(specsDir)
-	u.PanicErrf(errDir, "Could not read the specs folder")
+	core.PanicMsgIfErr(errDir, "Could not read the specs folder")
 	for _, specsEntry := range specsEntries {
 		specsEntryInfo, errInfo := specsEntry.Info()
-		u.PanicErrf(errInfo, "Could not read info for file '%s'", specsEntry.Name())
-		specsClassName := className(u.KebabToPascal(specsEntry.Name()[:len(specsEntry.Name())-specsFILExSUFFIXxLEN]))
+		core.PanicMsgIfErr(errInfo, "Could not read info for file '%s'", specsEntry.Name())
+		specsClassName := className(core.KebabToPascal(specsEntry.Name()[:len(specsEntry.Name())-specsFILExSUFFIXxLEN]))
 		existingSpecsFiles[specsClassName] = &specsFile{
 			modTime:  specsEntryInfo.ModTime(),
 			filename: specsEntry.Name(),
@@ -117,7 +118,7 @@ func (thisServer *server) generateAllObjectSpecs(srcdir string, regen bool) (cod
 	for _, unneededSpecs := range existingSpecsFiles {
 		slog.Info(fmt.Sprintf("removing %s", unneededSpecs.filename))
 		if errRem := os.Remove(path.Join(specsDir, unneededSpecs.filename)); errRem != nil {
-			u.PanicErrf(errRem, "Could not delete class file '%s'", unneededSpecs.filename)
+			core.PanicMsgIfErr(errRem, "Could not delete class file '%s'", unneededSpecs.filename)
 		}
 	}
 
@@ -125,13 +126,13 @@ func (thisServer *server) generateAllObjectSpecs(srcdir string, regen bool) (cod
 }
 
 type specsGenerationContext struct {
-	superType     u.GoaldType
+	superType     utils.GoaldType
 	propertyNames []string
 	propertiesMap map[string]classGenPropertyInfo
 }
 
 type classGenPropertyInfo struct {
-	propType    u.TypeFamily
+	propType    utils.TypeFamily
 	multiple    bool
 	targetType  string
 	targetTypes []string
@@ -144,7 +145,7 @@ func generateOneSpecs(specsDir string, class IClass) {
 	// trivial filling of the template
 	clsName := string(class.getClassName())
 	content := strings.ReplaceAll(specsTEMPLATE, "$$Upper$$", clsName)
-	content = strings.ReplaceAll(content, "$$lower$$", u.PascalToCamel(clsName))
+	content = strings.ReplaceAll(content, "$$lower$$", core.PascalToCamel(clsName))
 
 	// declaring the properties of the classe
 	content = strings.Replace(content, "$$propdecl$$", buildPropDecl(class, context), 1)
@@ -156,7 +157,7 @@ func generateOneSpecs(specsDir string, class IClass) {
 	content = strings.Replace(content, "$$accessors$$", buildAccessors(class, context), 1)
 
 	// writing to file
-	u.WriteToFile(content, specsDir, u.PascalToKebab(clsName)+specsFILExSUFFIX)
+	core.WriteToFile(content, specsDir, core.PascalToKebab(clsName)+specsFILExSUFFIX)
 
 	slog.Info(fmt.Sprintf("(Re-)generated class %s", clsName))
 }
@@ -164,12 +165,12 @@ func generateOneSpecs(specsDir string, class IClass) {
 // this function helps declare 1 property (field or relationship) in the declaration of the specs type
 func buildPropDecl(class IClass, context *specsGenerationContext) (result string) {
 	// getting the object's type
-	bObjType := u.TypeOf(class.NewObject(), true)
+	bObjType := utils.TypeOf(class.NewObject(), true)
 
 	// the very first property, field #0, MUST be the business object's super class
 	superClassField := bObjType.Field(0)
-	if !superClassField.IsAnonymous() || !u.PointerTo(superClassField.Type()).Implements(typeIxBUSINESSxOBJECT) {
-		u.Panicf("%s: this object's first property should be the BO it inherits from, i.e."+
+	if !superClassField.IsAnonymous() || !utils.PointerTo(superClassField.Type()).Implements(typeIxBUSINESSxOBJECT) {
+		core.PanicMsg("%s: this object's first property should be the BO it inherits from, i.e."+
 			"goald.BusinessObject, or one of its descendants", class.getClassName())
 	}
 
@@ -178,7 +179,7 @@ func buildPropDecl(class IClass, context *specsGenerationContext) (result string
 	} else if context.superType.Equals(typeURLxQUERYxOBJECT) {
 		result += "g.IURLQueryParamsSpecs"
 	} else {
-		result += "" + u.PascalToCamel(superClassField.Type().Name()) + specsNAMExSUFFIX
+		result += "" + core.PascalToCamel(superClassField.Type().Name()) + specsNAMExSUFFIX
 	}
 
 	// browsing the entity's properties
@@ -187,24 +188,24 @@ func buildPropDecl(class IClass, context *specsGenerationContext) (result string
 		field := bObjType.Field(fieldNum)
 
 		// detecting its type and multiplicity
-		typeFamily, multiple := u.GetTypeFamily(field, typeIxBUSINESSxOBJECT, typeIxENUM)
+		typeFamily, multiple := utils.GetTypeFamily(field, typeIxBUSINESSxOBJECT, typeIxENUM)
 
 		// adding to the context, and the class file content
-		if typeFamily != u.TypeFamilyUNKNOWN {
+		if typeFamily != utils.TypeFamilyUNKNOWN {
 			context.propertyNames = append(context.propertyNames, field.Name()) // we're keeping the original order
 
-			targetType := ""                                  // makes no sense for basic BO fields...
-			var targetTypes []string                          // ... this even less...
-			if typeFamily == u.TypeFamilyRELATIONSHIPxMONOM { // ... but it does for relationships
-				entityType := u.IfThenElse(multiple, field.Type().Elem(), field.Type())
+			targetType := ""                                      // makes no sense for basic BO fields...
+			var targetTypes []string                              // ... this even less...
+			if typeFamily == utils.TypeFamilyRELATIONSHIPxMONOM { // ... but it does for relationships
+				entityType := core.IfThenElse(multiple, field.Type().Elem(), field.Type())
 				targetType = entityType.Elem().Name()
-			} else if typeFamily == u.TypeFamilyRELATIONSHIPxPOLYM { // ... but it does for relationships
+			} else if typeFamily == utils.TypeFamilyRELATIONSHIPxPOLYM { // ... but it does for relationships
 				interfaceType := field.Type()
 				if multiple {
 					interfaceType = field.Type().Elem()
 				}
 				targetTypes = getImplementionsOfInterface(interfaceType)
-			} else if typeFamily == u.TypeFamilyENUM { // or enums.
+			} else if typeFamily == utils.TypeFamilyENUM { // or enums.
 				targetType = field.Type().String()
 			}
 
@@ -213,9 +214,9 @@ func buildPropDecl(class IClass, context *specsGenerationContext) (result string
 
 			// writing out the property's declaration inside the Specs object it belong to
 			if typeFamily.IsRelationship() {
-				result += newline + "" + u.PascalToCamel(field.Name()) + " *g.Relationship"
+				result += newline + "" + core.PascalToCamel(field.Name()) + " *g.Relationship"
 			} else {
-				result += newline + "" + u.PascalToCamel(field.Name()) + " *g." + getFieldForType(typeFamily)
+				result += newline + "" + core.PascalToCamel(field.Name()) + " *g." + getFieldForType(typeFamily)
 			}
 		}
 	}
@@ -223,23 +224,23 @@ func buildPropDecl(class IClass, context *specsGenerationContext) (result string
 	return
 }
 
-func getFieldForType(typeFamily u.TypeFamily) string {
+func getFieldForType(typeFamily utils.TypeFamily) string {
 	switch typeFamily {
-	case u.TypeFamilyBOOL:
+	case utils.TypeFamilyBOOL:
 		return "BoolField"
-	case u.TypeFamilySTRING:
+	case utils.TypeFamilySTRING:
 		return "StringField"
-	case u.TypeFamilyINT:
+	case utils.TypeFamilyINT:
 		return "IntField"
-	case u.TypeFamilyBIGINT:
+	case utils.TypeFamilyBIGINT:
 		return "BigIntField"
-	case u.TypeFamilyREAL:
+	case utils.TypeFamilyREAL:
 		return "RealField"
-	case u.TypeFamilyDOUBLE:
+	case utils.TypeFamilyDOUBLE:
 		return "DoubleField"
-	case u.TypeFamilyDATE:
+	case utils.TypeFamilyDATE:
 		return "DateField"
-	case u.TypeFamilyENUM:
+	case utils.TypeFamilyENUM:
 		return "EnumField"
 	default:
 		return typeFamily.String()
@@ -249,7 +250,7 @@ func getFieldForType(typeFamily u.TypeFamily) string {
 // This function builds the line that helps initialise a specs instance, for 1 property
 func buildPropInit(class IClass, context *specsGenerationContext) string {
 	// the class as a variable
-	className := u.PascalToCamel(string(class.getClassName()))
+	className := core.PascalToCamel(string(class.getClassName()))
 
 	// dealing with the class initialisation
 	specsInit := "newSpecs := &" + className + specsNAMExSUFFIX + "{%s: %s}"
@@ -259,7 +260,7 @@ func buildPropInit(class IClass, context *specsGenerationContext) string {
 		superSpecsDecl = "IURLQueryParamsSpecs"
 		superSpecsValue = "g.NewURLQueryParamsSpecs()"
 	} else if !context.superType.Equals(typeBUSINESSxOBJECT) {
-		superSpecsDecl = u.PascalToCamel(context.superType.Name()) + specsNAMExSUFFIX
+		superSpecsDecl = core.PascalToCamel(context.superType.Name()) + specsNAMExSUFFIX
 		superSpecsValue = "*new" + context.superType.Name() + "Specs()"
 	}
 	specsInit = fmt.Sprintf(specsInit, superSpecsDecl, superSpecsValue)
@@ -270,21 +271,21 @@ func buildPropInit(class IClass, context *specsGenerationContext) string {
 	// valueing each class property
 	for _, propName := range context.propertyNames {
 		propInfo := context.propertiesMap[propName]
-		propLine := "newSpecs." + u.PascalToCamel(propName) + " = "
+		propLine := "newSpecs." + core.PascalToCamel(propName) + " = "
 
 		multiple := "false"
 		if propInfo.multiple {
 			multiple = "true"
 		}
 
-		if propInfo.propType == u.TypeFamilyRELATIONSHIPxMONOM {
+		if propInfo.propType == utils.TypeFamilyRELATIONSHIPxMONOM {
 			propLine += fmt.Sprintf("g.NewRelationship(%s, \"%s\", %s, %s)",
-				"newSpecs", propName, multiple, u.PascalToCamel(propInfo.targetType))
-		} else if propInfo.propType == u.TypeFamilyRELATIONSHIPxPOLYM {
+				"newSpecs", propName, multiple, core.PascalToCamel(propInfo.targetType))
+		} else if propInfo.propType == utils.TypeFamilyRELATIONSHIPxPOLYM {
 			propLine += fmt.Sprintf("g.NewRelationship(%s, \"%s\", %s, %s)",
-				"newSpecs", propName, multiple, strings.Join(u.MapFn(propInfo.targetTypes, u.PascalToCamel), ", "))
+				"newSpecs", propName, multiple, strings.Join(core.MapFn(propInfo.targetTypes, core.PascalToCamel), ", "))
 		} else {
-			if propInfo.propType == u.TypeFamilyENUM {
+			if propInfo.propType == utils.TypeFamilyENUM {
 				propLine += fmt.Sprintf("g.New%s(%s, \"%s\", %s, %s)",
 					getFieldForType(propInfo.propType), "newSpecs", propName, multiple, "\""+propInfo.targetType+"\"")
 			} else {
@@ -307,7 +308,7 @@ func buildAccessors(class IClass, context *specsGenerationContext) string {
 	// generating 1 accessor per
 	for _, propName := range context.propertyNames {
 		propInfo := context.propertiesMap[propName]
-		owner := u.PascalToCamel(string(class.getClassName()))
+		owner := core.PascalToCamel(string(class.getClassName()))
 		ownerShort := owner[:1]
 		accType := getFieldForType(propInfo.propType)
 		if propInfo.propType.IsRelationship() {
@@ -317,7 +318,7 @@ func buildAccessors(class IClass, context *specsGenerationContext) string {
 			newline+"return %s.%s"+
 			newline+"}",
 			ownerShort, owner, propName, accType,
-			ownerShort, u.PascalToCamel(propName),
+			ownerShort, core.PascalToCamel(propName),
 		)
 
 		accessors = append(accessors, accessor)
@@ -329,7 +330,7 @@ func buildAccessors(class IClass, context *specsGenerationContext) string {
 var allInterfaceImplementations = map[string][]string{}
 
 // this function finds all the implementations of a given interface
-func getImplementionsOfInterface(interfaceType u.GoaldType) []string {
+func getImplementionsOfInterface(interfaceType utils.GoaldType) []string {
 	interfaceName := interfaceType.Name()
 
 	// we may already have computed the answer...
@@ -340,7 +341,7 @@ func getImplementionsOfInterface(interfaceType u.GoaldType) []string {
 		// browsing through all the non-interface classes to find the implementations
 		for _, class := range classRegistry.items {
 			if !class.isInterface() {
-				if boType := u.TypeOf(class.NewObject(), false); boType.Implements(interfaceType) {
+				if boType := utils.TypeOf(class.NewObject(), false); boType.Implements(interfaceType) {
 					implementations = append(implementations, boType.Elem().Name())
 				}
 			}

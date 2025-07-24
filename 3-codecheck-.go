@@ -9,7 +9,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/aldesgroup/goald/features/utils"
+	core "github.com/aldesgroup/corego"
 )
 
 func (thisServer *server) runCodeChecks() {
@@ -26,8 +26,8 @@ func (thisServer *server) checkSpecs(clsName className, boSpecs IBusinessObjectS
 	nbChildToParentRelationships := 0
 
 	// class-level controls
-	if string(clsName) != utils.ToPascal(string(clsName)) {
-		utils.Panicf("The class name '%s' should be pascal-cased, i.e. %s", clsName, utils.ToPascal(string(clsName)))
+	if expected := core.ToPascal(string(clsName)); string(clsName) != expected {
+		core.PanicMsg("The class name '%s' should be pascal-cased, i.e. %s", clsName, expected)
 	}
 
 	if !boSpecs.base().abstract {
@@ -36,7 +36,7 @@ func (thisServer *server) checkSpecs(clsName className, boSpecs IBusinessObjectS
 			if enumField, ok := field.(*EnumField); ok {
 				for _, restrictedValue := range enumField.onlyValues {
 					if fmt.Sprintf("%T", restrictedValue) != enumField.enumName {
-						utils.Panicf("Cannot use '%v' (%T) as a '%s' value in class '%s'!",
+						core.PanicMsg("Cannot use '%v' (%T) as a '%s' value in class '%s'!",
 							restrictedValue, restrictedValue, enumField.enumName, clsName)
 					}
 				}
@@ -47,7 +47,7 @@ func (thisServer *server) checkSpecs(clsName className, boSpecs IBusinessObjectS
 		if boSpecs.base().isPersisted() {
 			// checking there's an actual DB configured for this BO class
 			if boSpecs.getInDB() == nil {
-				utils.Panicf("Class '%s' should be SetNotPersisted, SetAbstract, or associated with a DB", clsName)
+				core.PanicMsg("Class '%s' should be SetNotPersisted, SetAbstract, or associated with a DB", clsName)
 			}
 
 			// checking the fields
@@ -55,7 +55,7 @@ func (thisServer *server) checkSpecs(clsName className, boSpecs IBusinessObjectS
 				switch field := field.(type) {
 				case *StringField:
 					if field.name != "ID" && field.size == 0 && !field.isNotPersisted() {
-						utils.Panicf("Field '%s.%s' should have a max size set, or be SetNotPersisted()", clsName, field.name)
+						core.PanicMsg("Field '%s.%s' should have a max size set, or be SetNotPersisted()", clsName, field.name)
 					}
 				}
 			}
@@ -65,7 +65,7 @@ func (thisServer *server) checkSpecs(clsName className, boSpecs IBusinessObjectS
 		if boSpecs.base().isPersisted() || boSpecs.base().usedInNativeApp || boSpecs.base().usedInWebApp {
 			for _, relationship := range boSpecs.base().relationships {
 				if relationship.relationType == 0 {
-					utils.Panicf("Relationship '%s.%s' should have a defined type, with SetChildToParent(), "+
+					core.PanicMsg("Relationship '%s.%s' should have a defined type, with SetChildToParent(), "+
 						"SetSourceToTarget() or SetOneWay()", clsName, relationship.name)
 				}
 
@@ -74,7 +74,7 @@ func (thisServer *server) checkSpecs(clsName className, boSpecs IBusinessObjectS
 				}
 
 				if nbChildToParentRelationships > 1 {
-					utils.Panicf("There cannot be more than one child to parent relationship in '%s'", clsName)
+					core.PanicMsg("There cannot be more than one child to parent relationship in '%s'", clsName)
 				}
 			}
 		}

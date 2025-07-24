@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/aldesgroup/goald/features/utils"
+	core "github.com/aldesgroup/corego"
 )
 
 // specific queries for SQL Server databases
@@ -24,7 +24,7 @@ func (thisAdapter *dbAdapterMSSQL) getTablesQuery(dbName string) string {
 
 // getSQLColumnDeclaration returns the type of the column to create for the given BO property
 func (thisAdapter *dbAdapterMSSQL) getSQLColumnDeclaration(property iBusinessObjectProperty) string {
-	notNull := utils.IfThenElse(property.isMandatory(), " NOT NULL", "")
+	notNull := core.IfThenElse(property.isMandatory(), " NOT NULL", "")
 
 	switch property := property.(type) {
 	case *Relationship:

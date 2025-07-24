@@ -79,7 +79,7 @@ func (thisCtx *externalHttpRequest[ResponseType]) Exec(failOnBadStatusCode bool)
 	if thisCtx.dataObj != nil {
 		dataBytes, errMarsh := json.Marshal(thisCtx.dataObj)
 		if errMarsh != nil {
-			return nil, hstatus.InternalServerError, ErrorC(errMarsh, "Could not marshall the Aldes cloud request")
+			return nil, hstatus.InternalServerError, ErrorC(errMarsh, "Could not marshall the request")
 		}
 		dataBuffer = bytes.NewBuffer(dataBytes)
 

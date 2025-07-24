@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aldesgroup/goald/features/utils"
+	core "github.com/aldesgroup/corego"
 )
 
 const dbTEMPLATE = `// Access to the configured "$$realDbID$$" database
@@ -27,15 +27,7 @@ func $$DbID$$() *g.DB {
 
 const dbFOLDER = "_include/db"
 const dbFILE = "db-list.go"
-
-func (thisServer *server) generateDatabasesList(srcdir string) {
-	start := time.Now()
-
-	// starting to build the file content, with the same context
-	content := `package db`
-
-	if len(thisServer.config.commonPart().Databases) > 0 {
-		content += `
+const dbFILExINIT = `
 
 import (
 	"sync"
@@ -45,15 +37,24 @@ import (
 
 `
 
+func (thisServer *server) generateDatabasesList(srcdir string) {
+	start := time.Now()
+
+	// starting to build the file content, with the same context
+	content := `package db`
+
+	if len(thisServer.config.commonPart().Databases) > 0 {
+		content += dbFILExINIT
+
 		for _, dbConfig := range thisServer.config.commonPart().Databases {
-			dbParagraph := strings.ReplaceAll(dbTEMPLATE, "$$dbID$$", utils.PascalToCamel(string(dbConfig.DbID)))
-			dbParagraph = strings.ReplaceAll(dbParagraph, "$$DbID$$", utils.ToPascal(string(dbConfig.DbID)))
+			dbParagraph := strings.ReplaceAll(dbTEMPLATE, "$$dbID$$", core.PascalToCamel(string(dbConfig.DbID)))
+			dbParagraph = strings.ReplaceAll(dbParagraph, "$$DbID$$", core.ToPascal(string(dbConfig.DbID)))
 			dbParagraph = strings.ReplaceAll(dbParagraph, "$$realDbID$$", string(dbConfig.DbID))
 			content += dbParagraph + newline
 		}
 
 		// writing to file
-		utils.WriteToFile(content, srcdir, dbFOLDER, dbFILE)
+		core.WriteToFile(content, srcdir, dbFOLDER, dbFILE)
 		println(fmt.Sprintf("DB list generated in %s", time.Since(start)))
 	}
 }

@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	core "github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald/features/utils"
 )
 
@@ -39,7 +40,7 @@ type classCore struct {
 
 func NewClassCore(srcPath, class, lastModification string) IClassCore {
 	date, errParse := time.Parse(time.RFC3339, lastModification)
-	utils.PanicErrf(errParse, "'%s' has an invalid date format (which is: 2006-01-02 15:04:05)", lastModification)
+	core.PanicMsgIfErr(errParse, "'%s' has an invalid date format (which is: 2006-01-02 15:04:05)", lastModification)
 
 	return &classCore{
 		class:     className(class),
@@ -257,10 +258,10 @@ func RegisterDataLoader(fn dataLoader, migrationPhase bool) {
 	fnName = fnName[strings.LastIndex(fnName, ".")+1:]
 	dataLoaderRegistry.mx.Lock()
 	if migrationPhase {
-		utils.PanicIff(dataLoaderRegistry.migrationLoaders[fnName] != nil, "There's already a migration loader registered for name '%s'", fnName)
+		core.PanicMsgIf(dataLoaderRegistry.migrationLoaders[fnName] != nil, "There's already a migration loader registered for name '%s'", fnName)
 		dataLoaderRegistry.migrationLoaders[fnName] = fn
 	} else {
-		utils.PanicIff(dataLoaderRegistry.appServerLoaders[fnName] != nil, "There's already a app server loader registered for name '%s'", fnName)
+		core.PanicMsgIf(dataLoaderRegistry.appServerLoaders[fnName] != nil, "There's already a app server loader registered for name '%s'", fnName)
 		dataLoaderRegistry.appServerLoaders[fnName] = fn
 	}
 	dataLoaderRegistry.mx.Unlock()

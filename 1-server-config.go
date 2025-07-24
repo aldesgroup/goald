@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"os"
 
-	"github.com/aldesgroup/goald/features/utils"
+	core "github.com/aldesgroup/corego"
 	"sigs.k8s.io/yaml"
 )
 
@@ -83,20 +83,20 @@ func RegisterConfig(cfgObj IServerConfig) {
 func readAndCheckConfig(fromPath string) IServerConfig {
 	// Do we have a configuration object ready?
 	if configObj == nil {
-		utils.Panicf("No configuration object (implementing IServerConfig) has been registered!")
+		core.PanicMsg("No configuration object (implementing IServerConfig) has been registered!")
 	}
 
 	// Reading the config file into bytes
 	yamlBytes, errRead := os.ReadFile(fromPath)
-	utils.PanicErrf(errRead, "Could not read config file at path '%s'", fromPath)
+	core.PanicMsgIfErr(errRead, "Could not read config file at path '%s'", fromPath)
 
 	// YAML -> JSON transformation, because JSON unmarshalling is better
 	jsonBytes, errJson := yaml.YAMLToJSON(yamlBytes)
-	utils.PanicErrf(errJson, "Could not convert YAML to JSON '%s'", fromPath)
+	core.PanicMsgIfErr(errJson, "Could not convert YAML to JSON '%s'", fromPath)
 
 	// Unmarshalling the YAML file
-	utils.PanicErrf(errRead, "Could not read config file at path '%s'", fromPath)
-	utils.PanicErrf(json.Unmarshal(jsonBytes, configObj),
+	core.PanicMsgIfErr(errRead, "Could not read config file at path '%s'", fromPath)
+	core.PanicMsgIfErr(json.Unmarshal(jsonBytes, configObj),
 		"Could not unmarshal the config file at path '%s'", fromPath)
 
 	// controlling the common config
@@ -104,7 +104,7 @@ func readAndCheckConfig(fromPath string) IServerConfig {
 
 	// Checking the env type
 	if config.envAsType = envTypeFrom(config.Env); config.envAsType == 0 {
-		utils.Panicf("the 'Env' config item (\"%s\") is not set, or not one of these values: dev, test, prod",
+		core.PanicMsg("the 'Env' config item (\"%s\") is not set, or not one of these values: dev, test, prod",
 			config.Env)
 	}
 

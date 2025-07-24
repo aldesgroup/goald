@@ -13,7 +13,7 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/aldesgroup/goald/features/utils"
+	core "github.com/aldesgroup/corego"
 )
 
 // the data loader type
@@ -29,7 +29,7 @@ func (thisServer *server) loadData(migrationPhase bool) {
 	errorMx := new(sync.Mutex)
 
 	// launching all the registred data loaders in parallel!
-	loaders := utils.IfThenElse(migrationPhase, dataLoaderRegistry.migrationLoaders, dataLoaderRegistry.appServerLoaders)
+	loaders := core.IfThenElse(migrationPhase, dataLoaderRegistry.migrationLoaders, dataLoaderRegistry.appServerLoaders)
 	for fnName, dataLoadingFn := range loaders {
 		slog.Debug(fmt.Sprintf("Starting runner: %s", fnName))
 		wg.Add(1)

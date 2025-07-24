@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/aldesgroup/goald/features/utils"
+	core "github.com/aldesgroup/corego"
 	_ "github.com/microsoft/go-mssqldb"
 )
 
@@ -59,7 +59,7 @@ func openDB(conf *dbConfig) (*sql.DB, iDBAdapter) {
 	case dbTypeSQLSERVER:
 		adapter = &dbAdapterMSSQL{}
 	default:
-		utils.Panicf("Unhandled DB type: %s", conf.DbType)
+		core.PanicMsg("Unhandled DB type: %s", conf.DbType)
 	}
 
 	// // making sure the DB exists
@@ -74,13 +74,13 @@ func openDB(conf *dbConfig) (*sql.DB, iDBAdapter) {
 	startDB := time.Now()
 	db, errOpen := sql.Open(string(conf.DbType), connStr)
 	if errOpen != nil {
-		utils.Panicf("Error opening DB '%s': %s", conf.DbID, errOpen)
+		core.PanicMsg("Error opening DB '%s': %s", conf.DbID, errOpen)
 	}
 
 	// Pinging
 	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 	if errPing := db.PingContext(ctx); errPing != nil {
-		utils.Panicf("Issue while testing the '%s' DB: %s", conf.DbID, errPing)
+		core.PanicMsg("Issue while testing the '%s' DB: %s", conf.DbID, errPing)
 	}
 
 	slog.Info(fmt.Sprintf("Established connection to DB '%s' in %s!\n", conf.DbID, time.Since(startDB)))

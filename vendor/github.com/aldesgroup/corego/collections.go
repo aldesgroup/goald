@@ -1,8 +1,8 @@
-package utils
+package core
 
 import (
 	"cmp"
-	"sort"
+	"slices"
 )
 
 // ------------------------------------------------------------------------------------------------
@@ -11,15 +11,12 @@ import (
 
 // GetSortedKeys returns a sorted slice of keys from a map.
 // K must be a comparable type, which is a constraint satisfied by all types that can be map keys.
-// TODO not optimal!
 func GetSortedKeys[K cmp.Ordered, V any](m map[K]V) (keys []K) {
 	for k := range m {
 		keys = append(keys, k) // do not append + make a fixed-length slice
 	}
 
-	sort.Slice(keys, func(i, j int) bool {
-		return keys[i] < keys[j]
-	})
+	slices.Sort(keys)
 
 	return
 }
@@ -66,8 +63,8 @@ func InSlice[V comparable](s []V, el V) bool {
 }
 
 // Generic Map function for slices
-func MapFn[T any](input []T, transform func(T) T) []T {
-	output := make([]T, len(input))
+func MapFn[T, U any](input []T, transform func(T) U) []U {
+	output := make([]U, len(input))
 	for i, v := range input {
 		output[i] = transform(v)
 	}

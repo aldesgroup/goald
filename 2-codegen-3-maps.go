@@ -9,6 +9,7 @@ import (
 	"path"
 	"strings"
 
+	core "github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald/features/utils"
 )
 
@@ -46,7 +47,7 @@ func (thisServer *server) generateAllObjectValueMappers(srcdir, currentPath stri
 
 	// reading the current directory
 	dirEntries, errDir := os.ReadDir(readingPath)
-	utils.PanicErrf(errDir, "could not read '%s'", readingPath)
+	core.PanicMsgIfErr(errDir, "could not read '%s'", readingPath)
 
 	// going through the resources found withing the current directory
 	// we got the BO & class registries, but we still need to browse the filesystem since we're updating it with files
@@ -72,7 +73,7 @@ func (thisServer *server) generateAllObjectValueMappers(srcdir, currentPath stri
 				if !class.isInterface() {
 
 					// generating the Value Mapper file, if not existing yet, or too old
-					if regen || !utils.FileExists(vmapFilepath) || utils.EnsureModTime(vmapFilepath).Before(class.getLastBOMod()) {
+					if regen || !core.FileExists(vmapFilepath) || core.EnsureModTime(vmapFilepath).Before(class.getLastBOMod()) {
 						generateObjectValueMappersForBO(class, vmapFilepath)
 						codeChanged = true
 					}
@@ -92,7 +93,7 @@ func generateObjectValueMappersForBO(class IClass, filepath string) {
 	// checking the BO code makes use of its class
 	// TODO - auto-add this code block to the BO code + the import
 	if boSpecs == nil {
-		utils.Panicf("It looks like class '%s' has never been imported and thus not initialized and registered. \n"+
+		core.PanicMsg("It looks like class '%s' has never been imported and thus not initialized and registered. \n"+
 			"Add this - and complete as necessary - to your business object definition code: \n\n"+
 			"import (class \"%s/_include/_specs\") \n"+
 			"func init() { \n"+
@@ -123,7 +124,7 @@ func generateObjectValueMappersForBO(class IClass, filepath string) {
 	bObjectType := utils.TypeOf(class.NewObject(), true)
 
 	// browsing the entity's properties to fill the get / set cases in the 2 switch
-	for _, field := range utils.GetSortedValues(boSpecs.base().fields) {
+	for _, field := range core.GetSortedValues(boSpecs.base().fields) {
 		// adding to the context, and the class file content
 		if typeFamily := field.getTypeFamily(); typeFamily != utils.TypeFamilyUNKNOWN && typeFamily != utils.TypeFamilyRELATIONSHIPxMONOM {
 			// not handling multiple properties for now
@@ -141,9 +142,9 @@ func generateObjectValueMappersForBO(class IClass, filepath string) {
 				switch typeFamily {
 				case utils.TypeFamilyBOOL:
 					getBit, setBit, end := getBits(fieldTypeAlias, "bool")
-					getCase += newline + fmt.Sprintf("\t\treturn utils.BoolToString(%sbo.%s%s)", getBit, fieldID, end)
+					getCase += newline + fmt.Sprintf("\t\treturn core.BoolToString(%sbo.%s%s)", getBit, fieldID, end)
 					importUtils = true
-					setCase += newline + fmt.Sprintf("\t\tbo.%s = %sutils.StringToBool(valueAsString, \"%s\")%s", fieldID, setBit, fieldID, end)
+					setCase += newline + fmt.Sprintf("\t\tbo.%s = %score.StringToBool(valueAsString, \"%s\")%s", fieldID, setBit, fieldID, end)
 
 				case utils.TypeFamilySTRING:
 					getBit, setBit, end := getBits(fieldTypeAlias, "string")
@@ -152,38 +153,38 @@ func generateObjectValueMappersForBO(class IClass, filepath string) {
 
 				case utils.TypeFamilyINT:
 					getBit, setBit, end := getBits(fieldTypeAlias, "int")
-					getCase += newline + fmt.Sprintf("\t\treturn utils.IntToString(%sbo.%s%s)", getBit, fieldID, end)
+					getCase += newline + fmt.Sprintf("\t\treturn core.IntToString(%sbo.%s%s)", getBit, fieldID, end)
 					importUtils = true
-					setCase += newline + fmt.Sprintf("\t\tbo.%s = %sutils.StringToInt(valueAsString, \"%s\")%s", fieldID, setBit, fieldID, end)
+					setCase += newline + fmt.Sprintf("\t\tbo.%s = %score.StringToInt(valueAsString, \"%s\")%s", fieldID, setBit, fieldID, end)
 
 				case utils.TypeFamilyBIGINT:
 					getBit, setBit, end := getBits(fieldTypeAlias, "int64")
-					getCase += newline + fmt.Sprintf("\t\treturn utils.Int64ToString(%sbo.%s%s)", getBit, fieldID, end)
+					getCase += newline + fmt.Sprintf("\t\treturn core.Int64ToString(%sbo.%s%s)", getBit, fieldID, end)
 					importUtils = true
-					setCase += newline + fmt.Sprintf("\t\tbo.%s = %sutils.StringToInt64(valueAsString, \"%s\")%s", fieldID, setBit, fieldID, end)
+					setCase += newline + fmt.Sprintf("\t\tbo.%s = %score.StringToInt64(valueAsString, \"%s\")%s", fieldID, setBit, fieldID, end)
 
 				case utils.TypeFamilyREAL:
 					getBit, setBit, end := getBits(fieldTypeAlias, "float32")
-					getCase += newline + fmt.Sprintf("\t\treturn utils.Float32ToString(%sbo.%s%s)", getBit, fieldID, end)
+					getCase += newline + fmt.Sprintf("\t\treturn core.Float32ToString(%sbo.%s%s)", getBit, fieldID, end)
 					importUtils = true
-					setCase += newline + fmt.Sprintf("\t\tbo.%s = %sutils.StringToFloat32(valueAsString, \"%s\")%s", fieldID, setBit, fieldID, end)
+					setCase += newline + fmt.Sprintf("\t\tbo.%s = %score.StringToFloat32(valueAsString, \"%s\")%s", fieldID, setBit, fieldID, end)
 
 				case utils.TypeFamilyDOUBLE:
 					getBit, setBit, end := getBits(fieldTypeAlias, "float64")
-					getCase += newline + fmt.Sprintf("\t\treturn utils.Float64ToString(%sbo.%s%s)", getBit, fieldID, end)
+					getCase += newline + fmt.Sprintf("\t\treturn core.Float64ToString(%sbo.%s%s)", getBit, fieldID, end)
 					importUtils = true
-					setCase += newline + fmt.Sprintf("\t\tbo.%s = %sutils.StringToFloat64(valueAsString, \"%s\")%s", fieldID, setBit, fieldID, end)
+					setCase += newline + fmt.Sprintf("\t\tbo.%s = %score.StringToFloat64(valueAsString, \"%s\")%s", fieldID, setBit, fieldID, end)
 
 				case utils.TypeFamilyDATE:
-					getCase += newline + fmt.Sprintf("\t\treturn utils.DateToString(bo.%s)", fieldID)
-					setCase += newline + fmt.Sprintf("\t\tbo.%s = utils.StringToDate(valueAsString, \"%s\")", fieldID, fieldID)
+					getCase += newline + fmt.Sprintf("\t\treturn core.DateToString(bo.%s)", fieldID)
+					setCase += newline + fmt.Sprintf("\t\tbo.%s = core.StringToDate(valueAsString, \"%s\")", fieldID, fieldID)
 
 				case utils.TypeFamilyENUM:
-					getCase += newline + fmt.Sprintf("\t\treturn utils.IntToString(bo.%s.Val())", fieldID)
+					getCase += newline + fmt.Sprintf("\t\treturn core.IntToString(bo.%s.Val())", fieldID)
 					importUtils = true
-					setCase += newline + fmt.Sprintf("\t\tbo.%s = %s(utils.StringToInt(valueAsString, \"%s\"))", fieldID, fieldTypeAlias, fieldID)
+					setCase += newline + fmt.Sprintf("\t\tbo.%s = %s(core.StringToInt(valueAsString, \"%s\"))", fieldID, fieldTypeAlias, fieldID)
 
-					setCase += newline + fmt.Sprintf("\t\tutils.PanicIff(bo.%s.String() == \"\", \"Could not set '%s' to %%s since it's not a listed value\", valueAsString)",
+					setCase += newline + fmt.Sprintf("\t\tcore.PanicMsgIf(bo.%s.String() == \"\", \"Could not set '%s' to %%s since it's not a listed value\", valueAsString)",
 						fieldID, fieldID)
 				}
 
@@ -199,17 +200,17 @@ func generateObjectValueMappersForBO(class IClass, filepath string) {
 	content = strings.ReplaceAll(content, "$$setcases$$", strings.Join(setCases, newline))
 
 	if importUtils {
-		importsMap["github.com/aldesgroup/goald/features/utils"] = true
+		importsMap["github.com/aldesgroup/corego"] = true
 	}
 
 	imports := ""
 	if len(importsMap) > 0 {
-		imports = "\"" + strings.Join(utils.GetSortedKeys(importsMap), "\""+newline+"\t"+"\"") + "\""
+		imports = "\"" + strings.Join(core.GetSortedKeys(importsMap), "\""+newline+"\t"+"\"") + "\""
 	}
 	content = strings.Replace(content, "$$otherimports$$", imports, 1)
 
 	// write out the file
-	utils.WriteToFile(content, filepath)
+	core.WriteToFile(content, filepath)
 }
 
 func getBits(fieldTypeAlias, getBit string) (string, string, string) {
