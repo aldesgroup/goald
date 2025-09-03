@@ -26,6 +26,7 @@ var (
 
 const (
 	fieldAtomSUFFIX    = "FieldAtom"
+	stateAtomSUFFIX    = "StateAtom"
 	blockIDxFORMxDECL  = "Form"
 	blockIDxVALIDATION = "getValidationError"
 )
@@ -144,9 +145,9 @@ func (thisCode *codeFile) initFixedBlocks(endpointPath string, isWebapp bool) *c
 		thisCode.addNewBlock("import { atom, useSetAtom } from 'jotai';", true, "", false)
 		thisCode.addNewBlock("import { useEffect } from 'react';", true, "", false)
 		if isWebapp {
-			thisCode.addNewBlock("import { fieldConfigAtom, getFieldValidationError } from '~/vendor/goaldr';", true, "", false)
+			thisCode.addNewBlock("import { fieldConfigAtom, getFieldValidationError, stateAtom } from '~/vendor/goaldr';", true, "", false)
 		} else {
-			thisCode.addNewBlock("import { fieldConfigAtom, getFieldValidationError } from '~/vendor/goaldn';", true, "", false)
+			thisCode.addNewBlock("import { fieldConfigAtom, getFieldValidationError, stateAtom } from '~/vendor/goaldn';", true, "", false)
 		}
 		thisCode.addNewBlock("export const URL = '"+endpointPath+"'", true, "", true)
 		thisCode.addNewBlock("export const "+blockIDxFORMxDECL+" = formAtom({", true, blockIDxFORMxDECL, true).appendLine("});", true)
@@ -213,9 +214,17 @@ func (thisCode *codeFile) addFieldIfNeeded(codeCtx *codeContext, field IField) {
 
 			// adding the field atom declaration if needed
 			fieldAtomName := field.getName() + fieldAtomSUFFIX
+			fieldAtomPfix := "const " + fieldAtomName
 			if thisCode.blocksMap[fieldAtomName] == nil {
-				fieldAtomDecl := fmt.Sprintf("const %s = fieldAtom%s({ value: %s? });", fieldAtomName, fieldAtomType, initVal)
+				fieldAtomDecl := fmt.Sprintf(fieldAtomPfix+" = fieldAtom%s({ value: %s? });", fieldAtomType, initVal)
 				thisCode.addNewBlockBeforeEndPosition(fieldAtomDecl, true, fieldAtomName, true, 2)
+			}
+
+			// adding the state atom declaration if needed, in the same block as the field atom
+			stateAtomName := field.getName() + stateAtomSUFFIX
+			if thisCode.blocksMap[stateAtomName] == nil {
+				stateAtomDecl := fmt.Sprintf("const %s = fieldStateAtom();", stateAtomName)
+				thisCode.addNewBlockAfterBlock(stateAtomDecl, true, stateAtomName, false, fieldAtomName)
 			}
 
 			// adding the field atom to the form if needed
@@ -241,6 +250,7 @@ func (thisCode *codeFile) addFieldIfNeeded(codeCtx *codeContext, field IField) {
 				fieldConfigAtomDecl := fmt.Sprintf("export const %s = fieldConfigAtom({", field.getName())
 				newBlock := thisCode.addNewBlockBeforeEndPosition(fieldConfigAtomDecl, true, field.getName(), false, 2)
 				newBlock.appendLine(fmt.Sprintf("    fieldAtom: %s,", fieldAtomName), true)
+				newBlock.appendLine(fmt.Sprintf("    stateAtom: %s,", stateAtomName), true)
 				newBlock.appendLine("});", true)
 			}
 
@@ -422,6 +432,20 @@ func (thisCode *codeFile) addNewBlock(rawline string, isCode bool, id string, bl
 	return thisCode.addNewBlockAtPosition(rawline, isCode, id, blankBefore, -1)
 }
 
+// adding a block after another one
+func (thisCode *codeFile) addNewBlockAfterBlock(rawline string, isCode bool, id string, blankBefore bool, blockID string) *codeBlock {
+	// finding the targeted block
+	blockPos := 0
+	for pos, block := range thisCode.blocks {
+		if block.id == blockID {
+			blockPos = pos + 1
+			break
+		}
+	}
+
+	return thisCode.addNewBlockAtPosition(rawline, isCode, id, blankBefore, blockPos)
+}
+
 // adding a new block of code before the one counted from the end, with indexFromEnd, which must be >= 1;
 // if we use indexFromEnd = 1, then we're inserting something before the last code block;
 // if we use indexFromEnd = 2, then it's before the before-the-last; etc...
@@ -505,6 +529,23 @@ func (thisCode *codeFile) insertLineIntoBlockBeforePrefix(blockID string, newLin
 		slog.Error("No block found with ID: " + blockID)
 	}
 }
+
+// // inserting a line to the block targeted by the given ID, immediately after the line that starts with the given prefix
+// func (thisCode *codeFile) insertLineIntoBlockAfterPrefix(blockID string, newLine string, insertAfterPrefix string) {
+// 	if block := thisCode.blocksMap[blockID]; block != nil {
+// 		for pos := 0; pos < len(block.lines); pos++ {
+// 			line := block.lines[pos]
+// 			if line != nil && strings.HasPrefix(line.rawline, insertAfterPrefix) {
+// 				insertPos := pos + 1
+// 				block.lines = append(block.lines[:insertPos], append([]*codeLine{newCodeLine(newLine, true)}, block.lines[insertPos:]...)...)
+// 				return
+// 			}
+// 		}
+// 		slog.Error(fmt.Sprintf("Could not insert '%s' into block '%s' after '%s'.", newLine, blockID, insertAfterPrefix))
+// 	} else {
+// 		slog.Error("No block found with ID: " + blockID)
+// 	}
+// }
 
 // updating a line that starts with the given prefix, in the block targeted by the given ID;
 // if the prefix is not found, a new line is inserted

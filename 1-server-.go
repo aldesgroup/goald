@@ -150,6 +150,9 @@ func (thisServer *server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	w.Header().Add("Access-Control-Allow-Methods", "DELETE, POST, GET, OPTIONS")
 	w.Header().Add("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
 	w.Header().Add("Access-Control-Allow-Headers", "Aept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+
+	// add protection :https://medium.com/@rahulreza920/go-1-25-is-released-faster-smarter-and-safer-9c97ff8b493d
+
 	// TODO better
 
 	thisServer.router.ServeHTTP(w, req)
