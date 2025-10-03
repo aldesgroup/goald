@@ -25,10 +25,8 @@ var (
 )
 
 const (
-	fieldAtomSUFFIX    = "FieldAtom"
-	stateAtomSUFFIX    = "StateAtom"
-	blockIDxFORMxDECL  = "Form"
-	blockIDxVALIDATION = "getValidationError"
+	newFieldNAME = "newField"
+	newModelNAME = "newModel"
 )
 
 // TODO maybe do not collocate everything on the server... let's change the receiver here
@@ -86,7 +84,8 @@ func (thisServer *server) generateClientAppModel(destdir string, ep iEndpoint, u
 	boFields := core.GetSortedValues(boSpecs.base().fields)
 
 	// the file we're dealing with
-	filename := core.PascalToCamel(string(clsName)) + ".ts"
+	modelName := core.PascalToCamel(string(clsName))
+	filename := modelName + ".ts"
 	filepath := path.Join(destdir, modelsDIRPATH, filename)
 
 	// gathering needed info into a context
@@ -109,7 +108,7 @@ func (thisServer *server) generateClientAppModel(destdir string, ep iEndpoint, u
 	}
 
 	// getting the file content - which might be empty if the file does not exist yet
-	code := parseCode(filepath).initFixedBlocks(thisServer.config.commonPart().HTTP.ApiPath+ep.getFullPath(), isWebapp)
+	code := parseCode(filepath).initFixedBlocks(modelName, thisServer.config.commonPart().HTTP.ApiPath+ep.getFullPath(), isWebapp)
 
 	// browsing the entity's properties to fill the get / set cases in the 2 switch
 	for _, field := range boFields {
@@ -139,23 +138,14 @@ func (thisServer *server) generateClientAppModel(destdir string, ep iEndpoint, u
 // ------------------------------------------------------------------------------------------------
 
 // initiating the code, with its structure, i.e. with its required imports, and the fixed variables / functions
-func (thisCode *codeFile) initFixedBlocks(endpointPath string, isWebapp bool) *codeFile {
+func (thisCode *codeFile) initFixedBlocks(modelName string, endpointPath string, isWebapp bool) *codeFile {
 	if len(thisCode.blocks) == 0 {
-		thisCode.addNewBlock("import { fieldAtom, formAtom, useFieldActions, useFieldValue, useInputField } from 'form-atoms';", true, "", false)
-		thisCode.addNewBlock("import { atom, useSetAtom } from 'jotai';", true, "", false)
-		thisCode.addNewBlock("import { useEffect } from 'react';", true, "", false)
 		if isWebapp {
-			thisCode.addNewBlock("import { fieldConfigAtom, getFieldValidationError, stateAtom } from '~/vendor/goaldr';", true, "", false)
+			thisCode.addNewBlock("import { newField, newModel } from '~/vendor/goaldr';", true, "", false)
 		} else {
-			thisCode.addNewBlock("import { fieldConfigAtom, getFieldValidationError, stateAtom } from '~/vendor/goaldn';", true, "", false)
+			thisCode.addNewBlock("import { newField, newModel } from '~/vendor/goaldn';", true, "", false)
 		}
-		thisCode.addNewBlock("export const URL = '"+endpointPath+"'", true, "", true)
-		thisCode.addNewBlock("export const "+blockIDxFORMxDECL+" = formAtom({", true, blockIDxFORMxDECL, true).appendLine("});", true)
-		thisCode.addNewBlock("export function "+blockIDxVALIDATION+"() {", true, blockIDxVALIDATION, true).
-			appendLine("    return (", true).
-			appendLine("        null", true).
-			appendLine("    );", true).
-			appendLine("};", true)
+		thisCode.addNewBlock("export const "+modelName+" = "+newModelNAME+"('"+endpointPath+"', {", true, newModelNAME, true).appendLine("});", true)
 	}
 
 	return thisCode
@@ -212,51 +202,23 @@ func (thisCode *codeFile) addFieldIfNeeded(codeCtx *codeContext, field IField) {
 				// SWITCH END
 			}
 
-			// adding the field atom declaration if needed
-			fieldAtomName := field.getName() + fieldAtomSUFFIX
-			fieldAtomPfix := "const " + fieldAtomName
-			if thisCode.blocksMap[fieldAtomName] == nil {
-				fieldAtomDecl := fmt.Sprintf(fieldAtomPfix+" = fieldAtom%s({ value: %s? });", fieldAtomType, initVal)
-				thisCode.addNewBlockBeforeEndPosition(fieldAtomDecl, true, fieldAtomName, true, 2)
+			// adding the field name to the model block if needed
+			if !thisCode.blockHasLineStartingWith(newModelNAME, field.getName()+":") {
+				thisCode.insertLineIntoBlockBeforePrefix(newModelNAME, fmt.Sprintf("    %s,", field.getName()), "}")
 			}
 
-			// adding the state atom declaration if needed, in the same block as the field atom
-			stateAtomName := field.getName() + stateAtomSUFFIX
-			if thisCode.blocksMap[stateAtomName] == nil {
-				stateAtomDecl := fmt.Sprintf("const %s = fieldStateAtom();", stateAtomName)
-				thisCode.addNewBlockAfterBlock(stateAtomDecl, true, stateAtomName, false, fieldAtomName)
-			}
-
-			// adding the field atom to the form if needed
-			if !thisCode.blockHasLineStartingWith(blockIDxFORMxDECL, field.getName()+":") {
-				thisCode.insertLineIntoBlockBeforePrefix(blockIDxFORMxDECL, fmt.Sprintf("    %s: %s,", field.getName(), fieldAtomName), "}")
-			}
-
-			// adding the field atom config to the validation if needed
-			if typeFamily != utils.TypeFamilyBOOL && !thisCode.blockHasLineStartingWith(blockIDxVALIDATION, "const "+field.getName()) {
-				thisCode.insertLineIntoBlockBeforePrefix(
-					blockIDxVALIDATION,
-					fmt.Sprintf("    const %sValidErr = getFieldValidationError(%s);", field.getName(), field.getName()),
-					"    return")
-				thisCode.insertLineIntoBlockBeforePrefix(
-					blockIDxVALIDATION,
-					fmt.Sprintf("        %sValidErr || //", field.getName()),
-					"        null")
-			}
-
-			// adding the field config atom if needed
-			missingConfigAtom := thisCode.blocksMap[field.getName()] == nil
-			if missingConfigAtom {
-				fieldConfigAtomDecl := fmt.Sprintf("export const %s = fieldConfigAtom({", field.getName())
-				newBlock := thisCode.addNewBlockBeforeEndPosition(fieldConfigAtomDecl, true, field.getName(), false, 2)
-				newBlock.appendLine(fmt.Sprintf("    fieldAtom: %s,", fieldAtomName), true)
-				newBlock.appendLine(fmt.Sprintf("    stateAtom: %s,", stateAtomName), true)
+			// adding the field if needed
+			missingField := thisCode.blocksMap[field.getName()] == nil
+			if missingField {
+				fieldDecl := fmt.Sprintf("const %s = "+newFieldNAME+"%s({", field.getName(), fieldAtomType)
+				newBlock := thisCode.addNewBlockBeforeEndPosition(fieldDecl, true, field.getName(), true, 1)
+				newBlock.appendLine(fmt.Sprintf("    initialValue: %s?,", initVal), true)
 				newBlock.appendLine("});", true)
 			}
 
 			// linking the enum's options to the field, if needed
 			if typeFamily == utils.TypeFamilyENUM {
-				if missingConfigAtom || !thisCode.blockHasLineStartingWith(field.getName(), "options:") {
+				if missingField || !thisCode.blockHasLineStartingWith(field.getName(), "options:") {
 					thisCode.insertLineIntoBlockBeforePrefix(field.getName(), fmt.Sprintf("    options: %s.Options,", enumVar), "}")
 				}
 
@@ -327,7 +289,7 @@ func (thisCode *codeFile) addEnumImport(enumVar string) {
 }
 
 func (thisCode *codeFile) findLastImportPosition() (pos int) {
-	for pos = 3; pos < len(thisCode.blocks); pos++ {
+	for pos = 1; pos < len(thisCode.blocks); pos++ {
 		if !strings.HasPrefix(thisCode.blocks[pos].lines[0].rawline, "import ") {
 			break
 		}
