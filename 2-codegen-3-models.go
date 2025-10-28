@@ -210,7 +210,7 @@ func (thisCode *codeFile) addFieldIfNeeded(codeCtx *codeContext, field IField) {
 			// adding the field if needed
 			missingField := thisCode.blocksMap[field.getName()] == nil
 			if missingField {
-				fieldDecl := fmt.Sprintf("const %s = "+newFieldNAME+"%s({", field.getName(), fieldAtomType)
+				fieldDecl := fmt.Sprintf("const %s = "+newFieldNAME+"%s('%s', {", field.getName(), fieldAtomType, field.getName())
 				newBlock := thisCode.addNewBlockBeforeEndPosition(fieldDecl, true, field.getName(), true, 1)
 				newBlock.appendLine(fmt.Sprintf("    initialValue: %s?,", initVal), true)
 				newBlock.appendLine("});", true)
