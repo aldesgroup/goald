@@ -169,6 +169,7 @@ func (thisServer *server) Start() {
 
 	if len(restRegistry.endpoints) == 0 {
 		slog.Warn("No endpoint configured, so no starting of the HTTP server!")
+		return
 	}
 
 	// TODO set router PanicHandler

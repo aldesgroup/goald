@@ -57,7 +57,7 @@ func (thisReqCtx *httpRequestContext) serve(ep iEndpoint, w http.ResponseWriter,
 	// TODO remove
 	reqCount++
 	prefix := fmt.Sprintf("%06d|%s", reqCount, thisReqCtx.instance) //
-	slog.Info(fmt.Sprintf("[%s] Serving  %s %s: %s", prefix, ep.getMethod(), ep.getFullPath(), ep.getLabel()))
+	slog.Info(fmt.Sprintf("[%s] Serving %s %s: %s", prefix, ep.getMethod(), ep.getFullPath(), ep.getLabel()))
 
 	// initialising the web context that's going to be passed to the applicative handler
 	var targetRefOrID string

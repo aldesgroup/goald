@@ -65,6 +65,13 @@ func (thisServer *server) generateAllObjectValueMappers(srcdir, currentPath stri
 				classCore := getClassFromFile(srcdir, currentPath, entry.Name())
 				class := classRegistry.items[classCore.class]
 
+				if class == nil {
+					core.PanicMsg("It looks like class '%s' has never been imported and thus not initialized and registered. "+
+						"\nMake sure its module is imported in the main package: "+
+						"\nimport _ \"%s/_include/%s\"",
+						classCore.getClassName(), getCurrentModule(), currentPath)
+				}
+
 				// the corresponding Value Mapper file, if it exist
 				vmapFilepath := path.Join(srcdir, class.getSrcPath(), sourceCLASSxDIR,
 					strings.Replace(entry.Name(), sourceFILExSUFFIX, valueMapperFILExSUFFIX, 1))

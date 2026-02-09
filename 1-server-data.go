@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	core "github.com/aldesgroup/corego"
 )
@@ -31,12 +32,16 @@ func (thisServer *server) loadData(migrationPhase bool) {
 	// launching all the registred data loaders in parallel!
 	loaders := core.IfThenElse(migrationPhase, dataLoaderRegistry.migrationLoaders, dataLoaderRegistry.appServerLoaders)
 	for fnName, dataLoadingFn := range loaders {
-		slog.Debug(fmt.Sprintf("Starting runner: %s", fnName))
 		wg.Add(1)
 		go func(fnNameArg string, dataLoadingFnArg dataLoader) {
 			defer wg.Done()
 			defer RecoverError("Error while running data loader '%s'", fnNameArg)
 
+			slog.Info(fmt.Sprintf("Starting runner: %s", fnNameArg))
+			startTime := time.Now()
+			defer func() { slog.Info(fmt.Sprintf("Runner '%s' finished in %s", fnNameArg, time.Since(startTime))) }()
+
+			// actual
 			if errLoad := dataLoadingFnArg(thisServer, thisServer.config.commonPart().DataLoaders[fnNameArg]); errLoad != nil {
 				errorMx.Lock()
 				errors[fnNameArg] = errLoad

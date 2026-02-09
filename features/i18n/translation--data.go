@@ -4,83 +4,172 @@
 package i18n
 
 import (
-	"encoding/json"
+	"fmt"
 	"log/slog"
 	"os"
+	"path"
 	"strings"
+	"sync"
 
+	core "github.com/aldesgroup/corego"
 	g "github.com/aldesgroup/goald"
 )
+
+// ------------------------------------------------------------------------------------------------
+// Making this data loader function available
+// ------------------------------------------------------------------------------------------------
 
 func init() {
 	g.RegisterDataLoader(loadTranslations, false)
 }
 
-// the structure of the translation file as downloaded by Aldev
-type translationRow struct {
-	Namespace string   `json:"n"`
-	Key       string   `json:"k"`
-	Values    []string `json:"v"`
+// ------------------------------------------------------------------------------------------------
+// Useful variables / constants / structs
+// ------------------------------------------------------------------------------------------------
+
+const fileLoadingWorkersNb = 5 // we've computed with a benchmark that the optimum lies around this value
+
+type fileLoadingWorkerCtx struct {
+	lang         Language
+	file         string
+	ns           string
+	translations []*Translation
 }
 
-func loadTranslations(ctx g.BloContext, params map[string]string) error {
-	slog.Info("Loading the translations...")
+func (ctx *fileLoadingWorkerCtx) namespace() string {
+	if ctx.ns == "" {
+		ctx.ns = strings.TrimSuffix(ctx.file, ".json")
+	}
 
+	return ctx.ns
+}
+
+// ------------------------------------------------------------------------------------------------
+// Main data loading function & utils
+// ------------------------------------------------------------------------------------------------
+
+func loadTranslations(ctx g.BloContext, params map[string]string) error {
+	// checking the parameters
 	if params == nil {
 		return g.Error("No 'loadTranslations' data loader item in the config!")
 	}
-	if params["file"] == "" {
-		return g.Error("Empty value for 'loadTranslations.file' in the config!")
+	folderPath := params["folder"]
+	if folderPath == "" {
+		return g.Error("Empty value for 'loadTranslations.folder' in the config!")
+	}
+	if !core.DirExists(folderPath) {
+		return g.Error("'%s' is not a valid path!", folderPath)
 	}
 
-	// reading the translation file
-	dataBytes, errRead := os.ReadFile(params["file"])
-	if errRead != nil {
-		return g.ErrorC(errRead, "Could not read file '%s'", params["file"])
+	// checking all the translation subfolders (1 per language) in the given folder
+	languageEntries, errFolder := os.ReadDir(folderPath)
+	if errFolder != nil {
+		return g.ErrorC(errFolder, "Could not open directory '%s'", folderPath)
 	}
 
-	// unmarshaling the translation rows found in the file
-	translationRows := []*translationRow{}
-	if errUnmarsh := json.Unmarshal(dataBytes, &translationRows); errUnmarsh != nil {
-		return g.ErrorC(errUnmarsh, "Could not unmarshal the translation data")
+	// finding out all the languages, and all the translation files (1 file per namespace)
+	languages := []Language{}
+	filesNb := 0
+	files := map[Language][]string{}
+	for _, languageEntry := range languageEntries {
+		// we should have 1 folder per language
+		if languageEntry.IsDir() {
+			// there we have our language
+			language := LanguageFrom(languageEntry.Name())
+			languages = append(languages, language)
+
+			// let's check the files within
+			fileEntries, errFile := os.ReadDir(path.Join(folderPath, languageEntry.Name()))
+			if errFile != nil {
+				return g.ErrorC(errFile, "Could not open directory '%s'", languageEntry.Name())
+			}
+
+			// let's gather the translation files
+			for _, fileEntry := range fileEntries {
+				filesForLanguage := []string{}
+				if strings.HasSuffix(fileEntry.Name(), ".json") {
+					filesNb++
+					filesForLanguage = append(filesForLanguage, fileEntry.Name())
+				}
+				files[language] = append(files[language], filesForLanguage...)
+			}
+		}
 	}
 
-	// initialising the global object containing all the translations
+	slog.Debug(fmt.Sprintf("Found %d languages and %d translation files in total", len(languages), filesNb))
+
+	// prepping for loading of all the translation files done in parallel
+	filesToLoad := make(chan *fileLoadingWorkerCtx, (filesNb))
+	loadedFiles := make(chan *fileLoadingWorkerCtx, (filesNb))
+	waitGroup := new(sync.WaitGroup)
+
+	// starting workers to deal with the files to load
+	for workerID := 0; workerID < fileLoadingWorkersNb; workerID++ {
+		waitGroup.Go(func() {
+			for fileToLoad := range filesToLoad {
+				doLoadFile(workerID, folderPath, fileToLoad, loadedFiles)
+			}
+		})
+	}
+
+	// adding files to load
+	for language, filesForLanguage := range files {
+		for _, file := range filesForLanguage {
+			filesToLoad <- &fileLoadingWorkerCtx{language, file, "", nil}
+		}
+	}
+
+	// we're done adding stuff to do
+	close(filesToLoad)
+
+	// waiting for all the workers to be done
+	waitGroup.Wait()
+
+	// we won't be getting new
+	close(loadedFiles)
+
+	// (re-)initialising the global object containing all the translations
 	allTranslations = make(map[Language]map[string][]*Translation)
 
-	// initialising each language
-	for _, translation := range translationRows[0].Values {
-		lang, _ := getLangAndValue(translation)
-		if lang == LanguageUNDEFINED {
-			return g.Error("Undefined language found here: %s", translation[:2])
+	// transfering the translations from the loaded files to our "big" translations map
+	for loadedFile := range loadedFiles {
+		// initialising for the language, if needed
+		if allTranslations[loadedFile.lang] == nil {
+			allTranslations[loadedFile.lang] = make(map[string][]*Translation)
 		}
-		allTranslations[lang] = make(map[string][]*Translation)
+
+		// now adding the translations for the current language & namespace
+		allTranslations[loadedFile.lang][loadedFile.namespace()] = loadedFile.translations
 	}
 
-	// "registering" the translations now
-	for _, row := range translationRows {
-		for _, translation := range row.Values {
-			// getting the current language + translation value in this language
-			lang, value := getLangAndValue(translation)
-
-			// adding the value to the right route
-			allTranslations[lang][row.Namespace] = append(allTranslations[lang][row.Namespace], &Translation{
-				Namespace: row.Namespace,
-				Key:       row.Key,
-				Value:     value,
-			})
-		}
-	}
-
-	// TODO
-	// debounce the restart of containers when aldev complete runs OR use another place for the compilation / run
+	// TODO ?
+	// debounce the restart of containers when aldev refresh runs OR use another place for the compilation / run
 	// hide the logs for the server start, only show in verbose mode
 	// aldev should also have a silent mode by default
 
 	return nil
 }
 
-func getLangAndValue(translation string) (Language, string) {
-	langAndValue := strings.SplitN(translation, ": ", 2)
-	return LanguageFrom(langAndValue[0]), langAndValue[1]
+func doLoadFile(workerID int, folderPath string, fileToLoad *fileLoadingWorkerCtx, loadedFiles chan *fileLoadingWorkerCtx) {
+	// the path of the file to load
+	filePath := path.Join(folderPath, fileToLoad.lang.String(), fileToLoad.file)
+
+	// a bit of logging
+	// slog.Debug(fmt.Sprintf("Worker %02d: loading '%s'", workerID, filePath))
+
+	// JSON => key-value map of the translations
+	rawTranslations := *core.ReadFileFromJSON(filePath, &map[string]string{}, true)
+
+	// building Translation objects from this map
+	for _, key := range core.GetSortedKeys(rawTranslations) {
+		fileToLoad.translations = append(fileToLoad.translations, &Translation{
+			Lang:      fileToLoad.lang.String(),
+			Namespace: fileToLoad.namespace(),
+			Key:       key,
+			Value:     rawTranslations[key],
+		})
+	}
+
+	// that's one more file completely loaded!
+	loadedFiles <- fileToLoad
 }
