@@ -5,7 +5,6 @@ package goald
 
 import (
 	"fmt"
-	"os"
 	"path"
 	"strings"
 
@@ -45,13 +44,9 @@ func (thisServer *server) generateAllObjectValueMappers(srcdir, currentPath stri
 	// the path we're currently reading at e.g. go/pkg1/pkg2
 	readingPath := path.Join(srcdir, currentPath)
 
-	// reading the current directory
-	dirEntries, errDir := os.ReadDir(readingPath)
-	core.PanicMsgIfErr(errDir, "could not read '%s'", readingPath)
-
 	// going through the resources found withing the current directory
 	// we got the BO & class registries, but we still need to browse the filesystem since we're updating it with files
-	for _, entry := range dirEntries {
+	for _, entry := range core.EnsureReadDir(readingPath) {
 		if entry.IsDir() {
 			// not going into the vendor
 			if entry.Name() != "vendor" && entry.Name() != ".git" {

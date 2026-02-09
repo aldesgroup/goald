@@ -3,7 +3,7 @@ module github.com/aldesgroup/goald
 go 1.25.7
 
 require (
-	github.com/aldesgroup/corego v0.0.0-20260209094542-8c60dd5a0e56
+	github.com/aldesgroup/corego v0.0.0-20260209142835-f55d4e6097c8
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/microsoft/go-mssqldb v1.9.6
 	sigs.k8s.io/yaml v1.6.0
@@ -19,3 +19,5 @@ require (
 	golang.org/x/text v0.33.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
+
+// replace github.com/aldesgroup/corego => ../../open/corego

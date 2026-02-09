@@ -6,7 +6,6 @@ package i18n
 import (
 	"fmt"
 	"log/slog"
-	"os"
 	"path"
 	"strings"
 	"sync"
@@ -61,31 +60,19 @@ func loadTranslations(ctx g.BloContext, params map[string]string) error {
 		return g.Error("'%s' is not a valid path!", folderPath)
 	}
 
-	// checking all the translation subfolders (1 per language) in the given folder
-	languageEntries, errFolder := os.ReadDir(folderPath)
-	if errFolder != nil {
-		return g.ErrorC(errFolder, "Could not open directory '%s'", folderPath)
-	}
-
 	// finding out all the languages, and all the translation files (1 file per namespace)
 	languages := []Language{}
 	filesNb := 0
 	files := map[Language][]string{}
-	for _, languageEntry := range languageEntries {
+	for _, languageEntry := range core.EnsureReadDir(folderPath) {
 		// we should have 1 folder per language
 		if languageEntry.IsDir() {
 			// there we have our language
 			language := LanguageFrom(languageEntry.Name())
 			languages = append(languages, language)
 
-			// let's check the files within
-			fileEntries, errFile := os.ReadDir(path.Join(folderPath, languageEntry.Name()))
-			if errFile != nil {
-				return g.ErrorC(errFile, "Could not open directory '%s'", languageEntry.Name())
-			}
-
 			// let's gather the translation files
-			for _, fileEntry := range fileEntries {
+			for _, fileEntry := range core.EnsureReadDir(path.Join(folderPath, languageEntry.Name())) {
 				filesForLanguage := []string{}
 				if strings.HasSuffix(fileEntry.Name(), ".json") {
 					filesNb++

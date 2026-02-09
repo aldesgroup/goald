@@ -3,3 +3,10 @@ lib:
   srcdir: .
   config: main/config.yaml
   bindir: bin
+codeswaps:
+  - from: "."
+    for: ["*.mod"]
+    do:
+        - replace: "// replace github.com/aldesgroup/corego => ../../open/corego"
+          with: "replace github.com/aldesgroup/corego => ../../open/corego"
+          eofcom: true

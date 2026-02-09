@@ -36,15 +36,11 @@ func (thisServer *server) generateAllClasses(srcdir, currentPath string, _ bool,
 	// the path we're currently reading at e.g. go/pkg1/pkg2
 	readingPath := path.Join(srcdir, currentPath)
 
-	// reading the current directory
-	dirEntries, errDir := os.ReadDir(readingPath)
-	core.PanicMsgIfErr(errDir, "could not read '%s'", readingPath)
-
 	// are we currently dealing with a package with business objects ?
 	var currentPackage packageName
 
 	// going through the resources found withing the current directory
-	for _, entry := range dirEntries {
+	for _, entry := range core.EnsureReadDir(readingPath) {
 		if entry.IsDir() {
 			// not going into the vendor, nor the git folder obviously
 			if entry.Name() != "vendor" && entry.Name() != ".git" {

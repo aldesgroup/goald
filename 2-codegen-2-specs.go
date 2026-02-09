@@ -82,9 +82,7 @@ func (thisServer *server) generateAllObjectSpecs(srcdir string, regen bool) (cod
 	existingSpecsFiles := map[className]*specsFile{}
 
 	// so, let's read the class folder
-	specsEntries, errDir := os.ReadDir(specsDir)
-	core.PanicMsgIfErr(errDir, "Could not read the specs folder")
-	for _, specsEntry := range specsEntries {
+	for _, specsEntry := range core.EnsureReadDir(specsDir) {
 		specsEntryInfo, errInfo := specsEntry.Info()
 		core.PanicMsgIfErr(errInfo, "Could not read info for file '%s'", specsEntry.Name())
 		specsClassName := className(core.KebabToPascal(specsEntry.Name()[:len(specsEntry.Name())-specsFILExSUFFIXxLEN]))
