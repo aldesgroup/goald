@@ -96,7 +96,9 @@ func (thisReqCtx *httpRequestContext) serve(ep iEndpoint, w http.ResponseWriter,
 	}
 
 	// TODO do better - some "logging"
-	slog.Debug(fmt.Sprintf("Body: %s", string(webCtx.inputBodyBytes)))
+	if len(webCtx.inputBodyBytes) > 0 {
+		slog.Debug(fmt.Sprintf("Body: %s", string(webCtx.inputBodyBytes)))
+	}
 
 	// calling the endpoint's handler, which depends on its type
 	if ep.hasBodyOrParamsInput() {
@@ -175,7 +177,11 @@ func retrieveInputData(request *http.Request, webContext *webContextImpl, ep iEn
 
 	if ep.isMultipleInput() {
 		// Handling array of bObj input: []*package.BObj
-		bObjSlice := classRegistry.items[ep.getInputOrParamsClass()].NewSlice()
+		bObjClass := classRegistry.items[ep.getInputOrParamsClass()]
+		if bObjClass == nil {
+			return nil, Error("No '%s' class has been registered!", ep.getInputOrParamsClass())
+		}
+		bObjSlice := bObjClass.NewSlice()
 
 		// Unmarshaling *[]*package.BObj as an interface - which is expected by the Unmarshal function
 		if jsonErr := json.Unmarshal(inputBodyBytes, &bObjSlice); jsonErr != nil {
@@ -187,7 +193,11 @@ func retrieveInputData(request *http.Request, webContext *webContextImpl, ep iEn
 
 	} else {
 		// Handling single bObj input: *package.BObj
-		bObj := classRegistry.items[ep.getInputOrParamsClass()].NewObject()
+		bObjClass := classRegistry.items[ep.getInputOrParamsClass()]
+		if bObjClass == nil {
+			return nil, Error("No '%s' class has been registered!", ep.getInputOrParamsClass())
+		}
+		bObj := bObjClass.NewObject()
 
 		if jsonErr := json.Unmarshal(inputBodyBytes, bObj); jsonErr != nil {
 			return nil, ErrorC(jsonErr, "Could not unmarshall the JSON object!")

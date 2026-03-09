@@ -143,8 +143,12 @@ func writeRegistryFilesIfNeeded(srcdir string, allClassCoresInCode map[packageNa
 		// maybe we have to because of deleted ones!
 		if !needRegen {
 			for clsName, class := range classRegistry.items {
-				if class.getModule() == getCurrentModuleName() && allClassCoresInPackage[clsName] == nil {
+				if class.getModule() == getCurrentModuleName() &&
+					class.getPackage() == string(currentPackage) &&
+					allClassCoresInPackage[clsName] == nil {
+
 					needRegen = true
+
 					slog.Info(fmt.Sprintf("Business object '%s' has disappeared since the last generation!", clsName))
 
 					break

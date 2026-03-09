@@ -10,15 +10,15 @@ import (
 // Easier error wrapping
 // ------------------------------------------------------------------------------------------------
 
-func Error(msg string, params ...interface{}) error {
+func Error(msg string, params ...any) error {
 	return fmt.Errorf(msg, params...)
 }
 
-func ErrorC(cause error, msg string, params ...interface{}) error {
+func ErrorC(cause error, msg string, params ...any) error {
 	return fmt.Errorf(fmt.Sprintf(msg, params...)+" --==|| Cause: %w", cause)
 }
 
-func RecoverError(msg string, params ...interface{}) {
+func RecoverError(msg string, params ...any) {
 	if err := recover(); err != nil {
 		// TODO change
 		slog.Error(fmt.Sprintf(msg+". Cause: %v. Stack: \n%s", append(params, err, string(debug.Stack()))...))

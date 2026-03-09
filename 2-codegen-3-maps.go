@@ -58,6 +58,12 @@ func (thisServer *server) generateAllObjectValueMappers(srcdir, currentPath stri
 			if strings.HasSuffix(entry.Name(), sourceFILExSUFFIX) {
 				// getting the business object entry within this file, then the registred entry in the code
 				classCore := getClassFromFile(srcdir, currentPath, entry.Name())
+
+				if classCore == nil {
+					core.PanicMsg("It looks like there's no BusinessObject-derived struct in '%s/%s/%s'",
+						srcdir, currentPath, entry.Name())
+				}
+
 				class := classRegistry.items[classCore.class]
 
 				if class == nil {

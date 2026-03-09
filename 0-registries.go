@@ -4,6 +4,7 @@
 package goald
 
 import (
+	"path"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +24,7 @@ type IClassCore interface {
 	getModule() moduleName                                  // the application or library in which the associated BO is developed
 	setModule(module moduleName)                            // setting the module
 	getSrcPath() string                                     // source path of the associated Business Object
+	getPackage() string                                     // the name of the package the class is from
 	isInterface() bool                                      // tells if the class is a concrete one, or an interface
 	AsInterface() IClassCore                                // sets the class as an interface
 	GetValueAsString(IBusinessObject, string) string        // returning a BO's field's value, given the field's name
@@ -67,6 +69,10 @@ func (thisCore *classCore) getModule() moduleName {
 
 func (thisCore *classCore) getSrcPath() string {
 	return thisCore.srcPath
+}
+
+func (thisCore *classCore) getPackage() string {
+	return path.Base(thisCore.srcPath)
 }
 
 func (thisCore *classCore) isInterface() bool {

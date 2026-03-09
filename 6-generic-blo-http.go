@@ -12,106 +12,107 @@ import (
 	"net/http"
 	"time"
 
+	core "github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald/features/hstatus"
 )
 
 // interface & general methods
-type IExternalHttpRequest interface {
-	WithData(dataObj any) IExternalHttpRequest
-	WithTimeout(timeout time.Duration) IExternalHttpRequest
-	WithBasicAuth(user, pass string) IExternalHttpRequest
-	WithHeader(key, value string) IExternalHttpRequest
+type IOutgoingHttpRequest interface {
+	WithData(dataObj any) IOutgoingHttpRequest
+	WithTimeout(timeout time.Duration) IOutgoingHttpRequest
+	WithBasicAuth(user, pass string) IOutgoingHttpRequest
+	WithHeader(key, value string) IOutgoingHttpRequest
 }
 
-func newHttpReq[ResponseType any](method string, url string, responseObj *ResponseType) *externalHttpRequest[ResponseType] {
-	return &externalHttpRequest[ResponseType]{method: method, url: url, responseObj: responseObj, headers: map[string]string{}}
+func newHttpReq(method string, url string, failOnBadStatusCode bool) *outgoingHttpRequest {
+	return &outgoingHttpRequest{method: method, url: url, headers: map[string]string{}, failOnBadStatusCode: failOnBadStatusCode}
 }
 
-func HttpPost[ResponseType any](url string, responseObj *ResponseType) *externalHttpRequest[ResponseType] {
-	return newHttpReq(http.MethodPost, url, responseObj)
+func HttpPost(url string, failOnBadStatusCode bool) *outgoingHttpRequest {
+	return newHttpReq(http.MethodPost, url, failOnBadStatusCode)
 }
 
-func HttpGet[ResponseType any](url string, responseObj *ResponseType) *externalHttpRequest[ResponseType] {
-	return newHttpReq(http.MethodGet, url, responseObj)
+func HttpGet(url string, failOnBadStatusCode bool) *outgoingHttpRequest {
+	return newHttpReq(http.MethodGet, url, failOnBadStatusCode)
 }
 
-func HttpPut[ResponseType any](url string, responseObj *ResponseType) *externalHttpRequest[ResponseType] {
-	return newHttpReq(http.MethodPut, url, responseObj)
+func HttpPut(url string, failOnBadStatusCode bool) *outgoingHttpRequest {
+	return newHttpReq(http.MethodPut, url, failOnBadStatusCode)
 }
 
 // implementation
-type externalHttpRequest[ResponseType any] struct {
-	method      string
-	url         string
-	dataObj     any
-	timeout     time.Duration
-	user        string
-	pass        string
-	headers     map[string]string
-	responseObj *ResponseType
+type outgoingHttpRequest struct {
+	method              string
+	url                 string
+	dataObj             any
+	timeout             time.Duration
+	user                string
+	pass                string
+	headers             map[string]string
+	failOnBadStatusCode bool
 }
 
-func (thisCtx *externalHttpRequest[ResponseType]) WithData(dataObj any) *externalHttpRequest[ResponseType] {
-	thisCtx.dataObj = dataObj
-	return thisCtx
+func (thisReq *outgoingHttpRequest) WithData(dataObj any) *outgoingHttpRequest {
+	thisReq.dataObj = dataObj
+	return thisReq
 }
 
-func (thisCtx *externalHttpRequest[ResponseType]) WithTimeout(timeout time.Duration) *externalHttpRequest[ResponseType] {
-	thisCtx.timeout = timeout
-	return thisCtx
+func (thisReq *outgoingHttpRequest) WithTimeout(timeout time.Duration) *outgoingHttpRequest {
+	thisReq.timeout = timeout
+	return thisReq
 }
 
-func (thisCtx *externalHttpRequest[ResponseType]) WithBasicAuth(user, pass string) *externalHttpRequest[ResponseType] {
-	thisCtx.user = user
-	thisCtx.pass = pass
-	return thisCtx
+func (thisReq *outgoingHttpRequest) WithBasicAuth(user, pass string) *outgoingHttpRequest {
+	thisReq.user = user
+	thisReq.pass = pass
+	return thisReq
 }
 
-func (thisCtx *externalHttpRequest[ResponseType]) WithHeader(key, value string) *externalHttpRequest[ResponseType] {
-	thisCtx.headers[key] = value
-	return thisCtx
+func (thisReq *outgoingHttpRequest) WithHeader(key, value string) *outgoingHttpRequest {
+	thisReq.headers[key] = value
+	return thisReq
 }
 
-// main external HTTP request execution method
-func (thisCtx *externalHttpRequest[ResponseType]) Exec(failOnBadStatusCode bool) (*ResponseType, hstatus.Code, error) {
+// Runs a prepared Rest HTTP request to an external service, and fills the given object with the response body
+func HttpGetResponseAs[ResponseType any](outReq *outgoingHttpRequest, responseObj *ResponseType) (*ResponseType, hstatus.Code, error) {
 	// the object that's maybe being sent in the request body
 	var dataBuffer *bytes.Buffer
-	if thisCtx.dataObj != nil {
-		dataBytes, errMarsh := json.Marshal(thisCtx.dataObj)
+	if outReq.dataObj != nil {
+		dataBytes, errMarsh := json.Marshal(outReq.dataObj)
 		if errMarsh != nil {
-			return nil, hstatus.InternalServerError, ErrorC(errMarsh, "Could not marshall the request")
+			return nil, hstatus.InternalServerError, ErrorC(errMarsh, "Could not marshall the Aldes cloud request")
 		}
 		dataBuffer = bytes.NewBuffer(dataBytes)
 
 		// a bit of logging
 		// TODO do better
 		if true {
-			prettyJson, _ := json.MarshalIndent(thisCtx.dataObj, "", "	")
+			prettyJson, _ := json.MarshalIndent(outReq.dataObj, "", "	")
 			slog.Debug(fmt.Sprintf("Sending this data: %s", string(prettyJson)))
 		}
 	}
 
 	// initialising an HTTP request to send to the service
-	httpRequest, errReq := http.NewRequest(thisCtx.method, thisCtx.url, dataBuffer)
+	httpRequest, errReq := http.NewRequest(outReq.method, outReq.url, dataBuffer)
 	if errReq != nil {
 		return nil, hstatus.InternalServerError, ErrorC(errReq, "issue while initialising a request")
 	}
 
 	// initialising the connection
-	client := &http.Client{Timeout: thisCtx.timeout}
+	client := &http.Client{Timeout: outReq.timeout}
 
 	// adding basic authentication if required
-	if thisCtx.user != "" {
-		httpRequest.SetBasicAuth(thisCtx.user, thisCtx.pass)
+	if outReq.user != "" {
+		httpRequest.SetBasicAuth(outReq.user, outReq.pass)
 	}
 
 	// adding headers
-	for key, value := range thisCtx.headers {
+	for key, value := range outReq.headers {
 		httpRequest.Header.Add(key, value)
 	}
 
 	// processing the request by calling the remote URL using our client (and timing it)
-	slog.Debug(fmt.Sprintf("HTTP call: %s %s", thisCtx.method, thisCtx.url))
+	slog.Debug(fmt.Sprintf("HTTP call: %s %s", outReq.method, outReq.url))
 	resp, errResponse := client.Do(httpRequest)
 	if errResponse != nil {
 		return nil, hstatus.InternalServerError, ErrorC(errResponse, "Error while HTTP calling")
@@ -139,16 +140,31 @@ func (thisCtx *externalHttpRequest[ResponseType]) Exec(failOnBadStatusCode bool)
 
 	// reading the response status - should we fail on a bad status code, we don't even need to read the body
 	status := resp.StatusCode
-	if resp.StatusCode >= 400 && failOnBadStatusCode {
+	if resp.StatusCode >= 400 && outReq.failOnBadStatusCode {
 		slog.Error(fmt.Sprintf("Response body: %s", string(respBody)))
-		return nil, hstatus.For(status), Error("External service (%s) responded with a %d status code", thisCtx.url, status)
+		return nil, hstatus.For(status), Error("External service (%s) responded with a %d status code", outReq.url, status)
 	}
 
 	// unmarshalling the response
-	if errJSON := json.Unmarshal(respBody, thisCtx.responseObj); errJSON != nil {
+	if errJSON := json.Unmarshal(respBody, responseObj); errJSON != nil {
 		return nil, hstatus.InternalServerError, ErrorC(errJSON, "Could not unmarshal response body")
 	}
 
 	// returning the response as a concrete object
-	return thisCtx.responseObj, hstatus.For(status), nil
+	return responseObj, hstatus.For(status), nil
+}
+
+// Runs a prepared Rest HTTP request to an external service, and retrieves the Goald business object from the response
+func HttpGetBObject[ResponseType IBusinessObject](outReq *outgoingHttpRequest, responseObj ResponseType) (ResponseType, hstatus.Code, error) {
+	resp, status, err := HttpGetResponseAs(outReq, &response{Object: responseObj})
+	if err != nil {
+		return responseObj, status, err
+	}
+	return resp.Object.(ResponseType), status, err
+}
+
+// Runs a prepared Rest HTTP request to an external service, and retrieves the list of Goald business objects from the response
+func HttpGetBObjList[ResponseType IBusinessObject](outReq *outgoingHttpRequest, responseList []ResponseType) ([]ResponseType, hstatus.Code, error) {
+	resp, status, err := HttpGetResponseAs(outReq, &response{ObjectList: responseList})
+	return core.IfThenElse(resp == nil || resp.ObjectList == nil, responseList, resp.ObjectList.([]ResponseType)), status, err
 }

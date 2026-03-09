@@ -8,6 +8,6 @@ import (
 
 func init() {
 	g.In("goald").
-		Register(i18n.ClassForTranslation("features/i18n", "2025-06-11T16:02:52+02:00")).
-		Register(i18n.ClassForTranslationUrlParams("features/i18n", "2025-06-11T16:02:52+02:00"))
+		Register(i18n.ClassForTranslation("features/i18n", "2026-02-20T17:02:26+01:00")).
+		Register(i18n.ClassForTranslationUrlParams("features/i18n", "2026-02-20T17:02:26+01:00"))
 }

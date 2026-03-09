@@ -78,7 +78,8 @@ func openDB(conf *dbConfig) (*sql.DB, iDBAdapter) {
 	}
 
 	// Pinging
-	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	if errPing := db.PingContext(ctx); errPing != nil {
 		core.PanicMsg("Issue while testing the '%s' DB: %s", conf.DbID, errPing)
 	}
