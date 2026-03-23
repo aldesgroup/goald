@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	core "github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald/features/hstatus"
 	r "github.com/julienschmidt/httprouter"
 )
@@ -23,15 +24,42 @@ import (
 var reqCount int // to remove
 
 func (thisServer *server) ServeEndpoint(ep iEndpoint, w http.ResponseWriter, req *http.Request, params r.Params) {
-	// TODO requestHandler pool
+	var reqCtx *httpRequestContext
 
-	reqCtx := &httpRequestContext{
+	// Protecting against panics
+	// recovering from an error happening in THIS routine while calling the operation;
+	// THIS DOES NOT RECOVER what can happen in any sub-routine
+	defer func() {
+		// TODO limit this
+		if err := recover(); err != nil {
+			// unique ref
+			errorReference := core.RandomString(8)
+
+			// logging some details
+			reqBody := ""
+			if len(reqCtx.inputBodyBytes) > 0 {
+				reqBody = " with body: " + string(reqCtx.inputBodyBytes)
+			}
+			slog.Error(fmt.Sprintf("Internal error n°%s = '%v', while calling '%s'%s", errorReference, err, req.RequestURI, reqBody))
+
+			// responding to the client
+			reqCtx.write(&response{
+				statusObj: hstatus.InternalServerError,
+				Message:   fmt.Sprintf("Internal error n°%s", errorReference),
+			}, w)
+		}
+	}()
+
+	// TODO requestHandler pool
+	// TODO defer : requestHandler release
+
+	// TODO sync.Pool
+	reqCtx = &httpRequestContext{
 		server: thisServer,
 	}
 
 	reqCtx.serve(ep, w, req, params)
 
-	// TODO requestHandler release
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -54,6 +82,7 @@ func errResp(_ int, _ string, _ ...any) *response {
 
 // main HTTP SERVING function
 func (thisReqCtx *httpRequestContext) serve(ep iEndpoint, w http.ResponseWriter, req *http.Request, params r.Params) {
+
 	// TODO remove
 	reqCount++
 	prefix := fmt.Sprintf("%06d|%s", reqCount, thisReqCtx.instance) //
@@ -96,8 +125,13 @@ func (thisReqCtx *httpRequestContext) serve(ep iEndpoint, w http.ResponseWriter,
 	}
 
 	// TODO do better - some "logging"
+	// TODO only do this in verbose mode!
 	if len(webCtx.inputBodyBytes) > 0 {
-		slog.Debug(fmt.Sprintf("Body: %s", string(webCtx.inputBodyBytes)))
+		if trimTo := ep.trimBodyLoggingTo(); trimTo > 0 && len(webCtx.inputBodyBytes) > trimTo {
+			slog.Debug(fmt.Sprintf("Body: %s [...]", string(webCtx.inputBodyBytes)[:trimTo]))
+		} else {
+			slog.Debug(fmt.Sprintf("Body: %s", string(webCtx.inputBodyBytes)))
+		}
 	}
 
 	// calling the endpoint's handler, which depends on its type

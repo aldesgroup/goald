@@ -37,5 +37,12 @@ func (thisServer *server) IsProd() bool {
 // an HTTP request context proxies the main server, but also contains the info
 // specific to the currently handled HTTP request
 type httpRequestContext struct {
-	*server // proxying the server
+	*server               // proxying the server
+	targetRefOrID  string // the ID or ref, or whatever property value used to clearly identify a resource
+	inputBodyBytes []byte // keeping track of the incoming request body
+}
+
+func (thisReqCtx *httpRequestContext) withTargetRefOrID(targetRefOrID string) *httpRequestContext {
+	thisReqCtx.targetRefOrID = targetRefOrID
+	return thisReqCtx
 }

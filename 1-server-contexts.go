@@ -80,8 +80,6 @@ type webContextImpl struct {
 	*httpRequestContext // wrapping one of the server's children handling 1 request
 	ep                  iEndpoint
 	resource            IBusinessObjectSpecs
-	targetRefOrID       string // the ID or ref, or whatever property value used to clearly identify a resource
-	inputBodyBytes      []byte // keeping track of the incoming request body
 	bloContext          BloContext
 }
 
@@ -91,9 +89,8 @@ var _ WebContext = (*webContextImpl)(nil)
 func newWebContext(reqCtx *httpRequestContext, ep iEndpoint, targetRefOrID string) *webContextImpl {
 	return &webContextImpl{
 		appContextImpl:     &appContextImpl{},
-		httpRequestContext: reqCtx,
+		httpRequestContext: reqCtx.withTargetRefOrID(targetRefOrID),
 		ep:                 ep,
-		targetRefOrID:      targetRefOrID,
 	}
 }
 

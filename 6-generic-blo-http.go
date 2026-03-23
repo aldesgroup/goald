@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"time"
 
-	core "github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald/features/hstatus"
 )
 
@@ -141,7 +140,6 @@ func HttpGetResponseAs[ResponseType any](outReq *outgoingHttpRequest, responseOb
 	// reading the response status - should we fail on a bad status code, we don't even need to read the body
 	status := resp.StatusCode
 	if resp.StatusCode >= 400 && outReq.failOnBadStatusCode {
-		slog.Error(fmt.Sprintf("Response body: %s", string(respBody)))
 		return nil, hstatus.For(status), Error("External service (%s) responded with a %d status code", outReq.url, status)
 	}
 
@@ -157,7 +155,7 @@ func HttpGetResponseAs[ResponseType any](outReq *outgoingHttpRequest, responseOb
 // Runs a prepared Rest HTTP request to an external service, and retrieves the Goald business object from the response
 func HttpGetBObject[ResponseType IBusinessObject](outReq *outgoingHttpRequest, responseObj ResponseType) (ResponseType, hstatus.Code, error) {
 	resp, status, err := HttpGetResponseAs(outReq, &response{Object: responseObj})
-	if err != nil {
+	if err != nil || resp == nil || resp.Object == nil {
 		return responseObj, status, err
 	}
 	return resp.Object.(ResponseType), status, err
@@ -166,5 +164,8 @@ func HttpGetBObject[ResponseType IBusinessObject](outReq *outgoingHttpRequest, r
 // Runs a prepared Rest HTTP request to an external service, and retrieves the list of Goald business objects from the response
 func HttpGetBObjList[ResponseType IBusinessObject](outReq *outgoingHttpRequest, responseList []ResponseType) ([]ResponseType, hstatus.Code, error) {
 	resp, status, err := HttpGetResponseAs(outReq, &response{ObjectList: responseList})
-	return core.IfThenElse(resp == nil || resp.ObjectList == nil, responseList, resp.ObjectList.([]ResponseType)), status, err
+	if err != nil || resp == nil || resp.ObjectList == nil {
+		return responseList, status, err
+	}
+	return resp.ObjectList.([]ResponseType), status, err
 }

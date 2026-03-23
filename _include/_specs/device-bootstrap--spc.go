@@ -10,8 +10,12 @@ import (
 // static, reflect-free access to the definition of the DeviceBootstrap specs
 type deviceBootstrapSpecs struct {
 	g.IBusinessObjectSpecs
-	scopeID        *g.StringField
-	statusToRemove *g.StringField
+	status      *g.EnumField
+	retryAfter  *g.IntField
+	iotCertPEM  *g.StringField
+	iotChainPEM *g.StringField
+	deviceID    *g.StringField
+	scopeID     *g.StringField
 }
 
 // this is the main way to refer to the DeviceBootstrap specs in the applicative code
@@ -28,8 +32,12 @@ var (
 // fully describing each of this class' properties & relationships
 func newDeviceBootstrapSpecs() *deviceBootstrapSpecs {
 	newSpecs := &deviceBootstrapSpecs{IBusinessObjectSpecs: g.NewBusinessObjectSpecs()}
+	newSpecs.status = g.NewEnumField(newSpecs, "Status", false, "iot.BootstrapStatus")
+	newSpecs.retryAfter = g.NewIntField(newSpecs, "RetryAfter", false)
+	newSpecs.iotCertPEM = g.NewStringField(newSpecs, "IotCertPEM", false)
+	newSpecs.iotChainPEM = g.NewStringField(newSpecs, "IotChainPEM", false)
+	newSpecs.deviceID = g.NewStringField(newSpecs, "DeviceID", false)
 	newSpecs.scopeID = g.NewStringField(newSpecs, "ScopeID", false)
-	newSpecs.statusToRemove = g.NewStringField(newSpecs, "StatusToRemove", false)
 
 	return newSpecs
 }
@@ -46,10 +54,26 @@ func init() {
 
 // accessing all the DeviceBootstrap class' properties and relationships
 
-func (d *deviceBootstrapSpecs) ScopeID() *g.StringField {
-	return d.scopeID
+func (d *deviceBootstrapSpecs) Status() *g.EnumField {
+	return d.status
 }
 
-func (d *deviceBootstrapSpecs) StatusToRemove() *g.StringField {
-	return d.statusToRemove
+func (d *deviceBootstrapSpecs) RetryAfter() *g.IntField {
+	return d.retryAfter
+}
+
+func (d *deviceBootstrapSpecs) IotCertPEM() *g.StringField {
+	return d.iotCertPEM
+}
+
+func (d *deviceBootstrapSpecs) IotChainPEM() *g.StringField {
+	return d.iotChainPEM
+}
+
+func (d *deviceBootstrapSpecs) DeviceID() *g.StringField {
+	return d.deviceID
+}
+
+func (d *deviceBootstrapSpecs) ScopeID() *g.StringField {
+	return d.scopeID
 }

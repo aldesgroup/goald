@@ -7,16 +7,12 @@ import (
 
 type DeviceBootstrap struct {
 	goald.BusinessObject
-	ScopeID        string
-	StatusToRemove string
-	// {
-	//   "status": "ready|pending|denied",
-	//   "signedCert": "pem",
-	//   "caChain": "pem",
-	//   "scopeId": "string",
-	//   "deviceId": "string",
-	//   "retryAfter": 5      // secondes (optionnel si pending)
-	// }
+	Status      BootstrapStatus
+	IotCertPEM  string // once the bootstrap is done in the provisioning service
+	IotChainPEM string // once the bootstrap is done in the provisioning service
+	DeviceID    string // once the bootstrap is done in the provisioning service
+	ScopeID     string // once the bootstrap is done in the provisioning service
+	// RetryAfter  int    // in seconds
 }
 
 func init() {

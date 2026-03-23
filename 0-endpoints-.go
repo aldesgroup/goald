@@ -28,6 +28,7 @@ type iEndpoint interface {
 	getInputOrParamsClass() className
 	isCalledFromWebApp() bool
 	isCalledFromNativeApp() bool
+	trimBodyLoggingTo() int
 	returnOne(webCtx WebContext) (any, hstatus.Code, string)
 	returnMany(webCtx WebContext) (any, hstatus.Code, string)
 	returnOneForOne(webCtx WebContext, input any) (any, hstatus.Code, string)
@@ -53,6 +54,7 @@ type endpoint[ResourceType IBusinessObject] struct {
 	inputOrParamsClass  className   // if bodyInputRequired = true, then this is the type of the input
 	calledFromWebApp    bool        // if true then this endpoint can be called from the webapp, so the BOs involved might be synced through codegen
 	calledFromNativeApp bool        // if true then this endpoint can be called from the native app, so the BOs involved might be synced through codegen
+	logBodyFirstCharsNb int         // if > 0, we're logging only the n-th first chars of the body, not it's entirety
 }
 
 func (ep *endpoint[ResourceType]) getMethod() string {
@@ -119,6 +121,10 @@ func (ep *endpoint[ResourceType]) isCalledFromWebApp() bool {
 
 func (ep *endpoint[ResourceType]) isCalledFromNativeApp() bool {
 	return ep.calledFromNativeApp
+}
+
+func (ep *endpoint[ResourceType]) trimBodyLoggingTo() int {
+	return ep.logBodyFirstCharsNb
 }
 
 func (ep *endpoint[ResourceType]) returnOne(webCtx WebContext) (any, hstatus.Code, string) {
@@ -222,6 +228,13 @@ func (thisEndpoint *endpoint[ResourceType]) SetCalledFromNativeApp() *endpoint[R
 	if thisEndpoint.inputOrParamsClass != "" {
 		specsForName(thisEndpoint.inputOrParamsClass).base().usedInNativeApp = true
 	}
+
+	return thisEndpoint
+}
+
+// Avoid too many logs
+func (thisEndpoint *endpoint[ResourceType]) TrimBodyLogging(trimTo int) *endpoint[ResourceType] {
+	thisEndpoint.logBodyFirstCharsNb = trimTo
 
 	return thisEndpoint
 }
