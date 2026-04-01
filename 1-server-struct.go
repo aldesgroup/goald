@@ -11,6 +11,7 @@ import r "github.com/julienschmidt/httprouter"
 
 type server struct {
 	instance string // TODO remove
+	port     int
 	config   IServerConfig
 	router   *r.Router
 }
@@ -20,14 +21,9 @@ func (thisServer *server) CustomConfig() ICustomConfig {
 	return thisServer.config.CustomConfig()
 }
 
-// Shortcut; true if the 'Env' config item is "dev"
-func (thisServer *server) IsDev() bool {
-	return thisServer.config.commonPart().envAsType == envTypeDEV
-}
-
-// Shortcut; true if the 'Env' config item is "prod"
-func (thisServer *server) IsProd() bool {
-	return thisServer.config.commonPart().envAsType == envTypePROD
+// Shortcut; true if the 'EnvType' config item is "LOCAL"
+func (thisServer *server) IsLocal() bool {
+	return thisServer.config.base().envTypeVal == envTypeLOCAL
 }
 
 // ------------------------------------------------------------------------------------------------

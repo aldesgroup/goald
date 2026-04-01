@@ -31,6 +31,7 @@ func NewServer() ServerContext {
 	var nativedir string // if codegen > 0, this is where to find the native app source code, if any
 	var regen bool       // if true, then all the generated code is regenerated
 	var bindir string    // if codegen > 0, this is where to find the compilated code
+	var port int         // if the server is to listen to HTTP requests, then the port must be provided
 
 	flag.StringVar(&confPath, "config", "", "the path to the config file")
 	flag.StringVar(&srcdir, "srcdir", "api", "where to find all the Go code, from the project's root")
@@ -40,6 +41,7 @@ func NewServer() ServerContext {
 	flag.StringVar(&nativedir, "nativedir", "webapp", "where to find all the Native app code, from the project's root")
 	flag.BoolVar(&regen, "regen", false, "forces the code regeneration")
 	flag.StringVar(&bindir, "bindir", "bin", "where to find the compilated code")
+	flag.IntVar(&port, "port", 0, "the port to listen to HTTP requests")
 	flag.Parse()
 
 	// reading the config file
@@ -48,6 +50,7 @@ func NewServer() ServerContext {
 	// new server
 	server := &server{
 		config:   serverConfig,
+		port:     port,
 		instance: core.RandomString(3), // TODO remove ?
 	}
 
@@ -60,12 +63,12 @@ func NewServer() ServerContext {
 	}
 
 	// performing some checks on the code - but only in dev mode of course
-	if server.IsDev() {
+	if server.IsLocal() {
 		server.runCodeChecks()
 	}
 
 	// initialising the DBs
-	for _, dbConfig := range serverConfig.commonPart().Databases {
+	for _, dbConfig := range serverConfig.base().Databases {
 		initAndRegisterDB(dbConfig)
 	}
 
@@ -96,29 +99,26 @@ func NewServer() ServerContext {
 // Initialising the routes
 // ------------------------------------------------------------------------------------------------
 
+const apiPath = "/rest"
+
 func (thisServer *server) initRoutes() {
-	// no HTTP configured? Let's WARN about it
-	if thisServer.config.commonPart().HTTP == nil {
-		core.PanicMsg("No \"HTTP\" section configured!")
-	}
+	// // no HTTP configured? Let's WARN about it
+	// if thisServer.config.base().HTTP == nil {
+	// 	core.PanicMsg("No \"HTTP\" section configured!")
+	// }
 
 	// new router
 	thisServer.router = httprouter.New()
 	thisServer.router.RedirectTrailingSlash = false
 
 	// configuring & adding the REST API endpoints - should we have to serve an API
-	apiPath := thisServer.config.commonPart().HTTP.ApiPath
-	if apiPath != "" {
-		for _, endpoint := range restRegistry.endpoints {
-			slog.Info(fmt.Sprintf("Serving: %s %s", endpoint.getMethod(), apiPath+endpoint.getFullPath()))
-			thisServer.router.Handle(endpoint.getMethod(), apiPath+endpoint.getFullPath(), thisServer.handleFor(endpoint))
-		}
-	} else {
-		core.PanicMsg("No path provided for the API!")
+	for _, endpoint := range restRegistry.endpoints {
+		slog.Info(fmt.Sprintf("Serving: %s %s", endpoint.getMethod(), apiPath+endpoint.getFullPath()))
+		thisServer.router.Handle(endpoint.getMethod(), apiPath+endpoint.getFullPath(), thisServer.handleFor(endpoint))
 	}
 
 	// configuring the static routes TODO not used for now
-	// for _, route := range thisServer.config.commonPart().HTTP.StaticRoutes {
+	// for _, route := range thisServer.config.base().HTTP.StaticRoutes {
 	// 	if fileToServe := route.ServeFile; fileToServe != "" {
 	// 		thisServer.router.HandlerFunc(http.MethodGet, route.For, func(w http.ResponseWriter, r *http.Request) { // e.g.: "/"
 	// 			slog.Debug(fmt.Sprintf("Serving file %s for %s", fileToServe, r.URL.Path))
@@ -164,6 +164,7 @@ func (thisServer *server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 func (thisServer *server) Start() {
 	// TODO check the configured host / port, etc
+	core.PanicMsgIf(thisServer.port == 0, "No --port provided!")
 
 	// TODO fill the requestHandler pool
 
@@ -175,9 +176,8 @@ func (thisServer *server) Start() {
 	// TODO set router PanicHandler
 
 	// listening to HTTP requests (blocking process)
-	port := thisServer.config.commonPart().HTTP.Port
-	addr := fmt.Sprintf(":%d", port)
-	slog.Info(fmt.Sprintf("Serving at: http://localhost:%d/", port))
+	addr := fmt.Sprintf(":%d", thisServer.port)
+	slog.Info(fmt.Sprintf("Serving at: http://localhost:%d/", thisServer.port))
 	if errListen := http.ListenAndServe(addr, thisServer); errListen != nil && errListen != http.ErrServerClosed {
 		core.PanicMsgIfErr(errListen, "Could not start the server!")
 	}

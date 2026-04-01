@@ -3,6 +3,12 @@
 // ------------------------------------------------------------------------------------------------
 package goald
 
+import (
+	"strings"
+
+	core "github.com/aldesgroup/corego"
+)
+
 // ------------------------------------------------------------------------------------------------
 // the environment type for the currently running app
 // ------------------------------------------------------------------------------------------------
@@ -11,15 +17,17 @@ package goald
 type envType int
 
 const (
-	envTypeDEV  envType = -1
-	envTypeTEST envType = 1
-	envTypePROD envType = 2
+	envTypeLOCAL      envType = -2
+	envTypeSANDBOX    envType = -1
+	envTypeSTAGING    envType = 1
+	envTypePRODUCTION envType = 2
 )
 
 var envTypes = map[int]string{
-	int(envTypeDEV):  "dev",
-	int(envTypeTEST): "test",
-	int(envTypePROD): "prod",
+	int(envTypeLOCAL):      "LOCAL",
+	int(envTypeSANDBOX):    "SANDBOX",
+	int(envTypeSTAGING):    "STAGING",
+	int(envTypePRODUCTION): "PRODUCTION",
 }
 
 func (thisEnvType envType) String() string {
@@ -36,12 +44,14 @@ func (thisEnvType envType) Values() map[int]string {
 	return envTypes
 }
 
-func envTypeFrom(value string) envType {
+func envTypeValFrom(value string) envType {
 	for eT, label := range envTypes {
 		if label == value {
 			return envType(eT)
 		}
 	}
 
+	core.PanicMsg("There's no env type named '%s'. Possible values are: %s",
+		value, strings.Join(core.GetSortedValues(envTypes), ", "))
 	return 0
 }

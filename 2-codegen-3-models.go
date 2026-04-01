@@ -108,7 +108,7 @@ func (thisServer *server) generateClientAppModel(destdir string, ep iEndpoint, u
 	}
 
 	// getting the file content - which might be empty if the file does not exist yet
-	code := parseCode(filepath).initFixedBlocks(modelName, thisServer.config.commonPart().HTTP.ApiPath+ep.getFullPath(), isWebapp)
+	code := parseCode(filepath).initFixedBlocks(modelName, apiPath+ep.getFullPath(), isWebapp)
 
 	// browsing the entity's properties to fill the get / set cases in the 2 switch
 	for _, field := range boFields {

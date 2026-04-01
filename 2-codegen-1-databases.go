@@ -43,10 +43,10 @@ func (thisServer *server) generateDatabasesList(srcdir string) {
 	// starting to build the file content, with the same context
 	content := `package db`
 
-	if len(thisServer.config.commonPart().Databases) > 0 {
+	if len(thisServer.config.base().Databases) > 0 {
 		content += dbFILExINIT
 
-		for _, dbConfig := range thisServer.config.commonPart().Databases {
+		for _, dbConfig := range thisServer.config.base().Databases {
 			dbParagraph := strings.ReplaceAll(dbTEMPLATE, "$$dbID$$", core.PascalToCamel(string(dbConfig.DbID)))
 			dbParagraph = strings.ReplaceAll(dbParagraph, "$$DbID$$", core.ToPascal(string(dbConfig.DbID)))
 			dbParagraph = strings.ReplaceAll(dbParagraph, "$$realDbID$$", string(dbConfig.DbID))
