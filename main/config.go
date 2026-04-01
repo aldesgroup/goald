@@ -4,12 +4,12 @@ import g "github.com/aldesgroup/goald"
 
 func init() {
 	g.RegisterConfig(&goaldConfig{
-		ICommonConfig: g.NewCommonConfig(),
+		IBaseConfig: g.NewBaseConfig(),
 	})
 }
 
 type goaldConfig struct {
-	g.ICommonConfig `json:"Common"`
+	g.IBaseConfig `json:"base"`
 	// no custom config for now
 }
 

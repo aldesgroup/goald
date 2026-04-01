@@ -1,13 +1,7 @@
 # Goald
 
-Code-first, model-driven opiniated backend framework to cleanly CRUD business objects in a snap, with automatic generation of reflect-free code to have more time to spend on smart stuff (phew!).
-
-**Will soon be documented** (with VuePress or SveltePress).
-
-## Content
-
-The Go code at the root of this project is the **core** of `Goald`. Additional features can be found... well, in [features](./features).
+Goald is part of a framework called [Devotion](https://aldesgroup.github.io/devotion) and is documented [there](https://aldesgroup.github.io/devotion/docs/goald/).
 
 ## License
 
-[MIT](https://opensource.org/license/mit/)
+This project is licensed under the terms of the license included in the repository.

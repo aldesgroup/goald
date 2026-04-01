@@ -16,39 +16,39 @@ import (
 // ------------------------------------------------------------------------------------------------
 
 type IServerConfig interface {
-	ICommonConfig
+	IBaseConfig
 	CustomConfig() ICustomConfig // the applicative, custom part of the config
 }
 
-type ICommonConfig interface {
-	commonPart() *serverConfig // the common, generic part of the config
+type IBaseConfig interface {
+	base() *serverConfig // the common, generic part of the config
 }
 
 type ICustomConfig interface {
 	// nothing for now
 }
 
-func NewCommonConfig() *serverConfig {
+func NewBaseConfig() *serverConfig {
 	return &serverConfig{}
 }
 
 type serverConfig struct {
-	Env         string
-	HTTP        *httpConfig
+	// HTTP        *httpConfig
+	EnvType     string
 	Databases   []*dbConfig
 	DataLoaders map[string]map[string]string
 
 	// technical props
-	envAsType envType
+	envTypeVal envType
 }
 
 type DatabaseID string
 
-type httpConfig struct {
-	Port         int
-	ApiPath      string
-	StaticRoutes []*staticRouteConfig
-}
+// type httpConfig struct {
+// 	// Port int
+// 	// ApiPath      string
+// 	StaticRoutes []*staticRouteConfig
+// }
 
 type staticRouteConfig struct {
 	For       string
@@ -100,17 +100,14 @@ func readAndCheckConfig(fromPath string) IServerConfig {
 		"Could not unmarshal the config file at path '%s'", fromPath)
 
 	// controlling the common config
-	config := configObj.commonPart()
+	config := configObj.base()
 
-	// Checking the env type
-	if config.envAsType = envTypeFrom(config.Env); config.envAsType == 0 {
-		core.PanicMsg("the 'Env' config item (\"%s\") is not set, or not one of these values: dev, test, prod",
-			config.Env)
-	}
+	// Parsing the env type
+	config.envTypeVal = envTypeValFrom(config.EnvType)
 
 	return configObj
 }
 
-func (thisConf *serverConfig) commonPart() *serverConfig {
+func (thisConf *serverConfig) base() *serverConfig {
 	return thisConf
 }

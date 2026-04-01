@@ -42,7 +42,7 @@ func (thisServer *server) loadData(migrationPhase bool) {
 			defer func() { slog.Info(fmt.Sprintf("Runner '%s' finished in %s", fnNameArg, time.Since(startTime))) }()
 
 			// actual
-			if errLoad := dataLoadingFnArg(thisServer, thisServer.config.commonPart().DataLoaders[fnNameArg]); errLoad != nil {
+			if errLoad := dataLoadingFnArg(thisServer, thisServer.config.base().DataLoaders[fnNameArg]); errLoad != nil {
 				errorMx.Lock()
 				errors[fnNameArg] = errLoad
 				errorMx.Unlock()
