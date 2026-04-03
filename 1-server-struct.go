@@ -3,7 +3,10 @@
 // ------------------------------------------------------------------------------------------------
 package goald
 
-import r "github.com/julienschmidt/httprouter"
+import (
+	core "github.com/aldesgroup/corego"
+	r "github.com/julienschmidt/httprouter"
+)
 
 // ------------------------------------------------------------------------------------------------
 // Server & methods
@@ -23,7 +26,7 @@ func (thisServer *server) CustomConfig() ICustomConfig {
 
 // Shortcut; true if the 'EnvType' config item is "LOCAL"
 func (thisServer *server) IsLocal() bool {
-	return thisServer.config.base().envTypeVal == envTypeLOCAL
+	return thisServer.config.base().envTypeVal == core.EnvTypeLOCAL
 }
 
 // ------------------------------------------------------------------------------------------------

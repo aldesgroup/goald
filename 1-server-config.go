@@ -39,7 +39,7 @@ type serverConfig struct {
 	DataLoaders map[string]map[string]string
 
 	// technical props
-	envTypeVal envType
+	envTypeVal core.EnvType
 }
 
 type DatabaseID string
@@ -93,7 +93,6 @@ func readAndCheckConfig(fromPath string) IServerConfig {
 	// YAML -> JSON transformation, because JSON unmarshalling is better
 	jsonBytes, errJson := yaml.YAMLToJSON(yamlBytes)
 	core.PanicMsgIfErr(errJson, "Could not convert YAML to JSON '%s'", fromPath)
-
 	// Unmarshalling the YAML file
 	core.PanicMsgIfErr(errRead, "Could not read config file at path '%s'", fromPath)
 	core.PanicMsgIfErr(json.Unmarshal(jsonBytes, configObj),
@@ -103,7 +102,7 @@ func readAndCheckConfig(fromPath string) IServerConfig {
 	config := configObj.base()
 
 	// Parsing the env type
-	config.envTypeVal = envTypeValFrom(config.EnvType)
+	config.envTypeVal = core.EnvTypeValFrom(config.EnvType)
 
 	return configObj
 }
