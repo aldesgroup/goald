@@ -2,7 +2,7 @@ package iot
 
 import (
 	"github.com/aldesgroup/goald"
-	specs "github.com/aldesgroup/goald/_include/_specs"
+	"github.com/aldesgroup/goald/_include/iot/model"
 )
 
 type DeviceBootstrapPayload struct {
@@ -14,5 +14,5 @@ type DeviceBootstrapPayload struct {
 }
 
 func init() {
-	specs.DeviceBootstrapPayload().SetNotPersisted() // TDO change
+	model.DeviceBootstrapPayload().SetNotPersisted() // TDO change
 }

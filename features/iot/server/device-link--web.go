@@ -2,7 +2,7 @@ package server
 
 import (
 	g "github.com/aldesgroup/goald"
-	specs "github.com/aldesgroup/goald/_include/_specs"
+	"github.com/aldesgroup/goald/_include/iot/model"
 	"github.com/aldesgroup/goald/features/hstatus"
 	"github.com/aldesgroup/goald/features/iot"
 )
@@ -12,7 +12,7 @@ func init() {
 		At("link").
 		Label("Allows a user to link to a device, bootstrapping it if it's not enrolled yet")
 
-	g.GetOne(handleGetDevice, "").TargetWith(specs.Device().Serial())
+	g.GetOne(handleGetDevice, "").TargetWith(model.Device().Serial())
 }
 
 func handleLinkDevice(webCtx g.WebContext, req *iot.DeviceLinkRequest) (*iot.Device, hstatus.Code, string) {

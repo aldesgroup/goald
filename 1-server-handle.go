@@ -250,7 +250,7 @@ func retrieveURLParams(request *http.Request, _ *webContextImpl, ep iEndpoint) (
 	urlParams := classUtils.NewObject().(IURLQueryParams)
 
 	// transferring the URL param values from the URL to the object
-	for _, field := range specsForName(ep.getInputOrParamsClass()).base().fields {
+	for _, field := range modelForName(ep.getInputOrParamsClass()).base().fields {
 		valueToSet := request.URL.Query().Get(field.getName())
 		if valueToSet == "" {
 			valueToSet = field.getDefaultValue()

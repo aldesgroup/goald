@@ -16,8 +16,8 @@ import (
 	"github.com/aldesgroup/goald/features/utils"
 )
 
-const specsTEMPLATE = `// Generated file, do not edit!
-package specs
+const modelTEMPLATE = `// Generated file, do not edit!
+package model
 
 import (
 	"sync"
@@ -25,35 +25,35 @@ import (
 	g "github.com/aldesgroup/goald"
 )
 
-// static, reflect-free access to the definition of the $$Upper$$ specs
-type $$lower$$Specs struct {
+// static, reflect-free access to the definition of the $$Upper$$ model
+type $$lower$$Model struct {
 $$propdecl$$
 }
 
-// this is the main way to refer to the $$Upper$$ specs in the applicative code
-func $$Upper$$() *$$lower$$Specs {
+// this is the main way to refer to the $$Upper$$ model in the applicative code
+func $$Upper$$() *$$lower$$Model {
 	return $$lower$$
 }
 
 // internal variables
-var $$lower$$ *$$lower$$Specs
+var $$lower$$ *$$lower$$Model
 var $$lower$$Once sync.Once
 
 // fully describing each of this class' properties & relationships
-func new$$Upper$$Specs() *$$lower$$Specs {
+func new$$Upper$$Model() *$$lower$$Model {
 	$$propinit$$
 
-	return newSpecs
+	return newModel
 }
 
-// making sure the $$Upper$$ specs exists at app startup
+// making sure the $$Upper$$ model exists at app startup
 func init() {
 	$$lower$$Once.Do(func() {
-		$$lower$$ = new$$Upper$$Specs()
+		$$lower$$ = new$$Upper$$Model()
 	})
 
-	// this helps dynamically access to the $$Upper$$ specs
-	g.RegisterSpecs("$$Upper$$", $$lower$$)
+	// this helps dynamically access to the $$Upper$$ model
+	g.RegisterModel("$$Upper$$", $$lower$$)
 }
 
 // accessing all the $$Upper$$ class' properties and relationships
@@ -62,68 +62,79 @@ $$accessors$$
 
 `
 
-const specsFOLDER = "_include/_specs"
-const specsFILExSUFFIX = "--spc.go"
-const specsFILExSUFFIXxLEN = len(specsFILExSUFFIX)
-const specsNAMExSUFFIX = "Specs"
+const modelFOLDERxNAME = "model"
+const modelFILExSUFFIX = "--mdl.go"
+const modelFILExSUFFIXxLEN = len(modelFILExSUFFIX)
+const modelNAMExSUFFIX = "Model"
 const newline = "\n"
 
-func (thisServer *server) generateAllObjectSpecs(srcdir string, regen bool) (codeChanged bool) {
+func (thisServer *server) generateAllObjectModels(srcdir string, regen bool) (codeChanged bool) {
 	// a type just used here
-	type specsFile struct {
+	type modelFile struct {
 		modTime  time.Time
 		filename string
 	}
 
-	// where the class files will be generated
-	specsDir := core.EnsureDir(srcdir, specsFOLDER)
+	// iterating over each package for which we've already got a registry
+	for _, modelDirEntry := range core.EnsureReadDir(srcdir, includePATH) {
 
-	// we'll gather all the existing class files
-	existingSpecsFiles := map[className]*specsFile{}
+		// where the model files will be generated
+		modelDir := core.EnsureDir(srcdir, includePATH, modelDirEntry.Name(), modelFOLDERxNAME)
 
-	// so, let's read the class folder
-	for _, specsEntry := range core.EnsureReadDir(specsDir) {
-		specsEntryInfo, errInfo := specsEntry.Info()
-		core.PanicMsgIfErr(errInfo, "Could not read info for file '%s'", specsEntry.Name())
-		specsClassName := className(core.KebabToPascal(specsEntry.Name()[:len(specsEntry.Name())-specsFILExSUFFIXxLEN]))
-		existingSpecsFiles[specsClassName] = &specsFile{
-			modTime:  specsEntryInfo.ModTime(),
-			filename: specsEntry.Name(),
-		}
-	}
+		// we'll gather all the existing class files
+		existingModelFiles := map[className]*modelFile{}
 
-	// let's see what we have in terms of business objects
-	for name, class := range classRegistry.items {
-		// considering only the business objects of THIS module
-		// and no interface (at least for now)
-		if class.getModule() == getCurrentModuleName() && !class.isInterface() {
-			// do we need to regen the class file?
-			if existingSpecs := existingSpecsFiles[name]; regen ||
-				existingSpecs == nil || existingSpecs.modTime.Before(class.getLastBOMod()) {
-				// generating the missing or outdated class
-				generateOneSpecs(specsDir, class)
-
-				// the code has changed
-				codeChanged = true
+		// so, let's read the model folders
+		for _, modelEntry := range core.EnsureReadDir(modelDir) {
+			modelEntryInfo, errInfo := modelEntry.Info()
+			core.PanicMsgIfErr(errInfo, "Could not read info for file '%s'", modelEntry.Name())
+			modelClassName := className(core.KebabToPascal(modelEntry.Name()[:len(modelEntry.Name())-modelFILExSUFFIXxLEN]))
+			existingModelFiles[modelClassName] = &modelFile{
+				modTime:  modelEntryInfo.ModTime(),
+				filename: modelEntry.Name(),
 			}
-
-			// flagging this business object class as NOT unneeded (i.e. needed)
-			delete(existingSpecsFiles, name)
 		}
-	}
 
-	// removing the unneeded classes
-	for _, unneededSpecs := range existingSpecsFiles {
-		slog.Info(fmt.Sprintf("removing %s", unneededSpecs.filename))
-		if errRem := os.Remove(path.Join(specsDir, unneededSpecs.filename)); errRem != nil {
-			core.PanicMsgIfErr(errRem, "Could not delete class file '%s'", unneededSpecs.filename)
+		// let's see what we have in terms of business objects
+		for name, class := range classRegistry.items {
+			// considering only the business objects of THIS module
+			// and no interface (at least for now)
+			if class.getModule() == getCurrentModuleName() && class.getPackage() == modelDirEntry.Name() && !class.isInterface() {
+				// do we need to regen the class file?
+				if existingModel := existingModelFiles[name]; regen ||
+					existingModel == nil || existingModel.modTime.Before(class.getLastBOMod()) {
+					// generating the missing or outdated class
+					generateOneModel(modelDir, class)
+
+					// the code has changed
+					codeChanged = true
+				}
+
+				// flagging this business object class as NOT unneeded (i.e. needed)
+				delete(existingModelFiles, name)
+			}
+		}
+
+		// removing the unneeded classes
+		for _, unneededModel := range existingModelFiles {
+			slog.Info(fmt.Sprintf("removing %s", unneededModel.filename))
+			if errRem := os.Remove(path.Join(modelDir, unneededModel.filename)); errRem != nil {
+				core.PanicMsgIfErr(errRem, "Could not delete class file '%s'", unneededModel.filename)
+			}
+		}
+
+		// let's make the
+		if codeChanged {
+			filename := path.Join(srcdir, includePATH, modelDirEntry.Name(), sourceREGISTRYxNAME)
+			modelsImportPath := "_ \"" + path.Join(getCurrentModule(), includePATH, modelDirEntry.Name(), modelFOLDERxNAME) + "\""
+			core.ReplaceInFile(filename, map[string]string{importPLACEHOLDER: modelsImportPath}) // TODO : test cross imports
 		}
 	}
 
 	return
 }
 
-type specsGenerationContext struct {
+type modelGenerationContext struct {
 	superType     utils.GoaldType
 	propertyNames []string
 	propertiesMap map[string]classGenPropertyInfo
@@ -136,13 +147,13 @@ type classGenPropertyInfo struct {
 	targetTypes []string
 }
 
-func generateOneSpecs(specsDir string, class IClass) {
+func generateOneModel(modelDir string, class IClass) {
 	// starting to build the file content, with the same context
-	context := &specsGenerationContext{propertiesMap: map[string]classGenPropertyInfo{}}
+	context := &modelGenerationContext{propertiesMap: map[string]classGenPropertyInfo{}}
 
 	// trivial filling of the template
 	clsName := string(class.getClassName())
-	content := strings.ReplaceAll(specsTEMPLATE, "$$Upper$$", clsName)
+	content := strings.ReplaceAll(modelTEMPLATE, "$$Upper$$", clsName)
 	content = strings.ReplaceAll(content, "$$lower$$", core.PascalToCamel(clsName))
 
 	// declaring the properties of the classe
@@ -155,13 +166,13 @@ func generateOneSpecs(specsDir string, class IClass) {
 	content = strings.Replace(content, "$$accessors$$", buildAccessors(class, context), 1)
 
 	// writing to file
-	core.WriteToFile(content, specsDir, core.PascalToKebab(clsName)+specsFILExSUFFIX)
+	core.WriteToFile(content, modelDir, core.PascalToKebab(clsName)+modelFILExSUFFIX)
 
-	slog.Info(fmt.Sprintf("(Re-)generated class %s", clsName))
+	slog.Info(fmt.Sprintf("(Re-)generated model %s", clsName))
 }
 
-// this function helps declare 1 property (field or relationship) in the declaration of the specs type
-func buildPropDecl(class IClass, context *specsGenerationContext) (result string) {
+// this function helps declare 1 property (field or relationship) in the declaration of the model type
+func buildPropDecl(class IClass, context *modelGenerationContext) (result string) {
 	// getting the object's type
 	bObjType := utils.TypeOf(class.NewObject(), true)
 
@@ -173,11 +184,11 @@ func buildPropDecl(class IClass, context *specsGenerationContext) (result string
 	}
 
 	if context.superType = superClassField.Type(); context.superType.Equals(typeBUSINESSxOBJECT) {
-		result += "g.IBusinessObjectSpecs"
+		result += "g.IBusinessObjectModel"
 	} else if context.superType.Equals(typeURLxQUERYxOBJECT) {
-		result += "g.IURLQueryParamsSpecs"
+		result += "g.IURLQueryParamsModel"
 	} else {
-		result += "" + core.PascalToCamel(superClassField.Type().Name()) + specsNAMExSUFFIX
+		result += "" + core.PascalToCamel(superClassField.Type().Name()) + modelNAMExSUFFIX
 	}
 
 	// browsing the entity's properties
@@ -207,10 +218,10 @@ func buildPropDecl(class IClass, context *specsGenerationContext) (result string
 				targetType = field.Type().String()
 			}
 
-			// keeping track of the property's characteristics - this will be of use in the init function of the Specs object
+			// keeping track of the property's characteristics - this will be of use in the init function of the Model object
 			context.propertiesMap[field.Name()] = classGenPropertyInfo{typeFamily, multiple, targetType, targetTypes}
 
-			// writing out the property's declaration inside the Specs object it belong to
+			// writing out the property's declaration inside the Model object it belong to
 			if typeFamily.IsRelationship() {
 				result += newline + "" + core.PascalToCamel(field.Name()) + " *g.Relationship"
 			} else {
@@ -245,31 +256,31 @@ func getFieldForType(typeFamily utils.TypeFamily) string {
 	}
 }
 
-// This function builds the line that helps initialise a specs instance, for 1 property
-func buildPropInit(class IClass, context *specsGenerationContext) string {
+// This function builds the line that helps initialise a model instance, for 1 property
+func buildPropInit(class IClass, context *modelGenerationContext) string {
 	// the class as a variable
 	className := core.PascalToCamel(string(class.getClassName()))
 
 	// dealing with the class initialisation
-	specsInit := "newSpecs := &" + className + specsNAMExSUFFIX + "{%s: %s}"
-	superSpecsDecl := "IBusinessObjectSpecs"
-	superSpecsValue := "g.NewBusinessObjectSpecs()"
+	modelInit := "newModel := &" + className + modelNAMExSUFFIX + "{%s: %s}"
+	superModelDecl := "IBusinessObjectModel"
+	superModelValue := "g.NewBusinessObjectModel()"
 	if context.superType.Equals(typeURLxQUERYxOBJECT) {
-		superSpecsDecl = "IURLQueryParamsSpecs"
-		superSpecsValue = "g.NewURLQueryParamsSpecs()"
+		superModelDecl = "IURLQueryParamsModel"
+		superModelValue = "g.NewURLQueryParamsModel()"
 	} else if !context.superType.Equals(typeBUSINESSxOBJECT) {
-		superSpecsDecl = core.PascalToCamel(context.superType.Name()) + specsNAMExSUFFIX
-		superSpecsValue = "*new" + context.superType.Name() + "Specs()"
+		superModelDecl = core.PascalToCamel(context.superType.Name()) + modelNAMExSUFFIX
+		superModelValue = "*new" + context.superType.Name() + "Model()"
 	}
-	specsInit = fmt.Sprintf(specsInit, superSpecsDecl, superSpecsValue)
+	modelInit = fmt.Sprintf(modelInit, superModelDecl, superModelValue)
 
 	// now adding the lines for the propertiess
-	propLines := []string{specsInit}
+	propLines := []string{modelInit}
 
 	// valueing each class property
 	for _, propName := range context.propertyNames {
 		propInfo := context.propertiesMap[propName]
-		propLine := "newSpecs." + core.PascalToCamel(propName) + " = "
+		propLine := "newModel." + core.PascalToCamel(propName) + " = "
 
 		multiple := "false"
 		if propInfo.multiple {
@@ -278,17 +289,17 @@ func buildPropInit(class IClass, context *specsGenerationContext) string {
 
 		if propInfo.propType == utils.TypeFamilyRELATIONSHIPxMONOM {
 			propLine += fmt.Sprintf("g.NewRelationship(%s, \"%s\", %s, %s)",
-				"newSpecs", propName, multiple, core.PascalToCamel(propInfo.targetType))
+				"newModel", propName, multiple, core.PascalToCamel(propInfo.targetType))
 		} else if propInfo.propType == utils.TypeFamilyRELATIONSHIPxPOLYM {
 			propLine += fmt.Sprintf("g.NewRelationship(%s, \"%s\", %s, %s)",
-				"newSpecs", propName, multiple, strings.Join(core.MapFn(propInfo.targetTypes, core.PascalToCamel), ", "))
+				"newModel", propName, multiple, strings.Join(core.MapFn(propInfo.targetTypes, core.PascalToCamel), ", "))
 		} else {
 			if propInfo.propType == utils.TypeFamilyENUM {
 				propLine += fmt.Sprintf("g.New%s(%s, \"%s\", %s, %s)",
-					getFieldForType(propInfo.propType), "newSpecs", propName, multiple, "\""+propInfo.targetType+"\"")
+					getFieldForType(propInfo.propType), "newModel", propName, multiple, "\""+propInfo.targetType+"\"")
 			} else {
 				propLine += fmt.Sprintf("g.New%s(%s, \"%s\", %s)",
-					getFieldForType(propInfo.propType), "newSpecs", propName, multiple)
+					getFieldForType(propInfo.propType), "newModel", propName, multiple)
 			}
 		}
 
@@ -300,7 +311,7 @@ func buildPropInit(class IClass, context *specsGenerationContext) string {
 }
 
 // This function builds an access for a property (field or relationship)
-func buildAccessors(class IClass, context *specsGenerationContext) string {
+func buildAccessors(class IClass, context *modelGenerationContext) string {
 	accessors := []string{}
 
 	// generating 1 accessor per
@@ -312,7 +323,7 @@ func buildAccessors(class IClass, context *specsGenerationContext) string {
 		if propInfo.propType.IsRelationship() {
 			accType = "Relationship"
 		}
-		accessor := fmt.Sprintf("func (%s *%sSpecs) %s() *g.%s {"+
+		accessor := fmt.Sprintf("func (%s *%sModel) %s() *g.%s {"+
 			newline+"return %s.%s"+
 			newline+"}",
 			ownerShort, owner, propName, accType,

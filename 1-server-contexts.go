@@ -70,7 +70,7 @@ type WebContext interface {
 	iRestContext
 	GetBloContext() BloContext
 	GetTargetRefOrID() string
-	GetResource() IBusinessObjectSpecs   // the class of the resource being requested
+	GetResource() IBusinessObjectModel   // the class of the resource being requested
 	GetResourceLoadingType() LoadingType // returns the loading type of the current main resources (BOs) being worked on
 }
 
@@ -79,7 +79,7 @@ type webContextImpl struct {
 	*appContextImpl     // common implem of AppContext
 	*httpRequestContext // wrapping one of the server's children handling 1 request
 	ep                  iEndpoint
-	resource            IBusinessObjectSpecs
+	resource            IBusinessObjectModel
 	bloContext          BloContext
 }
 
@@ -108,9 +108,9 @@ func (thisWebCtx *webContextImpl) GetBloContext() BloContext {
 	return thisWebCtx.bloContext
 }
 
-func (thisWebCtx *webContextImpl) GetResource() IBusinessObjectSpecs {
+func (thisWebCtx *webContextImpl) GetResource() IBusinessObjectModel {
 	if thisWebCtx.resource == nil {
-		thisWebCtx.resource = specsRegistry.items[thisWebCtx.ep.getInputOrParamsClass()]
+		thisWebCtx.resource = modelRegistry.items[thisWebCtx.ep.getInputOrParamsClass()]
 	}
 
 	return thisWebCtx.resource

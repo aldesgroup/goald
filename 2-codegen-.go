@@ -6,7 +6,6 @@ package goald
 import (
 	"fmt"
 	"log/slog"
-	"os"
 	"time"
 
 	core "github.com/aldesgroup/corego"
@@ -16,7 +15,7 @@ type codeGenLevel int
 type packageName string
 
 const codeGenCLASSES codeGenLevel = 1
-const codeGenSPECS codeGenLevel = 2
+const codeGenMODELS codeGenLevel = 2
 const codeGenUTILS codeGenLevel = 3
 const dirtyFILENAME = "dirty"
 
@@ -39,19 +38,17 @@ func (thisServer *server) runCodeGen(srcdir string, level codeGenLevel, webdir, 
 		core.WriteToFile(fmt.Sprintf("%t", codeChanged), bindir, dirtyFILENAME)
 
 		slog.Info(fmt.Sprintf("done generating the DB & BO registries in %s", time.Since(start)))
-		os.Exit(0)
 
-	case codeGenSPECS:
+	case codeGenMODELS:
 		start := time.Now()
 
 		// now, using the `reflect` package, we can "easily" build a static representation of our BOs
-		codeChanged := thisServer.generateAllObjectSpecs(srcdir, regen)
+		codeChanged := thisServer.generateAllObjectModels(srcdir, regen)
 
 		// saving the dirty state
 		core.WriteToFile(fmt.Sprintf("%t", codeChanged), bindir, dirtyFILENAME)
 
-		slog.Info(fmt.Sprintf("done generating the BO specs in %s", time.Since(start)))
-		os.Exit(0)
+		slog.Info(fmt.Sprintf("done generating the BO models in %s", time.Since(start)))
 
 	case codeGenUTILS:
 		start := time.Now()
@@ -67,14 +64,9 @@ func (thisServer *server) runCodeGen(srcdir string, level codeGenLevel, webdir, 
 		// saving the dirty state
 		core.WriteToFile(fmt.Sprintf("%t", codeChanged), bindir, dirtyFILENAME)
 
-		slog.Info(fmt.Sprintf("done generating the BO utils & models in %s", time.Since(start)))
-		os.Exit(0)
+		slog.Info(fmt.Sprintf("done generating the BO utils & client models in %s", time.Since(start)))
 
 	default:
 		core.PanicMsg("Not handling to code generation level: %d", level)
 	}
 }
-
-// ------------------------------------------------------------------------------------------------
-// Utilities
-// ------------------------------------------------------------------------------------------------

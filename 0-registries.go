@@ -146,45 +146,45 @@ func (m *moduleClassRegitry) Register(class IClass) *moduleClassRegitry {
 	return m
 }
 
-// 1 Class for 1 Business Object Specs
-func getClass(specs IBusinessObjectSpecs) IClass {
-	return classRegistry.items[specs.base().name]
+// 1 Class for 1 Business Object Model
+func getClass(model IBusinessObjectModel) IClass {
+	return classRegistry.items[model.base().name]
 }
 
 // ------------------------------------------------------------------------------------------------
-// The registry for all the app's business object specs objects
+// The registry for all the app's business object models
 // ------------------------------------------------------------------------------------------------
 
-var specsRegistry = struct {
-	items map[className]IBusinessObjectSpecs
+var modelRegistry = struct {
+	items map[className]IBusinessObjectModel
 	mx    sync.Mutex
 }{
-	items: map[className]IBusinessObjectSpecs{},
+	items: map[className]IBusinessObjectModel{},
 }
 
-// registering happens in the "specs" package, gence the public function
-func RegisterSpecs(name className, specs IBusinessObjectSpecs) {
-	specsRegistry.mx.Lock()
+// registering happens in the "model" package, gence the public function
+func RegisterModel(name className, model IBusinessObjectModel) {
+	modelRegistry.mx.Lock()
 
 	// setting the class name
-	specs.base().name = name
+	model.base().name = name
 
 	// making sure this class own its fields, including the inherited ones
-	for _, field := range specs.base().fields {
-		field.setOwner(specs)
+	for _, field := range model.base().fields {
+		field.setOwner(model)
 	}
 
-	// making sure this specs own its relationships, including the inherited ones
-	for _, relationship := range specs.base().relationships {
-		relationship.setOwner(specs)
+	// making sure this model own its relationships, including the inherited ones
+	for _, relationship := range model.base().relationships {
+		relationship.setOwner(model)
 	}
-	specsRegistry.items[name] = specs
-	specsRegistry.mx.Unlock()
+	modelRegistry.items[name] = model
+	modelRegistry.mx.Unlock()
 }
 
-func specsForName(clsName className) IBusinessObjectSpecs {
+func modelForName(clsName className) IBusinessObjectModel {
 	// not using the MX for now, but will have to do if there's any possibility for race condition
-	return specsRegistry.items[clsName]
+	return modelRegistry.items[clsName]
 }
 
 // ------------------------------------------------------------------------------------------------

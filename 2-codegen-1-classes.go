@@ -19,10 +19,12 @@ import (
 	core "github.com/aldesgroup/corego"
 )
 
+const includePATH = "_include"
 const sourceFILExSUFFIX = "--.go"
 const sourceCLSxSUFFIX = "--cls.go"
 const sourceREGISTRYxNAME = "registry.go"
 const sourceCLASSxDIR = "class"
+const importPLACEHOLDER = "// import models here"
 
 // ------------------------------------------------------------------------------------------------
 // Going over all the physical source code files and generating stuff along the way
@@ -109,6 +111,7 @@ package %s
 
 import (
 	g "github.com/aldesgroup/goald"
+	%s
 %s
 )
 
@@ -181,18 +184,15 @@ func writeRegistryFilesIfNeeded(srcdir string, allClassCoresInCode map[packageNa
 				}
 			}
 
-			// where to write the file?
-			genPath := "_include"
-
 			// which package?
 			pkgName := string(currentPackage)
 
 			// which file?
-			filename := path.Join(srcdir, genPath, pkgName, sourceREGISTRYxNAME)
+			filename := path.Join(srcdir, includePATH, pkgName, sourceREGISTRYxNAME)
 
 			// which content?
 			dot := "." + newline
-			content := fmt.Sprintf(registryFileTemplate, pkgName, strings.Join(imports, newline), strings.Join(registrationLines, dot))
+			content := fmt.Sprintf(registryFileTemplate, pkgName, importPLACEHOLDER, strings.Join(imports, newline), strings.Join(registrationLines, dot))
 
 			// writing to the file
 			core.WriteToFile(content, filename)

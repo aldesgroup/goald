@@ -2,7 +2,7 @@ package iot
 
 import (
 	"github.com/aldesgroup/goald"
-	specs "github.com/aldesgroup/goald/_include/_specs"
+	"github.com/aldesgroup/goald/_include/iot/model"
 )
 
 type DeviceLinkRequest struct {
@@ -15,5 +15,5 @@ type DeviceLinkRequest struct {
 }
 
 func init() {
-	specs.DeviceLinkRequest().SetNotPersisted()
+	model.DeviceLinkRequest().SetNotPersisted()
 }

@@ -2,7 +2,7 @@ package i18n
 
 import (
 	g "github.com/aldesgroup/goald"
-	specs "github.com/aldesgroup/goald/_include/_specs"
+	"github.com/aldesgroup/goald/_include/i18n/model"
 )
 
 type TranslationUrlParams struct {
@@ -12,5 +12,5 @@ type TranslationUrlParams struct {
 }
 
 func init() {
-	specs.TranslationUrlParams().Namespace().SetMandatory()
+	model.TranslationUrlParams().Namespace().SetMandatory()
 }

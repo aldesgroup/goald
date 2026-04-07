@@ -209,10 +209,10 @@ func (thisEndpoint *endpoint[ResourceType]) Label(label string) *endpoint[Resour
 func (thisEndpoint *endpoint[ResourceType]) SetCalledFromWebApp() *endpoint[ResourceType] {
 	thisEndpoint.calledFromWebApp = true
 
-	// taking the opportunity to enrich the class specs that are impacted here
-	specsForName(thisEndpoint.resourceClass).base().usedInWebApp = true
+	// taking the opportunity to enrich the model that are impacted here
+	modelForName(thisEndpoint.resourceClass).base().usedInWebApp = true
 	if thisEndpoint.inputOrParamsClass != "" {
-		specsForName(thisEndpoint.inputOrParamsClass).base().usedInWebApp = true
+		modelForName(thisEndpoint.inputOrParamsClass).base().usedInWebApp = true
 	}
 
 	return thisEndpoint
@@ -223,10 +223,10 @@ func (thisEndpoint *endpoint[ResourceType]) SetCalledFromWebApp() *endpoint[Reso
 func (thisEndpoint *endpoint[ResourceType]) SetCalledFromNativeApp() *endpoint[ResourceType] {
 	thisEndpoint.calledFromNativeApp = true
 
-	// taking the opportunity to enrich the class specs that are impacted here
-	specsForName(thisEndpoint.resourceClass).base().usedInNativeApp = true
+	// taking the opportunity to enrich the model that are impacted here
+	modelForName(thisEndpoint.resourceClass).base().usedInNativeApp = true
 	if thisEndpoint.inputOrParamsClass != "" {
-		specsForName(thisEndpoint.inputOrParamsClass).base().usedInNativeApp = true
+		modelForName(thisEndpoint.inputOrParamsClass).base().usedInNativeApp = true
 	}
 
 	return thisEndpoint

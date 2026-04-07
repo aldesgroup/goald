@@ -79,9 +79,9 @@ func (thisServer *server) generateClientAppModel(destdir string, ep iEndpoint, u
 	handledClasses[clsName] = true
 
 	// the business object we're dealing with
-	boSpecs := specsForName(clsName)
-	boClass := getClass(boSpecs)
-	boFields := core.GetSortedValues(boSpecs.base().fields)
+	boModel := modelForName(clsName)
+	boClass := getClass(boModel)
+	boFields := core.GetSortedValues(boModel.base().fields)
 
 	// the file we're dealing with
 	modelName := core.PascalToCamel(string(clsName))

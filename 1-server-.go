@@ -65,6 +65,11 @@ func NewServer() ServerContext {
 	// performing some checks on the code - but only in dev mode of course
 	if server.IsLocal() {
 		server.runCodeChecks()
+
+		// in codegen mode, we're done here
+		if codegen > 0 {
+			os.Exit(0)
+		}
 	}
 
 	// initialising the DBs

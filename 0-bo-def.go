@@ -11,7 +11,7 @@ import "fmt"
 
 type IBusinessObject interface {
 	// identification
-	Specs() IBusinessObjectSpecs
+	GetModel() IBusinessObjectModel
 	getClassName() className
 	setClassName(className)
 	GetID() BObjID
@@ -31,23 +31,23 @@ type IBusinessObject interface {
 type BObjID int64 // probably a UUID here
 
 type BusinessObject struct {
-	specs     IBusinessObjectSpecs
+	model     IBusinessObjectModel
 	className className
 	ID        BObjID `json:",omitempty"`
 }
 
 var _ IBusinessObject = (*BusinessObject)(nil)
 
-func (thisBO *BusinessObject) Specs() IBusinessObjectSpecs {
-	if thisBO.specs == nil {
-		thisBO.specs = specsForName(thisBO.className)
+func (thisBO *BusinessObject) GetModel() IBusinessObjectModel {
+	if thisBO.model == nil {
+		thisBO.model = modelForName(thisBO.className)
 	}
 
-	if thisBO.specs == nil {
+	if thisBO.model == nil {
 		panic("unknown class for a business object!")
 	}
 
-	return thisBO.specs
+	return thisBO.model
 }
 
 /* default implementations */

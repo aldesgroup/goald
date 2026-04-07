@@ -15,14 +15,14 @@ import (
 func (thisServer *server) runCodeChecks() {
 	start := time.Now()
 
-	for clsName, boSpecs := range specsRegistry.items {
-		thisServer.checkSpecs(clsName, boSpecs)
+	for clsName, model := range modelRegistry.items {
+		thisServer.checkModel(clsName, model)
 	}
 
 	slog.Info(fmt.Sprintf("done checking the code in %s", time.Since(start)))
 }
 
-func (thisServer *server) checkSpecs(clsName className, boSpecs IBusinessObjectSpecs) {
+func (thisServer *server) checkModel(clsName className, model IBusinessObjectModel) {
 	nbChildToParentRelationships := 0
 
 	// class-level controls
@@ -30,9 +30,9 @@ func (thisServer *server) checkSpecs(clsName className, boSpecs IBusinessObjectS
 		core.PanicMsg("The class name '%s' should be pascal-cased, i.e. %s", clsName, expected)
 	}
 
-	if !boSpecs.base().abstract {
+	if !model.base().abstract {
 		// various check, whether there's persistence or not
-		for _, field := range boSpecs.base().fields {
+		for _, field := range model.base().fields {
 			if enumField, ok := field.(*EnumField); ok {
 				for _, restrictedValue := range enumField.onlyValues {
 					if fmt.Sprintf("%T", restrictedValue) != enumField.enumName {
@@ -44,14 +44,14 @@ func (thisServer *server) checkSpecs(clsName className, boSpecs IBusinessObjectS
 		}
 
 		// checks for the persistency requirements
-		if boSpecs.base().isPersisted() {
+		if model.base().isPersisted() {
 			// checking there's an actual DB configured for this BO class
-			if boSpecs.getInDB() == nil {
+			if model.getInDB() == nil {
 				core.PanicMsg("Class '%s' should be SetNotPersisted, SetAbstract, or associated with a DB", clsName)
 			}
 
 			// checking the fields
-			for _, field := range boSpecs.base().fields {
+			for _, field := range model.base().fields {
 				switch field := field.(type) {
 				case *StringField:
 					if field.name != "ID" && field.size == 0 && !field.isNotPersisted() {
@@ -62,8 +62,8 @@ func (thisServer *server) checkSpecs(clsName className, boSpecs IBusinessObjectS
 		}
 
 		// checking the relationships
-		if boSpecs.base().isPersisted() || boSpecs.base().usedInNativeApp || boSpecs.base().usedInWebApp {
-			for _, relationship := range boSpecs.base().relationships {
+		if model.base().isPersisted() || model.base().usedInNativeApp || model.base().usedInWebApp {
+			for _, relationship := range model.base().relationships {
 				if relationship.relationType == 0 {
 					core.PanicMsg("Relationship '%s.%s' should have a defined type, with SetChildToParent(), "+
 						"SetSourceToTarget() or SetOneWay()", clsName, relationship.name)

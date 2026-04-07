@@ -33,7 +33,6 @@ func NewBaseConfig() *serverConfig {
 }
 
 type serverConfig struct {
-	// HTTP        *httpConfig
 	EnvType     string
 	Databases   []*dbConfig
 	DataLoaders map[string]map[string]string
@@ -43,18 +42,6 @@ type serverConfig struct {
 }
 
 type DatabaseID string
-
-// type httpConfig struct {
-// 	// Port int
-// 	// ApiPath      string
-// 	StaticRoutes []*staticRouteConfig
-// }
-
-type staticRouteConfig struct {
-	For       string
-	ServeFile string
-	ServeDir  string
-}
 
 type dbConfig struct {
 	DbID      DatabaseID
