@@ -33,6 +33,7 @@ func NewBaseConfig() *serverConfig {
 }
 
 type serverConfig struct {
+	Port        int
 	EnvType     string
 	Databases   []*dbConfig
 	DataLoaders map[string]map[string]string

@@ -14,7 +14,6 @@ import (
 
 type server struct {
 	instance string // TODO remove
-	port     int
 	config   IServerConfig
 	router   *r.Router
 }

@@ -31,7 +31,6 @@ func NewServer() ServerContext {
 	var nativedir string // if codegen > 0, this is where to find the native app source code, if any
 	var regen bool       // if true, then all the generated code is regenerated
 	var bindir string    // if codegen > 0, this is where to find the compilated code
-	var port int         // if the server is to listen to HTTP requests, then the port must be provided
 
 	flag.StringVar(&confPath, "config", "", "the path to the config file")
 	flag.StringVar(&srcdir, "srcdir", "api", "where to find all the Go code, from the project's root")
@@ -41,7 +40,6 @@ func NewServer() ServerContext {
 	flag.StringVar(&nativedir, "nativedir", "webapp", "where to find all the Native app code, from the project's root")
 	flag.BoolVar(&regen, "regen", false, "forces the code regeneration")
 	flag.StringVar(&bindir, "bindir", "bin", "where to find the compilated code")
-	flag.IntVar(&port, "port", 0, "the port to listen to HTTP requests")
 	flag.Parse()
 
 	// reading the config file
@@ -50,7 +48,6 @@ func NewServer() ServerContext {
 	// new server
 	server := &server{
 		config:   serverConfig,
-		port:     port,
 		instance: core.RandomString(3), // TODO remove ?
 	}
 
@@ -169,7 +166,7 @@ func (thisServer *server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 func (thisServer *server) Start() {
 	// TODO check the configured host / port, etc
-	core.PanicMsgIf(thisServer.port == 0, "No --port provided!")
+	core.PanicMsgIf(thisServer.config.base().Port == 0, "No --port provided!")
 
 	// TODO fill the requestHandler pool
 
@@ -181,8 +178,8 @@ func (thisServer *server) Start() {
 	// TODO set router PanicHandler
 
 	// listening to HTTP requests (blocking process)
-	addr := fmt.Sprintf(":%d", thisServer.port)
-	slog.Info(fmt.Sprintf("Serving at: http://localhost:%d/", thisServer.port))
+	addr := fmt.Sprintf(":%d", thisServer.config.base().Port)
+	slog.Info(fmt.Sprintf("Serving at: http://localhost:%d/", thisServer.config.base().Port))
 	if errListen := http.ListenAndServe(addr, thisServer); errListen != nil && errListen != http.ErrServerClosed {
 		core.PanicMsgIfErr(errListen, "Could not start the server!")
 	}
