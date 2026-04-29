@@ -33,7 +33,7 @@ type BObjID int64 // probably a UUID here
 type BusinessObject struct {
 	model     IBusinessObjectModel
 	className className
-	ID        BObjID `json:",omitempty"`
+	ID        BObjID `json:"id,omitempty" io:"o*" desc:"The unique identifier of this business object"`
 }
 
 var _ IBusinessObject = (*BusinessObject)(nil)
@@ -65,7 +65,7 @@ func (thisBO *BusinessObject) ChangeAfterInsert(BloContext) error  { return nil 
 
 // IEnum must be implemented by every enum type
 type IEnum interface {
-	fmt.Stringer // each enum value has a default label
-	Val() int
-	Values() map[int]string
+	fmt.Stringer            // each enum value has a default label
+	Val() int               // each enum value has an integer value
+	Values() map[int]string // each enum has a set of values associated with labels
 }

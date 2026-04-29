@@ -11,10 +11,10 @@ import (
 type deviceBootstrapModel struct {
 	g.IBusinessObjectModel
 	status      *g.EnumField
-	iotCertPEM  *g.StringField
-	iotChainPEM *g.StringField
-	deviceID    *g.StringField
-	scopeID     *g.StringField
+	iotCertPem  *g.StringField
+	iotChainPem *g.StringField
+	deviceId    *g.StringField
+	scopeId     *g.StringField
 }
 
 // this is the main way to refer to the DeviceBootstrap model in the applicative code
@@ -32,10 +32,10 @@ var (
 func newDeviceBootstrapModel() *deviceBootstrapModel {
 	newModel := &deviceBootstrapModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
 	newModel.status = g.NewEnumField(newModel, "Status", false, "iot.BootstrapStatus")
-	newModel.iotCertPEM = g.NewStringField(newModel, "IotCertPEM", false)
-	newModel.iotChainPEM = g.NewStringField(newModel, "IotChainPEM", false)
-	newModel.deviceID = g.NewStringField(newModel, "DeviceID", false)
-	newModel.scopeID = g.NewStringField(newModel, "ScopeID", false)
+	newModel.iotCertPem = g.NewStringField(newModel, "IotCertPEM", false)
+	newModel.iotChainPem = g.NewStringField(newModel, "IotChainPEM", false)
+	newModel.deviceId = g.NewStringField(newModel, "DeviceID", false)
+	newModel.scopeId = g.NewStringField(newModel, "ScopeID", false)
 
 	return newModel
 }
@@ -57,17 +57,17 @@ func (d *deviceBootstrapModel) Status() *g.EnumField {
 }
 
 func (d *deviceBootstrapModel) IotCertPEM() *g.StringField {
-	return d.iotCertPEM
+	return d.iotCertPem
 }
 
 func (d *deviceBootstrapModel) IotChainPEM() *g.StringField {
-	return d.iotChainPEM
+	return d.iotChainPem
 }
 
 func (d *deviceBootstrapModel) DeviceID() *g.StringField {
-	return d.deviceID
+	return d.deviceId
 }
 
 func (d *deviceBootstrapModel) ScopeID() *g.StringField {
-	return d.scopeID
+	return d.scopeId
 }

@@ -11,19 +11,18 @@ import (
 	"github.com/aldesgroup/goald/features/utils"
 )
 
-// TODO endpoints should be plural
 // TODO pagination all the way
-// TODO generate stuff for enums ?
 
 // ------------------------------------------------------------------------------------------------
-// Model for a business object class
+// Model for a business object model
 // ------------------------------------------------------------------------------------------------
 type IBusinessObjectModel interface {
 	/* public generic methods */
 
-	SetNotPersisted() // to indicate this class has no instance persisted in a database
-	SetInDB(db *DB)   // to associate the class with the DB where its instances are stored
-	SetAbstract()     // to indicate this class does not model concrete business objects, but most probably a super class
+	SetDescription(description string) // to set the description of the model
+	SetNotPersisted()                  // to indicate this class has no instance persisted in a database
+	SetInDB(db *DB)                    // to associate the class with the DB where its instances are stored
+	SetAbstract()                      // to indicate this class does not model concrete business objects, but most probably a super class
 
 	// access to generic properties (fields & relationships)
 	ID() IField
@@ -36,12 +35,14 @@ type IBusinessObjectModel interface {
 	// access to the base implementation
 	base() *businessObjectModel
 	addField(field IField) IField
+	getType() *utils.GoaldType
 }
 
 type className string
 
 type businessObjectModel struct {
 	name                    className                 // the corresponding class name
+	description             string                    // the model description
 	fields                  map[string]IField         // the objet's simple properties
 	relationships           map[string]*Relationship  // the relationships to other classes
 	inDB                    *DB                       // the associated DB, if any
@@ -53,6 +54,7 @@ type businessObjectModel struct {
 	idField                 IField                    // accessor to the ID field
 	usedInNativeApp         bool                      // true if this class is used in the native app
 	usedInWebApp            bool                      // true if this class is used in the web app
+	boType                  *utils.GoaldType          // the Go type associated with this BO model
 }
 
 func NewBusinessObjectModel() IBusinessObjectModel {
@@ -70,6 +72,10 @@ func NewBusinessObjectModel() IBusinessObjectModel {
 func (boClass *businessObjectModel) SetInDB(db *DB) {
 	boClass.inNoDB = false
 	boClass.inDB = db
+}
+
+func (boClass *businessObjectModel) SetDescription(description string) {
+	boClass.description = description
 }
 
 func (boClass *businessObjectModel) SetNotPersisted() {
@@ -115,6 +121,15 @@ func (boClass *businessObjectModel) addField(field IField) IField {
 	return field
 }
 
+func (boClass *businessObjectModel) getType() *utils.GoaldType {
+	if boClass.boType == nil {
+		boType := utils.TypeOf(getClass(boClass).NewObject(), true)
+		boClass.boType = &boType
+	}
+
+	return boClass.boType
+}
+
 // ------------------------------------------------------------------------------------------------
 // Business object properties, whether fields or relationships
 // ------------------------------------------------------------------------------------------------
@@ -125,9 +140,18 @@ type iBusinessObjectProperty interface {
 	getTypeFamily() utils.TypeFamily
 	isMultiple() bool
 	getColumnName() string
-	isMandatory() bool
 	isNotPersisted() bool
+	getStructField() *utils.GoaldField
+	getTag(tagName string) string
+	isMandatoryInput() bool
+	isPureOutput() bool
 }
+
+type ioType string
+
+const ioTypeINPUT ioType = "in"
+const ioTypeINPUTxMANDATORY ioType = "i*"
+const ioTypePURExOUTPUT ioType = "o*"
 
 type businessObjectProperty struct {
 	owner        IBusinessObjectModel // the property's owner class
@@ -135,8 +159,8 @@ type businessObjectProperty struct {
 	typeFamily   utils.TypeFamily     // the property's type, as detected by the codegen phase
 	multiple     bool                 // the property's multiplicity; false = 1, true = N
 	columnName   string               // if this property - field or relationship - is persisted on the owner's table
-	mandatory    bool                 // if true, then this property's value must be non-zero
 	notPersisted bool                 // if true, then this property does not have a corresponding column in the BO's table
+	structField  *utils.GoaldField    // the struct field corresponding to this property, as detected by the codegen phase
 }
 
 func (prop *businessObjectProperty) ownerModel() IBusinessObjectModel {
@@ -170,12 +194,28 @@ func (prop *businessObjectProperty) isMultiple() bool {
 	return prop.multiple
 }
 
-func (prop *businessObjectProperty) isMandatory() bool {
-	return prop.mandatory
-}
-
 func (prop *businessObjectProperty) isNotPersisted() bool {
 	return prop.notPersisted
+}
+
+func (prop *businessObjectProperty) getStructField() *utils.GoaldField {
+	if prop.structField == nil {
+		structField := prop.ownerModel().getType().FieldByName(prop.name)
+		prop.structField = &structField
+	}
+	return prop.structField
+}
+
+func (prop *businessObjectProperty) getTag(tagName string) string {
+	return prop.getStructField().Tag().Get(tagName)
+}
+
+func (prop *businessObjectProperty) isMandatoryInput() bool {
+	return prop.getTag("io") == string(ioTypeINPUTxMANDATORY)
+}
+
+func (prop *businessObjectProperty) isPureOutput() bool {
+	return prop.getTag("io") == string(ioTypePURExOUTPUT)
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -216,11 +256,6 @@ func newField(owner IBusinessObjectModel, name string, multiple bool, typeFamily
 			multiple:   multiple,
 		},
 	}
-}
-
-func (f *field) SetMandatory() *field {
-	f.mandatory = true
-	return f
 }
 
 func (f *field) SetNotPersisted() *field {
@@ -390,6 +425,7 @@ func NewRealField(owner IBusinessObjectModel, name string, multiple bool) *RealF
 		field: newField(owner, name, multiple, utils.TypeFamilyREAL),
 	}}).(*RealField)
 }
+
 func NewDoubleField(owner IBusinessObjectModel, name string, multiple bool) *DoubleField {
 	return owner.addField(&DoubleField{numericField: numericField{
 		field: newField(owner, name, multiple, utils.TypeFamilyDOUBLE),
@@ -443,16 +479,32 @@ type Relationship struct {
 	mx           sync.Mutex             // a mutex for the operations on the slices in here
 }
 
-// Allows to declare a new relationship on a given class
-func NewRelationship(owner IBusinessObjectModel, name string, multiple bool, targets ...IBusinessObjectModel) *Relationship {
+// Allows to declare a new monomorphic relationship on a given class
+func NewRelationship(owner IBusinessObjectModel, name string, multiple bool, target IBusinessObjectModel) *Relationship {
 	relationship := &Relationship{
 		businessObjectProperty: businessObjectProperty{
 			owner:    owner,
 			name:     name,
 			multiple: multiple,
 		},
-		targets:     targets,
-		polymorphic: len(targets) > 1,
+		targets:     []IBusinessObjectModel{target},
+		polymorphic: false,
+	}
+
+	owner.base().relationships[name] = relationship
+
+	return relationship
+}
+
+// Allows to declare a new polymorphic relationship on a given class
+func NewPolyRelationship(owner IBusinessObjectModel, name string, multiple bool) *Relationship {
+	relationship := &Relationship{
+		businessObjectProperty: businessObjectProperty{
+			owner:    owner,
+			name:     name,
+			multiple: multiple,
+		},
+		polymorphic: true,
 	}
 
 	owner.base().relationships[name] = relationship
@@ -512,4 +564,19 @@ func (r *Relationship) needsColumn() bool {
 	return r.relationType == relationshipTypeSOURCExTOxTARGET ||
 		r.relationType == relationshipTypeCHILDxTOxPARENT ||
 		r.relationType == relationshipTypeONExWAY
+}
+
+func (r *Relationship) SetTargets(targets ...IBusinessObjectModel) *Relationship {
+	// only using it once, for polymorphic relationships
+	if !r.polymorphic {
+		panic("SetTargets can only be used for polymorphic relationships")
+	}
+	if len(targets) == 0 {
+		panic("SetTargets must be called with at least one target")
+	}
+	if len(r.targets) > 0 {
+		panic("SetTargets can only be called once")
+	}
+	r.targets = targets
+	return r
 }

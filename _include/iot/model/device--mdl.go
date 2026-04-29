@@ -35,7 +35,7 @@ func newDeviceModel() *deviceModel {
 	newModel.statusString = g.NewStringField(newModel, "StatusString", false)
 	newModel.model = g.NewStringField(newModel, "Model", false)
 	newModel.serial = g.NewStringField(newModel, "Serial", false)
-	newModel.associatedUsers = g.NewRelationship(newModel, "AssociatedUsers", true)
+	newModel.associatedUsers = g.NewPolyRelationship(newModel, "AssociatedUsers", true)
 
 	return newModel
 }

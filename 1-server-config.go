@@ -33,6 +33,8 @@ func NewBaseConfig() *serverConfig {
 }
 
 type serverConfig struct {
+	AppName     string
+	AppDesc     string
 	Port        int
 	EnvType     string
 	Databases   []*dbConfig
@@ -81,8 +83,8 @@ func readAndCheckConfig(fromPath string) IServerConfig {
 	// YAML -> JSON transformation, because JSON unmarshalling is better
 	jsonBytes, errJson := yaml.YAMLToJSON(yamlBytes)
 	core.PanicMsgIfErr(errJson, "Could not convert YAML to JSON '%s'", fromPath)
+
 	// Unmarshalling the YAML file
-	core.PanicMsgIfErr(errRead, "Could not read config file at path '%s'", fromPath)
 	core.PanicMsgIfErr(json.Unmarshal(jsonBytes, configObj),
 		"Could not unmarshal the config file at path '%s'", fromPath)
 

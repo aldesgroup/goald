@@ -8,10 +8,14 @@ import (
 	"github.com/aldesgroup/goald/features/hstatus"
 )
 
+var GenericEPs = g.NewEndpointGroup("General", "Generic endpoints for common behaviors")
+
 func init() {
 	g.GetManyWithParams[*Translation, *TranslationUrlParams](listTranslations, "").
+		InGroup(GenericEPs).
 		TargetWith(model.Translation().Lang()).
-		Label("Returns the translations for the given route")
+		Label("List translations").
+		Description("Returns the translations for the given route")
 }
 
 func listTranslations(webCtx g.WebContext, params *TranslationUrlParams) ([]*Translation, hstatus.Code, string) {

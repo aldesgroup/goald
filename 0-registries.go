@@ -5,6 +5,7 @@ package goald
 
 import (
 	"path"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -146,6 +147,10 @@ func (m *moduleClassRegitry) Register(class IClass) *moduleClassRegitry {
 	return m
 }
 
+func classForName(clsName className) IClass {
+	return classRegistry.items[clsName]
+}
+
 // 1 Class for 1 Business Object Model
 func getClass(model IBusinessObjectModel) IClass {
 	return classRegistry.items[model.base().name]
@@ -202,6 +207,23 @@ func registerEndpoint(ep iEndpoint) iEndpoint {
 	restRegistry.endpoints = append(restRegistry.endpoints, ep)
 	restRegistry.mx.Unlock()
 	return ep
+}
+
+// listing all the endpoints, in a sorted manner
+func getSortedEndpointList() []iEndpoint {
+	restRegistry.mx.Lock()
+	defer restRegistry.mx.Unlock()
+	sort.Slice(restRegistry.endpoints, func(i, j int) bool {
+		epI := restRegistry.endpoints[i]
+		epJ := restRegistry.endpoints[j]
+		if epI.getPathAsString() != epJ.getPathAsString() {
+			return epI.getPathAsString() < epJ.getPathAsString()
+		}
+
+		return epI.getMethod() < epJ.getMethod()
+	})
+
+	return restRegistry.endpoints
 }
 
 // ------------------------------------------------------------------------------------------------

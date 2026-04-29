@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"os"
 	"path"
-	"slices"
 	"strings"
 	"time"
 
@@ -22,7 +21,7 @@ package model
 import (
 	"sync"
 
-	g "github.com/aldesgroup/goald"
+	g "github.com/aldesgroup/goald"$$imports$$
 )
 
 // static, reflect-free access to the definition of the $$Upper$$ model
@@ -77,6 +76,10 @@ func (thisServer *server) generateAllObjectModels(srcdir string, regen bool) (co
 
 	// iterating over each package for which we've already got a registry
 	for _, modelDirEntry := range core.EnsureReadDir(srcdir, includePATH) {
+		// if it's not a directory, we skip it
+		if !modelDirEntry.IsDir() {
+			continue
+		}
 
 		// where the model files will be generated
 		modelDir := core.EnsureDir(srcdir, includePATH, modelDirEntry.Name(), modelFOLDERxNAME)
@@ -123,11 +126,11 @@ func (thisServer *server) generateAllObjectModels(srcdir string, regen bool) (co
 			}
 		}
 
-		// let's make the
+		// let's make the registry file import the model package, if it doesn't already
 		if codeChanged {
 			filename := path.Join(srcdir, includePATH, modelDirEntry.Name(), sourceREGISTRYxNAME)
 			modelsImportPath := "_ \"" + path.Join(getCurrentModule(), includePATH, modelDirEntry.Name(), modelFOLDERxNAME) + "\""
-			core.ReplaceInFile(filename, map[string]string{importPLACEHOLDER: modelsImportPath}) // TODO : test cross imports
+			core.ReplaceInFile(filename, map[string]string{importPLACEHOLDER: modelsImportPath})
 		}
 	}
 
@@ -141,10 +144,10 @@ type modelGenerationContext struct {
 }
 
 type classGenPropertyInfo struct {
-	propType    utils.TypeFamily
-	multiple    bool
-	targetType  string
-	targetTypes []string
+	propType   utils.TypeFamily
+	multiple   bool
+	targetType string
+	// targetTypes []string
 }
 
 func generateOneModel(modelDir string, class IClass) {
@@ -156,8 +159,17 @@ func generateOneModel(modelDir string, class IClass) {
 	content := strings.ReplaceAll(modelTEMPLATE, "$$Upper$$", clsName)
 	content = strings.ReplaceAll(content, "$$lower$$", core.PascalToCamel(clsName))
 
-	// declaring the properties of the classe
-	content = strings.Replace(content, "$$propdecl$$", buildPropDecl(class, context), 1)
+	// declaring the properties of the class, wether they are fields or relationships
+	imports := map[string]string{}
+	content = strings.Replace(content, "$$propdecl$$", buildPropDecl(class, context, imports), 1)
+
+	// building the imports section	if len(imports) > 0 {
+	importLines := core.GetSortedValues(imports)
+	if len(importLines) > 0 {
+		content = strings.Replace(content, "$$imports$$", newline+strings.Join(importLines, newline), 1)
+	} else {
+		content = strings.Replace(content, "$$imports$$", "", 1)
+	}
 
 	// valueing the properties
 	content = strings.Replace(content, "$$propinit$$", buildPropInit(class, context), 1)
@@ -172,7 +184,7 @@ func generateOneModel(modelDir string, class IClass) {
 }
 
 // this function helps declare 1 property (field or relationship) in the declaration of the model type
-func buildPropDecl(class IClass, context *modelGenerationContext) (result string) {
+func buildPropDecl(class IClass, context *modelGenerationContext, imports map[string]string) (result string) {
 	// getting the object's type
 	bObjType := utils.TypeOf(class.NewObject(), true)
 
@@ -204,22 +216,31 @@ func buildPropDecl(class IClass, context *modelGenerationContext) (result string
 			context.propertyNames = append(context.propertyNames, field.Name()) // we're keeping the original order
 
 			targetType := ""                                      // makes no sense for basic BO fields...
-			var targetTypes []string                              // ... this even less...
 			if typeFamily == utils.TypeFamilyRELATIONSHIPxMONOM { // ... but it does for relationships
-				entityType := core.IfThenElse(multiple, field.Type().Elem(), field.Type())
-				targetType = entityType.Elem().Name()
-			} else if typeFamily == utils.TypeFamilyRELATIONSHIPxPOLYM { // ... but it does for relationships
-				interfaceType := field.Type()
-				if multiple {
-					interfaceType = field.Type().Elem()
+				entityType := core.IfThenElse(multiple, field.Type().Elem(), field.Type()) // e.g. *Object or []Object -> type Object
+				targetClsName := className(entityType.Elem().Name())                       // e.g. Object
+				targetClass := classForName((targetClsName))                               // e.g. ClassForObject
+				targetObjPkg := targetClass.getPackage()                                   // e.g. packagename
+				targetObjMod := targetClass.getModule()                                    // e.g. projectname
+				if targetObjMod != getCurrentModuleName() || targetObjPkg != class.getPackage() {
+					if imports[targetClass.getPackage()] == "" {
+						imports[targetClass.getPackage()] = getImportLineForClass(targetClass) // the needed import
+					}
+					targetType = fmt.Sprintf("%s_model.%s()", targetObjPkg, targetClsName) // e.g. packagename_model.Object()
+				} else {
+					if class.getClassName() == targetClsName {
+						// relationship to the same class => we need to use THIS model
+						targetType = "newModel"
+					} else {
+						targetType = string(targetClsName)
+					}
 				}
-				targetTypes = getImplementionsOfInterface(interfaceType)
 			} else if typeFamily == utils.TypeFamilyENUM { // or enums.
 				targetType = field.Type().String()
 			}
 
 			// keeping track of the property's characteristics - this will be of use in the init function of the Model object
-			context.propertiesMap[field.Name()] = classGenPropertyInfo{typeFamily, multiple, targetType, targetTypes}
+			context.propertiesMap[field.Name()] = classGenPropertyInfo{typeFamily, multiple, targetType}
 
 			// writing out the property's declaration inside the Model object it belong to
 			if typeFamily.IsRelationship() {
@@ -231,6 +252,14 @@ func buildPropDecl(class IClass, context *modelGenerationContext) (result string
 	}
 
 	return
+}
+
+func getImportLineForClass(targetClass IClass) string {
+	targetObject := targetClass.NewObject()                                                                      // e.g. *Object (runtime instance)
+	targetObjType := utils.TypeOf(targetObject, true)                                                            // e.g. Object (runtime type)
+	targetObjFullPkg := targetObjType.PkgPath()                                                                  // e.g. github.com/aldesgroup/project/group/packagename
+	targetObjGoModule := core.Before(targetObjFullPkg, targetClass.getSrcPath())                                 // e.g. github.com/aldesgroup/project/
+	return fmt.Sprintf("%[1]s_model \"%[2]s_include/%[1]s/model\"", targetClass.getPackage(), targetObjGoModule) // e.g. packagename_model "github.com/aldesgroup/project/_include/packagename"
 }
 
 func getFieldForType(typeFamily utils.TypeFamily) string {
@@ -291,8 +320,8 @@ func buildPropInit(class IClass, context *modelGenerationContext) string {
 			propLine += fmt.Sprintf("g.NewRelationship(%s, \"%s\", %s, %s)",
 				"newModel", propName, multiple, core.PascalToCamel(propInfo.targetType))
 		} else if propInfo.propType == utils.TypeFamilyRELATIONSHIPxPOLYM {
-			propLine += fmt.Sprintf("g.NewRelationship(%s, \"%s\", %s, %s)",
-				"newModel", propName, multiple, strings.Join(core.MapFn(propInfo.targetTypes, core.PascalToCamel), ", "))
+			propLine += fmt.Sprintf("g.NewPolyRelationship(%s, \"%s\", %s)",
+				"newModel", propName, multiple)
 		} else {
 			if propInfo.propType == utils.TypeFamilyENUM {
 				propLine += fmt.Sprintf("g.New%s(%s, \"%s\", %s, %s)",
@@ -334,32 +363,4 @@ func buildAccessors(class IClass, context *modelGenerationContext) string {
 	}
 
 	return strings.Join(accessors, newline+newline)
-}
-
-var allInterfaceImplementations = map[string][]string{}
-
-// this function finds all the implementations of a given interface
-func getImplementionsOfInterface(interfaceType utils.GoaldType) []string {
-	interfaceName := interfaceType.Name()
-
-	// we may already have computed the answer...
-	implementations := allInterfaceImplementations[interfaceName]
-
-	// ...but maybe e haven't yet
-	if implementations == nil {
-		// browsing through all the non-interface classes to find the implementations
-		for _, class := range classRegistry.items {
-			if !class.isInterface() {
-				if boType := utils.TypeOf(class.NewObject(), false); boType.Implements(interfaceType) {
-					implementations = append(implementations, boType.Elem().Name())
-				}
-			}
-		}
-
-		// sorting, then caching for faster retrieval later
-		slices.Sort(implementations)
-		allInterfaceImplementations[interfaceName] = implementations
-	}
-
-	return implementations
 }

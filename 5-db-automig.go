@@ -118,12 +118,13 @@ func getBOClassesInDB(db *DB) (result map[className]IBusinessObjectModel) {
 
 // getTableNames fetches the table names from the APP DB
 func getTableNames(db *DB) []string {
-	tables, errFetch := db.FetchStringColumn(db.adapter.getTablesQuery(db.config.DbName))
-	if errFetch != nil {
-		slog.Error(fmt.Sprintf("Could not fetch the table names: %s", errFetch))
-	}
+	// tables, errFetch := db.FetchStringColumn(db.adapter.getTablesQuery(db.config.DbName))
+	// if errFetch != nil {
+	// 	slog.Error(fmt.Sprintf("Could not fetch the table names: %s", errFetch))
+	// }
 
-	return tables
+	// return tables
+	return nil
 }
 
 // createMissingTable creates the missing table corresponding to the given BO class

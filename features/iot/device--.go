@@ -7,13 +7,14 @@ import (
 
 type Device struct {
 	goald.BusinessObject
-	Status          DeviceStatus
-	StatusString    string
-	Model           string
-	Serial          string
-	AssociatedUsers []goald.IUser
+	Status          DeviceStatus  `json:"status"          io:"o*" desc:"the status of the device"`
+	StatusString    string        `json:"statusString"    io:"o*" desc:"the status of the device"`
+	Model           string        `json:"model"           io:"o*" desc:"the model of the device"`
+	Serial          string        `json:"serial"          io:"o*" desc:"the serial number of the device"`
+	AssociatedUsers []goald.IUser `json:"associatedUsers" io:"o*" desc:"the users associated with the device"` // removed for now
 }
 
 func init() {
+	model.Device().SetDescription("A device able to connect to the IoT platform and exchange data with it.")
 	model.Device().SetNotPersisted()
 }

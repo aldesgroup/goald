@@ -9,9 +9,9 @@ import (
 
 func init() {
 	g.In("goald").
-		Register(iot.ClassForDevice("features/iot", "2026-04-06T00:47:55+02:00")).
-		Register(iot.ClassForDeviceBootstrap("features/iot", "2026-04-06T00:48:00+02:00")).
-		Register(iot.ClassForDeviceBootstrapPayload("features/iot", "2026-04-06T00:48:05+02:00")).
-		Register(iot.ClassForDeviceBootstrapRequest("features/iot", "2026-04-06T00:48:10+02:00")).
-		Register(iot.ClassForDeviceLinkRequest("features/iot", "2026-04-06T00:48:14+02:00"))
+		Register(iot.ClassForDevice("features/iot", "2026-04-28T15:07:04+02:00")).
+		Register(iot.ClassForDeviceBootstrap("features/iot", "2026-04-28T15:10:50+02:00")).
+		Register(iot.ClassForDeviceBootstrapPayload("features/iot", "2026-04-28T15:10:03+02:00")).
+		Register(iot.ClassForDeviceBootstrapRequest("features/iot", "2026-04-28T15:09:35+02:00")).
+		Register(iot.ClassForDeviceLinkRequest("features/iot", "2026-04-28T23:50:17+02:00"))
 }

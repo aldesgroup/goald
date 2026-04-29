@@ -10,7 +10,7 @@ import (
 // static, reflect-free access to the definition of the DeviceBootstrapRequest model
 type deviceBootstrapRequestModel struct {
 	g.IBusinessObjectModel
-	factoryCertPEM *g.StringField
+	factoryCertPem *g.StringField
 	payloadB64     *g.StringField
 	signatureB64   *g.StringField
 }
@@ -29,7 +29,7 @@ var (
 // fully describing each of this class' properties & relationships
 func newDeviceBootstrapRequestModel() *deviceBootstrapRequestModel {
 	newModel := &deviceBootstrapRequestModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
-	newModel.factoryCertPEM = g.NewStringField(newModel, "FactoryCertPEM", false)
+	newModel.factoryCertPem = g.NewStringField(newModel, "FactoryCertPEM", false)
 	newModel.payloadB64 = g.NewStringField(newModel, "PayloadB64", false)
 	newModel.signatureB64 = g.NewStringField(newModel, "SignatureB64", false)
 
@@ -49,7 +49,7 @@ func init() {
 // accessing all the DeviceBootstrapRequest class' properties and relationships
 
 func (d *deviceBootstrapRequestModel) FactoryCertPEM() *g.StringField {
-	return d.factoryCertPEM
+	return d.factoryCertPem
 }
 
 func (d *deviceBootstrapRequestModel) PayloadB64() *g.StringField {

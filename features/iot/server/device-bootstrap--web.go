@@ -7,7 +7,10 @@ import (
 )
 
 func init() {
-	g.PostOneGetOne(handleDeviceBootstrap, "").Label("Allows a device to retrieve its bootstrapping info").TrimBodyLogging(45)
+	g.PostOneGetOne(handleDeviceBootstrap, "").
+		InGroup(IoTBackend).
+		Label("Bootstrap a device").
+		Description("Allows a device to retrieve its bootstrapping info").TrimBodyLogging(45)
 }
 
 // this endpoint should be contacted by the device, as many times as necessary, but at least 2 times in reality;

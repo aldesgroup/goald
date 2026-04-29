@@ -1,9 +1,9 @@
 // ------------------------------------------------------------------------------------------------
 // Here are defined the contexts passed in the different layers of our multi-tier architecture:
-// - (no context) for the business object layer (*__.go files)
-// - BloContext for the Business LOgic code (used in *__blo.go files)
-// - DaoContext for the Data Access Objects (used in *__dao.go files)
-// - WebContext for the web endpoints code (used in *__web.go files)
+// - (no context) for the business object layer (*--.go files)
+// - BloContext for the Business LOgic code (used in *--blo.go files)
+// - DaoContext for the Data Access Objects (used in *--dao.go files)
+// - WebContext for the web endpoints code (used in *--web.go files)
 // ------------------------------------------------------------------------------------------------
 package goald
 

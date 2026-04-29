@@ -7,12 +7,20 @@ import (
 	"github.com/aldesgroup/goald/features/iot"
 )
 
+var IoTBackend = g.NewEndpointGroup("IoT Backend", "Endpoints to manage IoT devices and their data")
+
 func init() {
 	g.PostOneGetOne(handleLinkDevice, "").
+		InGroup(IoTBackend).
 		At("link").
-		Label("Allows a user to link to a device, bootstrapping it if it's not enrolled yet")
+		Label("Link a device").
+		Description("Allows a user to link to a device, bootstrapping it if it's not enrolled yet")
 
-	g.GetOne(handleGetDevice, "").TargetWith(model.Device().Serial())
+	g.GetOne(handleGetDevice, "").
+		InGroup(IoTBackend).
+		TargetWith(model.Device().Serial()).
+		Label("Read a device").
+		Description("Allows to read a device with its serial number")
 }
 
 func handleLinkDevice(webCtx g.WebContext, req *iot.DeviceLinkRequest) (*iot.Device, hstatus.Code, string) {
@@ -41,7 +49,7 @@ func handleGetDevice(webCtx g.WebContext) (*iot.Device, hstatus.Code, string) {
 	device := getDevice(webCtx.GetTargetRefOrID())
 
 	if device == nil {
-		return nil, hstatus.NotFound, "No device has been found with this serial"
+		return nil, hstatus.NotFound, "No device has been found with this serial: " + webCtx.GetTargetRefOrID()
 	}
 
 	return device, hstatus.OK, ""
