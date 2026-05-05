@@ -22,8 +22,26 @@ import (
 // Main function with triggering logic
 // ------------------------------------------------------------------------------------------------
 
+const openAPIHTMLTemplate = `<!doctype html>
+<html>
+  <head>
+    <title>API Reference</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  </head>
+  <body>
+    <script id="api-reference" type="application/yaml">
+%s
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+  </body>
+</html>`
+
 // Main function responsible for generating the API doc, eg data/api-doc.yaml (or custom path)
 func (thisServer *server) generateOpenAPIDoc(srcdirs []string, docpath string, regen bool) {
+	// checking the docpath
+	core.PanicMsgIf(!strings.HasSuffix(docpath, ".yaml"), "The API doc path should end with .yaml")
+
 	// first reason to generate: the regen is forced
 	doRegen := regen
 
@@ -48,6 +66,9 @@ func (thisServer *server) generateOpenAPIDoc(srcdirs []string, docpath string, r
 		// writing it out
 		core.WriteBytesToFile(docpath, doc)
 		slog.Info("New version for: " + docpath)
+
+		// also writing the HTML version
+		core.WriteStringToFile(strings.Replace(docpath, ".yaml", ".html", 1), openAPIHTMLTemplate, string(doc))
 	}
 }
 
@@ -122,7 +143,7 @@ func generateOpenAPIYAML() ([]byte, error) {
 	}
 
 	// adding each operations
-	for _, ep := range restRegistry.endpoints {
+	for _, ep := range getSortedEndpointList() {
 		if err := addEndpointToDoc(doc, ep); err != nil {
 			return nil, err
 		}
@@ -135,11 +156,6 @@ func generateOpenAPIYAML() ([]byte, error) {
 			Description: group.Description,
 		})
 	}
-
-	// validating the whole document
-	// if err := doc.Validate(context.Background()); err != nil {
-	// 	return nil, ErrorC(err, "Doc validation error")
-	// }
 
 	// marshaling it
 	return yaml.Marshal(doc)
