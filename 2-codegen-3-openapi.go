@@ -328,7 +328,7 @@ func schemaFromModel(doc *openapi3.T, model IBusinessObjectModel) *openapi3.Sche
 	}
 
 	// going over the basic properties, i.e. the fields
-	for _, field := range model.base().fields {
+	for _, field := range core.GetSortedValues(model.base().fields) {
 		fieldJSONName := core.PascalToCamel(field.getName())
 
 		var prop *openapi3.SchemaRef = schemaFromPrimitiveType(field, true)
@@ -345,7 +345,7 @@ func schemaFromModel(doc *openapi3.T, model IBusinessObjectModel) *openapi3.Sche
 	}
 
 	// going over the relationships, i.e. the object-type properties
-	for _, relationship := range model.base().relationships {
+	for _, relationship := range core.GetSortedValues(model.base().relationships) {
 		relationshipJSONName := core.PascalToCamel(relationship.getName())
 
 		if !relationship.polymorphic || len(relationship.targets) == 1 {
@@ -411,7 +411,7 @@ func paramsFromClass(clsName className, path string) (openapi3.Parameters, error
 	// pathVars := extractPathVars(path)
 	var out openapi3.Parameters
 
-	for _, field := range model.base().fields {
+	for _, field := range core.GetSortedValues(model.base().fields) {
 		parameter := &openapi3.Parameter{
 			Name:        field.getName(),
 			In:          "query",

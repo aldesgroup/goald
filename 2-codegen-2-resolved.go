@@ -37,8 +37,8 @@ func (thisServer *server) generateResolvedRelationships(srcdir string, regen boo
 		implementations := map[string][]IClass{}
 
 		// looking for the polymorphic relationships that we have
-		for _, model := range modelRegistry.items {
-			for _, relationship := range model.base().relationships {
+		for _, model := range core.GetSortedValues(modelRegistry.items) {
+			for _, relationship := range core.GetSortedValues(model.base().relationships) {
 				if relationship.polymorphic {
 					sourceObjCls := getClass(model)                                         // e.g. ClassForSourceObj
 					sourceObject := sourceObjCls.NewObject()                                // e.g.: *SourceObj
@@ -89,7 +89,7 @@ func (thisServer *server) generateResolvedRelationships(srcdir string, regen boo
 // this function finds all the implementations of a given interface
 func findImplementionsOfInterface(interfaceType utils.GoaldType) (implementations []IClass) {
 	// browsing through all the non-interface classes to find the implementations
-	for _, class := range classRegistry.items {
+	for _, class := range core.GetSortedValues(classRegistry.items) {
 		if !class.isInterface() {
 			if boType := utils.TypeOf(class.NewObject(), false); boType.Implements(interfaceType) {
 				implementations = append(implementations, class)
