@@ -69,7 +69,7 @@ func (thisServer *server) runCodeGen(cgp *codegenParams) {
 		// generating the doc for the API
 		if cgp.docpath != "" {
 			srcdirs := append([]string{cgp.srcdir}, strings.Split(cgp.othersrcdirs, ",")...)
-			thisServer.generateOpenAPIDoc(srcdirs, cgp.docpath, cgp.regen)
+			thisServer.generateOpenAPIDoc(srcdirs, cgp.docpath, cgp.regen, cgp.servers)
 		}
 
 		slog.Info(fmt.Sprintf("done generating the BO utils, client models & API doc in %s", time.Since(start)))

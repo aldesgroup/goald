@@ -28,8 +28,9 @@ type codegenParams struct {
 	docpath      string // if codegen > 0, the path of the API doc file to generate, i.e. data/api-doc.yaml
 	webdir       string // if codegen > 0, this is where to find the web app source code, if any
 	nativedir    string // if codegen > 0, this is where to find the native app source code, if any
-	regen        bool   // if true, then all the generated code is regenerated
+	regen        bool   // if true and codegen > 0, then all the generated code is regenerated
 	bindir       string // if codegen > 0, this is where to find the compilated code
+	servers      string // if codegen > 0, the list of the remote server URLs, separated by a pipe, for the API doc generation
 }
 
 // This function should be called in each Goald-based app
@@ -49,6 +50,8 @@ func NewServer() ServerContext {
 	flag.StringVar(&cgParams.nativedir, "nativedir", "webapp", "where to find all the Native app code, from the project's root")
 	flag.BoolVar(&cgParams.regen, "regen", false, "forces the code regeneration")
 	flag.StringVar(&cgParams.bindir, "bindir", "bin", "where to find the compilated code")
+	flag.StringVar(&cgParams.servers, "servers", "", "the list of the remote server URLs, separated by a pipe, for the API doc generation; "+
+		"eg. sandbox:http://dev.example.com|staging:http://qa.example.com|production:http://prd.example.com")
 	flag.Parse()
 
 	// reading the config file

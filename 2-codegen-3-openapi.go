@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"path"
+	"strconv"
 
 	"strings"
 	"time"
@@ -38,7 +39,7 @@ const openAPIHTMLTemplate = `<!doctype html>
 </html>`
 
 // Main function responsible for generating the API doc, eg data/api-doc.yaml (or custom path)
-func (thisServer *server) generateOpenAPIDoc(srcdirs []string, docpath string, regen bool) {
+func (thisServer *server) generateOpenAPIDoc(srcdirs []string, docpath string, regen bool, servers string) {
 	// checking the docpath
 	core.PanicMsgIf(!strings.HasSuffix(docpath, ".yaml"), "The API doc path should end with .yaml")
 
@@ -60,7 +61,7 @@ func (thisServer *server) generateOpenAPIDoc(srcdirs []string, docpath string, r
 	if doRegen {
 
 		// generating the doc content
-		doc, errGen := generateOpenAPIYAML()
+		doc, errGen := generateOpenAPIYAML(servers)
 		core.PanicMsgIfErr(errGen, "Error while generating the API doc in YAML")
 
 		// writing it out
@@ -127,7 +128,7 @@ func checkWebCodeChanged(codedir string, docModified time.Time) bool {
 // ------------------------------------------------------------------------------------------------
 
 // This builds the content of the doc, based on the config, and the coded endpoints
-func generateOpenAPIYAML() ([]byte, error) {
+func generateOpenAPIYAML(servers string) ([]byte, error) {
 	// the root of the doc
 	doc := &openapi3.T{
 		OpenAPI: "3.0.3",
@@ -140,6 +141,22 @@ func generateOpenAPIYAML() ([]byte, error) {
 		Components: &openapi3.Components{
 			Schemas: openapi3.Schemas{},
 		},
+		Servers: openapi3.Servers{
+			&openapi3.Server{
+				URL:         "http://localhost:" + strconv.Itoa(configObj.base().Port),
+				Description: "The local development environment",
+			},
+		},
+	}
+
+	// adding the remote servers
+	for _, server := range strings.Split(servers, "|") {
+		if parts := strings.SplitN(server, ":", 2); len(parts) == 2 {
+			doc.Servers = append(doc.Servers, &openapi3.Server{
+				URL:         parts[1],
+				Description: fmt.Sprintf("The %s environment", parts[0]),
+			})
+		}
 	}
 
 	// adding each operations
