@@ -199,6 +199,10 @@ func addEndpointToDoc(doc *openapi3.T, ep iEndpoint) error {
 		doc.Paths.Set(openapiPath, pathItem)
 	}
 
+	if ep.getGroup() == nil {
+		return fmt.Errorf("Endpoint '%s' does not have a group", ep.getPathAsString())
+	}
+
 	op := &openapi3.Operation{
 		Summary:     ep.getLabel(),
 		Description: ep.getDescription(),
@@ -429,12 +433,13 @@ func paramsFromClass(clsName className, path string) (openapi3.Parameters, error
 	var out openapi3.Parameters
 
 	for _, field := range core.GetSortedValues(model.base().fields) {
+		schema := schemaFromPrimitiveType(field, false)
 		parameter := &openapi3.Parameter{
 			Name:        field.getName(),
 			In:          "query",
 			Required:    field.isMandatoryInput(),
-			Schema:      schemaFromPrimitiveType(field, false),
-			Description: "URL query Parameter: " + field.getTag("desc"),
+			Schema:      schema,
+			Description: "URL query Parameter: " + schema.Value.Description,
 		}
 
 		out = append(out, &openapi3.ParameterRef{Value: parameter})
@@ -475,9 +480,11 @@ func schemaFromPrimitiveType(field IField, addDesc bool) *openapi3.SchemaRef {
 	case utils.TypeFamilyBIGINT:
 		return &openapi3.SchemaRef{Value: withDescription(openapi3.NewInt64Schema(), description)}
 
-	// int(utils.TypeFamilyREAL):               "real number",
-	// int(utils.TypeFamilyDOUBLE):             "real number 64",
-	// int(utils.TypeFamilyDATE):               "date",
+	case utils.TypeFamilyREAL, utils.TypeFamilyDOUBLE:
+		return &openapi3.SchemaRef{Value: withDescription(openapi3.NewFloat64Schema(), description)}
+
+	// case utils.TypeFamilyDATE:               "date", // TODO
+
 	case utils.TypeFamilyENUM:
 		// instantiating an instance of the owner of this field
 		enumOwner := getClass(field.ownerModel()).NewObject()
@@ -504,7 +511,7 @@ func schemaFromPrimitiveType(field IField, addDesc bool) *openapi3.SchemaRef {
 					Type:        &openapi3.Types{"integer"},
 					Format:      "int32",
 					Enum:        core.ToAnySlice(enumVals),
-					Description: field.getTag("desc") + "; labels associated with the: \n" + strings.Join(lines, "\n"),
+					Description: field.getTag("desc") + "; labels associated with the values: \n" + strings.Join(lines, "\n"),
 				}}
 
 		} else {

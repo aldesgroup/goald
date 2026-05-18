@@ -75,6 +75,7 @@ func (thisServer *server) generateAllObjectModels(srcdir string, regen bool) (co
 	}
 
 	// iterating over each package for which we've already got a registry
+	core.EnsureDir(srcdir, includePATH)
 	for _, modelDirEntry := range core.EnsureReadDir(srcdir, includePATH) {
 		// if it's not a directory, we skip it
 		if !modelDirEntry.IsDir() {
