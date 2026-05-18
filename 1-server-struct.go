@@ -28,6 +28,11 @@ func (thisServer *server) IsLocal() bool {
 	return thisServer.config.base().envTypeVal == core.EnvTypeLOCAL
 }
 
+// Shortcut; true if the 'EnvType' config item is "SANDBOX"
+func (thisServer *server) IsSandbox() bool {
+	return thisServer.config.base().envTypeVal == core.EnvTypeSANDBOX
+}
+
 // ------------------------------------------------------------------------------------------------
 // HTTP Request contexts, that form a limited pool
 // ------------------------------------------------------------------------------------------------

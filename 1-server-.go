@@ -143,7 +143,9 @@ func (thisServer *server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	// w.Header().Set("Access-Control-Allow-Origin", "*")
 	// TODO do better / probably through the config
-	// w.Header().Add("Access-Control-Allow-Origin", "*")
+	if thisServer.IsLocal() || thisServer.IsSandbox() {
+		w.Header().Add("Access-Control-Allow-Origin", "*")
+	}
 	// w.Header().Add("Access-Control-Allow-Methods", "DELETE, POST, GET, OPTIONS")
 	// w.Header().Add("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
 	// w.Header().Add("Access-Control-Allow-Headers", "Aept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
