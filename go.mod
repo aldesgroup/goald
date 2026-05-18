@@ -1,12 +1,12 @@
 module github.com/aldesgroup/goald
 
-go 1.26.2
+go 1.26.3
 
 require (
-	github.com/aldesgroup/corego v0.0.0-20260429060318-73e3daf8d780
-	github.com/getkin/kin-openapi v0.137.0
+	github.com/aldesgroup/corego v0.0.0-20260518143233-b6959e31c918
+	github.com/getkin/kin-openapi v0.138.0
 	github.com/julienschmidt/httprouter v1.3.0
-	github.com/microsoft/go-mssqldb v1.9.8
+	github.com/microsoft/go-mssqldb v1.10.0
 	go.yaml.in/yaml/v3 v3.0.4
 	sigs.k8s.io/yaml v1.6.0
 )
@@ -30,7 +30,6 @@ require (
 	github.com/woodsbury/decimal128 v1.4.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
 	golang.org/x/crypto v0.50.0 // indirect
-	golang.org/x/net v0.53.0 // indirect
 	golang.org/x/text v0.36.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
