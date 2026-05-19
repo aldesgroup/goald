@@ -433,7 +433,7 @@ func paramsFromClass(clsName className, path string) (openapi3.Parameters, error
 	var out openapi3.Parameters
 
 	for _, field := range core.GetSortedValues(model.base().fields) {
-		schema := schemaFromPrimitiveType(field, false)
+		schema := schemaFromPrimitiveType(field, true)
 		parameter := &openapi3.Parameter{
 			Name:        field.getName(),
 			In:          "query",
@@ -511,7 +511,7 @@ func schemaFromPrimitiveType(field IField, addDesc bool) *openapi3.SchemaRef {
 					Type:        &openapi3.Types{"integer"},
 					Format:      "int32",
 					Enum:        core.ToAnySlice(enumVals),
-					Description: field.getTag("desc") + "; labels associated with the values: \n" + strings.Join(lines, "\n"),
+					Description: field.getTag("desc") + "; labels associated with the possible values: \n" + strings.Join(lines, "\n"),
 				}}
 
 		} else {
