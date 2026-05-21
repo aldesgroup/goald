@@ -39,6 +39,7 @@ type serverConfig struct {
 	EnvType     string
 	Databases   []*dbConfig
 	DataLoaders map[string]map[string]string
+	Version     string
 
 	// technical props
 	envTypeVal core.EnvType

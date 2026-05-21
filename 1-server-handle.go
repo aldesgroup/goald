@@ -68,12 +68,13 @@ func (thisServer *server) ServeEndpoint(ep iEndpoint, w http.ResponseWriter, req
 
 // the type of response returned by all our REST endpoints
 type response struct {
-	Object     any          `json:"Object,omitempty"`
-	ObjectList any          `json:"ObjectList,omitempty"`
+	Object     any          `json:"object,omitempty"`
+	ObjectList any          `json:"objectList,omitempty"`
 	statusObj  hstatus.Code `json:"-"`
-	StatusCode int          `json:"StatusCode"`
-	Status     string       `json:"Status"`
-	Message    string       `json:"Message"`
+	StatusCode int          `json:"statusCode"`
+	Status     string       `json:"status"`
+	Message    string       `json:"message"`
+	Version    string       `json:"version"`
 }
 
 func errResp(_ int, _ string, _ ...any) *response {
@@ -99,7 +100,7 @@ func (thisReqCtx *httpRequestContext) serve(ep iEndpoint, w http.ResponseWriter,
 	webCtx := newWebContext(thisReqCtx, ep, targetRefOrID)
 
 	// prepping the response
-	resp := &response{}
+	resp := &response{Version: thisReqCtx.server.config.base().Version}
 
 	// TODO check auth!
 
