@@ -9,6 +9,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"runtime/debug"
 
 	core "github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald/features/hstatus"
@@ -40,7 +41,7 @@ func (thisServer *server) ServeEndpoint(ep iEndpoint, w http.ResponseWriter, req
 			if len(reqCtx.inputBodyBytes) > 0 {
 				reqBody = " with body: " + string(reqCtx.inputBodyBytes)
 			}
-			slog.Error(fmt.Sprintf("Internal error n°%s = '%v', while calling '%s'%s", errorReference, err, req.RequestURI, reqBody))
+			slog.Error(fmt.Sprintf("Internal error n°%s = '%v', while calling '%s'%s. Stack: %s", errorReference, err, req.RequestURI, reqBody, string(debug.Stack())))
 
 			// responding to the client
 			reqCtx.write(&response{
