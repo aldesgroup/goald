@@ -134,7 +134,7 @@ func generateOpenAPIYAML(servers string) ([]byte, error) {
 		OpenAPI: "3.0.3",
 		Info: &openapi3.Info{
 			Title:       configObj.base().AppName,
-			Version:     "DEVELOPMENT_VERSION", // this should always be replaced right before releasing a new version
+			Version:     "v0.0.1", // this means "development version", and should be replaced with the actual version during the release process
 			Description: configObj.base().AppDesc,
 		},
 		Paths: openapi3.NewPaths(),
