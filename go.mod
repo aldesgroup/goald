@@ -3,8 +3,8 @@ module github.com/aldesgroup/goald
 go 1.26.3
 
 require (
-	github.com/aldesgroup/corego v0.0.0-20260518143233-b6959e31c918
-	github.com/getkin/kin-openapi v0.138.0
+	github.com/aldesgroup/corego v0.0.0-20260602091903-26c237b9b89e
+	github.com/getkin/kin-openapi v0.139.0
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/microsoft/go-mssqldb v1.10.0
 	go.yaml.in/yaml/v3 v3.0.4
@@ -21,8 +21,8 @@ require (
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/mailru/easyjson v0.9.2 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
-	github.com/oasdiff/yaml v0.0.9 // indirect
-	github.com/oasdiff/yaml3 v0.0.12 // indirect
+	github.com/oasdiff/yaml v0.1.0 // indirect
+	github.com/oasdiff/yaml3 v0.0.13 // indirect
 	github.com/perimeterx/marshmallow v1.1.5 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect

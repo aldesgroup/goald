@@ -45,7 +45,7 @@ func (thisServer *server) checkModel(clsName className, model IBusinessObjectMod
 		core.PanicMsg("The model name '%s' should be pascal-cased, i.e. %s", clsName, expected)
 	}
 
-	if model.base().description == "" {
+	if !model.base().abstract && model.base().description == "" {
 		core.PanicMsg("Model '%s' should have a description", clsName)
 	}
 
