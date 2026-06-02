@@ -12,14 +12,42 @@ import (
 )
 
 // ------------------------------------------------------------------------------------------------
+// Endpoint groups
+// ------------------------------------------------------------------------------------------------
+
+type EndpointGroup struct {
+	Name        string
+	Description string
+}
+
+var allEndpointGroups = make(map[string]*EndpointGroup)
+
+func NewEndpointGroup(name string, description string) *EndpointGroup {
+	// a group cannot already exist with the same name
+	if _, alreadyExists := allEndpointGroups[name]; alreadyExists {
+		panic("an endpoint group already exists with this name: " + name)
+	}
+
+	allEndpointGroups[name] = &EndpointGroup{
+		Name:        name,
+		Description: description,
+	}
+
+	return allEndpointGroups[name]
+}
+
+// ------------------------------------------------------------------------------------------------
 // Base structs & generic methods
 // ------------------------------------------------------------------------------------------------
+
 type iEndpoint interface {
 	getMethod() string
 	getResourceClass() className
 	getIDProp() IField
-	getFullPath() string
+	getOperationPath(includeIdOrRefName bool) string // e.g. /rest/document/reduce/:id if includeIdOrRefName = true, /rest/document/reduce otherwise
+	getPathAsString() string                         // e.g. GET /rest/document/reduce/:id
 	getLabel() string
+	getDescription() string
 	getLoadingType() LoadingType
 	isMultipleOutput() bool
 	hasBodyOrParamsInput() bool
@@ -28,6 +56,8 @@ type iEndpoint interface {
 	getInputOrParamsClass() className
 	isCalledFromWebApp() bool
 	isCalledFromNativeApp() bool
+	trimBodyLoggingTo() int
+	getGroup() *EndpointGroup
 	returnOne(webCtx WebContext) (any, hstatus.Code, string)
 	returnMany(webCtx WebContext) (any, hstatus.Code, string)
 	returnOneForOne(webCtx WebContext, input any) (any, hstatus.Code, string)
@@ -39,20 +69,22 @@ type iEndpoint interface {
 // an endpoint object is parametrized by the potential objects of type I,
 // and the output objects of type O, i.e. the resource type
 type endpoint[ResourceType IBusinessObject] struct {
-	method              string      // get, post, put...
-	resourceClass       className   // the class of the objects reached through this endpoint
-	basePath            string      // the endpoint's base path, which is the lower-cased resource type name
-	actionPath          string      // do we need an additional path for a non-CRUD action, like "reduce" in: "GET /document/reduce/:id"
-	idProp              IField      // if a specific BO is targeted, this has to be through one of its properties
-	fullPath            string      // resulting from the parameter type, action path and id property
-	label               string      // short label to describe the endpoint
-	multipleOutput      bool        // if true, then the endpoint delivers arrays of BOs, rather than a single one
-	loadingType         LoadingType // how the returned resource(s) are loaded
-	bodyInputRequired   bool        // if true, then we expect something in the request body
-	multipleInput       bool        // if true, then we expect an array of BOs in the body, rather than a single one
-	inputOrParamsClass  className   // if bodyInputRequired = true, then this is the type of the input
-	calledFromWebApp    bool        // if true then this endpoint can be called from the webapp, so the BOs involved might be synced through codegen
-	calledFromNativeApp bool        // if true then this endpoint can be called from the native app, so the BOs involved might be synced through codegen
+	method              string         // get, post, put...
+	resourceClass       className      // the class of the objects reached through this endpoint
+	basePath            string         // the endpoint's base path, which is the lower-cased resource type name
+	actionPath          string         // do we need an additional path for a non-CRUD action, like "reduce" in: "GET /document/reduce/:id"
+	idProp              IField         // if a specific BO is targeted, this has to be through one of its properties
+	label               string         // short label to describe the endpoint
+	description         string         // a bit longer text to describe the endpoint
+	multipleOutput      bool           // if true, then the endpoint delivers arrays of BOs, rather than a single one
+	loadingType         LoadingType    // how the returned resource(s) are loaded
+	bodyInputRequired   bool           // if true, then we expect something in the request body
+	multipleInput       bool           // if true, then we expect an array of BOs in the body, rather than a single one
+	inputOrParamsClass  className      // if bodyInputRequired = true, then this is the type of the input
+	calledFromWebApp    bool           // if true then this endpoint can be called from the webapp, so the BOs involved might be synced through codegen
+	calledFromNativeApp bool           // if true then this endpoint can be called from the native app, so the BOs involved might be synced through codegen
+	logBodyFirstCharsNb int            // if > 0, we're logging only the n-th first chars of the body, not it's entirety
+	group               *EndpointGroup // if not empty, this is the name of the group this endpoint belongs to, which can be used for documentation or other purposes
 }
 
 func (ep *endpoint[ResourceType]) getMethod() string {
@@ -67,26 +99,32 @@ func (ep *endpoint[ResourceType]) getIDProp() IField {
 	return ep.idProp
 }
 
-func (ep *endpoint[ResourceType]) getFullPath() string {
-	if ep.fullPath == "" {
-		ep.fullPath = "/" + ep.basePath
-		if ep.actionPath != "" {
-			if ep.actionPath[0:1] == "/" {
-				ep.fullPath += ep.actionPath
-			} else {
-				ep.fullPath += "/" + ep.actionPath
-			}
-		}
-		if ep.idProp != nil {
-			ep.fullPath += "/:" + ep.idProp.getName()
+func (ep *endpoint[ResourceType]) getOperationPath(includeIdOrRefName bool) string {
+	operationPath := apiPath + "/" + ep.basePath
+	if ep.actionPath != "" {
+		if ep.actionPath[0:1] == "/" {
+			operationPath += ep.actionPath
+		} else {
+			operationPath += "/" + ep.actionPath
 		}
 	}
+	if ep.idProp != nil && includeIdOrRefName {
+		operationPath += "/:" + ep.idProp.getName()
+	}
 
-	return ep.fullPath
+	return operationPath
+}
+
+func (ep *endpoint[ResourceType]) getPathAsString() string {
+	return ep.getMethod() + " " + ep.getOperationPath(true)
 }
 
 func (ep *endpoint[ResourceType]) getLabel() string {
 	return ep.label
+}
+
+func (ep *endpoint[ResourceType]) getDescription() string {
+	return ep.description
 }
 
 func (ep *endpoint[ResourceType]) getLoadingType() LoadingType {
@@ -119,6 +157,14 @@ func (ep *endpoint[ResourceType]) isCalledFromWebApp() bool {
 
 func (ep *endpoint[ResourceType]) isCalledFromNativeApp() bool {
 	return ep.calledFromNativeApp
+}
+
+func (ep *endpoint[ResourceType]) trimBodyLoggingTo() int {
+	return ep.logBodyFirstCharsNb
+}
+
+func (ep *endpoint[ResourceType]) getGroup() *EndpointGroup {
+	return ep.group
 }
 
 func (ep *endpoint[ResourceType]) returnOne(webCtx WebContext) (any, hstatus.Code, string) {
@@ -198,15 +244,22 @@ func (thisEndpoint *endpoint[ResourceType]) Label(label string) *endpoint[Resour
 	return thisEndpoint
 }
 
+// Providing a longer description for this endpoint
+func (thisEndpoint *endpoint[ResourceType]) Description(description string) *endpoint[ResourceType] {
+	thisEndpoint.description = description
+
+	return thisEndpoint
+}
+
 // Indicating that this endpoint can be called from the associated web app (through Aldev),
 // so that I/O code can be automatically generated within it
 func (thisEndpoint *endpoint[ResourceType]) SetCalledFromWebApp() *endpoint[ResourceType] {
 	thisEndpoint.calledFromWebApp = true
 
-	// taking the opportunity to enrich the class specs that are impacted here
-	specsForName(thisEndpoint.resourceClass).base().usedInWebApp = true
+	// taking the opportunity to enrich the model that are impacted here
+	modelForName(thisEndpoint.resourceClass).base().usedInWebApp = true
 	if thisEndpoint.inputOrParamsClass != "" {
-		specsForName(thisEndpoint.inputOrParamsClass).base().usedInWebApp = true
+		modelForName(thisEndpoint.inputOrParamsClass).base().usedInWebApp = true
 	}
 
 	return thisEndpoint
@@ -217,11 +270,25 @@ func (thisEndpoint *endpoint[ResourceType]) SetCalledFromWebApp() *endpoint[Reso
 func (thisEndpoint *endpoint[ResourceType]) SetCalledFromNativeApp() *endpoint[ResourceType] {
 	thisEndpoint.calledFromNativeApp = true
 
-	// taking the opportunity to enrich the class specs that are impacted here
-	specsForName(thisEndpoint.resourceClass).base().usedInNativeApp = true
+	// taking the opportunity to enrich the model that are impacted here
+	modelForName(thisEndpoint.resourceClass).base().usedInNativeApp = true
 	if thisEndpoint.inputOrParamsClass != "" {
-		specsForName(thisEndpoint.inputOrParamsClass).base().usedInNativeApp = true
+		modelForName(thisEndpoint.inputOrParamsClass).base().usedInNativeApp = true
 	}
+
+	return thisEndpoint
+}
+
+// Avoid too many logs
+func (thisEndpoint *endpoint[ResourceType]) TrimBodyLogging(trimTo int) *endpoint[ResourceType] {
+	thisEndpoint.logBodyFirstCharsNb = trimTo
+
+	return thisEndpoint
+}
+
+// Putting the endpoint in a group, which can be used for documentation or other purposes
+func (thisEndpoint *endpoint[ResourceType]) InGroup(group *EndpointGroup) *endpoint[ResourceType] {
+	thisEndpoint.group = group
 
 	return thisEndpoint
 }
@@ -236,7 +303,7 @@ func GetOne[ResourceType IBusinessObject](
 	loadingType LoadingType,
 ) *oneForNoneEndpoint[ResourceType] {
 
-	return handleOne[ResourceType](http.MethodGet, handlerFunc, loadingType)
+	return handleOne(http.MethodGet, handlerFunc, loadingType)
 }
 
 // Declaring an endpoint to delete 1 BO instance with a DELETE request
@@ -244,7 +311,7 @@ func DeleteOne[ResourceType IBusinessObject](
 	handlerFunc func(webCtx WebContext) (ResourceType, hstatus.Code, string),
 ) *oneForNoneEndpoint[ResourceType] {
 
-	return handleOne[ResourceType](http.MethodDelete, handlerFunc, "")
+	return handleOne(http.MethodDelete, handlerFunc, "")
 }
 
 // Declaring an endpoint to return N BO instances from a GET request
@@ -253,7 +320,7 @@ func GetMany[ResourceType IBusinessObject](
 	loadingType LoadingType,
 ) *manyForNoneEndpoint[ResourceType] {
 
-	return handleMany[ResourceType](http.MethodGet, handlerFunc, loadingType)
+	return handleMany(http.MethodGet, handlerFunc, loadingType)
 }
 
 // Declaring an endpoint to return 1 BO instance from 1 POSTed BO instance
@@ -262,7 +329,7 @@ func PostOneGetOne[InputType, ResourceType IBusinessObject](
 	loadingType LoadingType,
 ) *oneForOneEndpoint[InputType, ResourceType] {
 
-	return handleOneForOne[InputType, ResourceType](http.MethodPost, handlerFunc, loadingType)
+	return handleOneForOne(http.MethodPost, handlerFunc, loadingType)
 }
 
 // Declaring an endpoint to return 1 BO instance from 1 PUT BO instance
@@ -271,7 +338,7 @@ func PutOne[InputType, ResourceType IBusinessObject](
 	loadingType LoadingType,
 ) *oneForOneEndpoint[ResourceType, ResourceType] {
 
-	return handleOneForOne[ResourceType, ResourceType](http.MethodPut, handlerFunc, loadingType)
+	return handleOneForOne(http.MethodPut, handlerFunc, loadingType)
 }
 
 // Declaring an endpoint to return N BO instance from N POSTed BO instances
@@ -280,7 +347,7 @@ func PostManyGetMany[InputType, ResourceType IBusinessObject](
 	loadingType LoadingType,
 ) *manyForManyEndpoint[InputType, ResourceType] {
 
-	return handleManyForMany[InputType, ResourceType](http.MethodPost, handlerFunc, loadingType)
+	return handleManyForMany(http.MethodPost, handlerFunc, loadingType)
 }
 
 // Declaring an endpoint to return N BO instance from query parameters that are described with 1 URLQueryParams
@@ -289,5 +356,5 @@ func GetManyWithParams[ResourceType IBusinessObject, QueryParamsType IURLQueryPa
 	loadingType LoadingType,
 ) *manyForOneEndpoint[QueryParamsType, ResourceType] {
 
-	return handleManyForOne[QueryParamsType, ResourceType](http.MethodGet, handlerFunc, loadingType, false)
+	return handleManyForOne(http.MethodGet, handlerFunc, loadingType, false)
 }

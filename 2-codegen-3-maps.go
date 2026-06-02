@@ -96,18 +96,18 @@ func (thisServer *server) generateAllObjectValueMappers(srcdir, currentPath stri
 func generateObjectValueMappersForBO(class IClass, filepath string) {
 	// the corresponding class
 	className := class.getClassName()
-	boSpecs := specsForName(className)
+	model := modelForName(className)
 
 	// checking the BO code makes use of its class
 	// TODO - auto-add this code block to the BO code + the import
-	if boSpecs == nil {
+	if model == nil {
 		core.PanicMsg("It looks like class '%s' has never been imported and thus not initialized and registered. \n"+
 			"Add this - and complete as necessary - to your business object definition code: \n\n"+
-			"import (class \"%s/_include/_specs\") \n"+
+			"import (class \"%s/_include/%s/model\") \n"+
 			"func init() { \n"+
-			"	specs.%s().SetNotPersisted() \n"+
+			"	model.%s().SetNotPersisted() \n"+
 			"}",
-			className, getCurrentModule(), className)
+			className, getCurrentModule(), class.getPackage(), className)
 	}
 
 	// the corresponding package
@@ -132,7 +132,7 @@ func generateObjectValueMappersForBO(class IClass, filepath string) {
 	bObjectType := utils.TypeOf(class.NewObject(), true)
 
 	// browsing the entity's properties to fill the get / set cases in the 2 switch
-	for _, field := range core.GetSortedValues(boSpecs.base().fields) {
+	for _, field := range core.GetSortedValues(model.base().fields) {
 		// adding to the context, and the class file content
 		if typeFamily := field.getTypeFamily(); typeFamily != utils.TypeFamilyUNKNOWN && typeFamily != utils.TypeFamilyRELATIONSHIPxMONOM {
 			// not handling multiple properties for now

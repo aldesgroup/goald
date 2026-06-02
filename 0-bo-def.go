@@ -11,7 +11,7 @@ import "fmt"
 
 type IBusinessObject interface {
 	// identification
-	Specs() IBusinessObjectSpecs
+	GetModel() IBusinessObjectModel
 	getClassName() className
 	setClassName(className)
 	GetID() BObjID
@@ -31,23 +31,23 @@ type IBusinessObject interface {
 type BObjID int64 // probably a UUID here
 
 type BusinessObject struct {
-	specs     IBusinessObjectSpecs
+	model     IBusinessObjectModel
 	className className
-	ID        BObjID `json:",omitempty"`
+	ID        BObjID `json:"id,omitempty" io:"o*" desc:"The unique identifier of this business object"`
 }
 
 var _ IBusinessObject = (*BusinessObject)(nil)
 
-func (thisBO *BusinessObject) Specs() IBusinessObjectSpecs {
-	if thisBO.specs == nil {
-		thisBO.specs = specsForName(thisBO.className)
+func (thisBO *BusinessObject) GetModel() IBusinessObjectModel {
+	if thisBO.model == nil {
+		thisBO.model = modelForName(thisBO.className)
 	}
 
-	if thisBO.specs == nil {
+	if thisBO.model == nil {
 		panic("unknown class for a business object!")
 	}
 
-	return thisBO.specs
+	return thisBO.model
 }
 
 /* default implementations */
@@ -65,7 +65,7 @@ func (thisBO *BusinessObject) ChangeAfterInsert(BloContext) error  { return nil 
 
 // IEnum must be implemented by every enum type
 type IEnum interface {
-	fmt.Stringer // each enum value has a default label
-	Val() int
-	Values() map[int]string
+	fmt.Stringer            // each enum value has a default label
+	Val() int               // each enum value has an integer value
+	Values() map[int]string // each enum has a set of values associated with labels
 }

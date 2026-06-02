@@ -11,9 +11,9 @@ type LoadingScenario struct {
 }
 
 func (thisBO *BusinessObject) Load(loadingType LoadingType, with ...*LoadingScenario) *LoadingScenario {
-	return nil
+	return nil // TODO
 }
 
 func With(relationship *Relationship, with ...*LoadingScenario) *LoadingScenario {
-	return nil
+	return nil // TODO
 }

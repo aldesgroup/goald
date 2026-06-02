@@ -20,28 +20,38 @@ import (
 // Initialisation
 // ------------------------------------------------------------------------------------------------
 
+// This object contains properties used for code generation
+type codegenParams struct {
+	srcdir       string // if codegen > 0, this is where to find the go source code
+	othersrcdirs string // if codegen > 0, this is where to find secondary go source code directories, that we also watch with aldev
+	codegen      int    // if > 0, the server cannot be started, but code is generated instead
+	docpath      string // if codegen > 0, the path of the API doc file to generate, i.e. data/api-doc.yaml
+	webdir       string // if codegen > 0, this is where to find the web app source code, if any
+	nativedir    string // if codegen > 0, this is where to find the native app source code, if any
+	regen        bool   // if true and codegen > 0, then all the generated code is regenerated
+	bindir       string // if codegen > 0, this is where to find the compilated code
+	servers      string // if codegen > 0, the list of the remote server URLs, separated by a pipe, for the API doc generation
+}
+
 // This function should be called in each Goald-based app
 func NewServer() ServerContext {
 	// reading the program's arguments
-	var confPath string  // the path to the config file
-	var srcdir string    // if codegen > 0, this is where to find the go source code
-	var migrate bool     // if true, then the configured databases are auto-migrated to fit the BOs' persistency requirements
-	var codegen int      // if > 0, the server cannot be started, but code is generated instead
-	var webdir string    // if codegen > 0, this is where to find the web app source code, if any
-	var nativedir string // if codegen > 0, this is where to find the native app source code, if any
-	var regen bool       // if true, then all the generated code is regenerated
-	var bindir string    // if codegen > 0, this is where to find the compilated code
-	var port int         // if the server is to listen to HTTP requests, then the port must be provided
+	var confPath string // the path to the config file
+	var migrate bool    // if true, then the configured databases are auto-migrated to fit the BOs' persistency requirements
+	var cgParams = &codegenParams{}
 
 	flag.StringVar(&confPath, "config", "", "the path to the config file")
-	flag.StringVar(&srcdir, "srcdir", "api", "where to find all the Go code, from the project's root")
 	flag.BoolVar(&migrate, "migrate", false, "activates the auto-migration of the configured databases")
-	flag.IntVar(&codegen, "codegen", 0, "if > 0, runs code generation and exits; 1 = objects, 2 = classes")
-	flag.StringVar(&webdir, "webdir", "webapp", "where to find all the Web app code, from the project's root")
-	flag.StringVar(&nativedir, "nativedir", "webapp", "where to find all the Native app code, from the project's root")
-	flag.BoolVar(&regen, "regen", false, "forces the code regeneration")
-	flag.StringVar(&bindir, "bindir", "bin", "where to find the compilated code")
-	flag.IntVar(&port, "port", 0, "the port to listen to HTTP requests")
+	flag.StringVar(&cgParams.srcdir, "srcdir", "api", "where to find all the Go code, from the project's root")
+	flag.StringVar(&cgParams.othersrcdirs, "othersrcdirs", "", "where to find secondary go source code directories, eg. path/to/dir1,dir2,etc")
+	flag.IntVar(&cgParams.codegen, "codegen", 0, "if > 0, runs code generation and exits; 1 = objects, 2 = classes")
+	flag.StringVar(&cgParams.docpath, "docpath", "", "the path of the API doc file to generate, i.e. data/api-doc.yaml")
+	flag.StringVar(&cgParams.webdir, "webdir", "webapp", "where to find all the Web app code, from the project's root")
+	flag.StringVar(&cgParams.nativedir, "nativedir", "webapp", "where to find all the Native app code, from the project's root")
+	flag.BoolVar(&cgParams.regen, "regen", false, "forces the code regeneration")
+	flag.StringVar(&cgParams.bindir, "bindir", "bin", "where to find the compilated code")
+	flag.StringVar(&cgParams.servers, "servers", "", "the list of the remote server URLs, separated by a pipe, for the API doc generation; "+
+		"eg. sandbox:http://dev.example.com|staging:http://qa.example.com|production:http://prd.example.com")
 	flag.Parse()
 
 	// reading the config file
@@ -50,7 +60,6 @@ func NewServer() ServerContext {
 	// new server
 	server := &server{
 		config:   serverConfig,
-		port:     port,
 		instance: core.RandomString(3), // TODO remove ?
 	}
 
@@ -58,13 +67,10 @@ func NewServer() ServerContext {
 	slog.SetLogLoggerLevel(slog.LevelDebug) // TODO configure
 
 	// running the app in code generation mode, i.e. no server started here - should only be used by devs
-	if codegen > 0 {
-		server.runCodeGen(srcdir, codeGenLevel(codegen), webdir, nativedir, regen, bindir)
-	}
+	if cgParams.codegen > 0 {
+		server.runCodeGen(cgParams)
 
-	// performing some checks on the code - but only in dev mode of course
-	if server.IsLocal() {
-		server.runCodeChecks()
+		os.Exit(0)
 	}
 
 	// initialising the DBs
@@ -111,31 +117,21 @@ func (thisServer *server) initRoutes() {
 	thisServer.router = httprouter.New()
 	thisServer.router.RedirectTrailingSlash = false
 
-	// configuring & adding the REST API endpoints - should we have to serve an API
-	for _, endpoint := range restRegistry.endpoints {
-		slog.Info(fmt.Sprintf("Serving: %s %s", endpoint.getMethod(), apiPath+endpoint.getFullPath()))
-		thisServer.router.Handle(endpoint.getMethod(), apiPath+endpoint.getFullPath(), thisServer.handleFor(endpoint))
+	// serving the API doc
+	slog.Info("Serving: GET /doc/api")
+	thisServer.router.Handle(http.MethodGet, "/doc/api", serveDocForAPI)
+
+	// locally, we also serve the API doc from the root path, for easier access
+	if thisServer.IsLocal() {
+		slog.Info("Serving: GET /")
+		thisServer.router.Handle(http.MethodGet, "/", serveDocForAPI)
 	}
 
-	// configuring the static routes TODO not used for now
-	// for _, route := range thisServer.config.base().HTTP.StaticRoutes {
-	// 	if fileToServe := route.ServeFile; fileToServe != "" {
-	// 		thisServer.router.HandlerFunc(http.MethodGet, route.For, func(w http.ResponseWriter, r *http.Request) { // e.g.: "/"
-	// 			slog.Debug(fmt.Sprintf("Serving file %s for %s", fileToServe, r.URL.Path))
-	// 			http.ServeFile(w, r, fileToServe) // e.g. serving "webapp/dist/index.html"
-	// 		})
-	// 	} else {
-	// 		path := route.For
-	// 		if strings.HasSuffix(path, "*") {
-	// 			path += "filepath"
-	// 		}
-
-	// 		thisServer.router.HandlerFunc(http.MethodGet, path, func(w http.ResponseWriter, r *http.Request) {
-	// 			slog.Debug(fmt.Sprintf("Serving file %s from %s", r.URL.Path, route.ServeDir))
-	// 			http.ServeFile(w, r, route.ServeDir+r.URL.Path) // e.g. serving index.html
-	// 		})
-	// 	}
-	// }
+	// configuring & adding the REST API endpoints - should we have to serve an API
+	for _, endpoint := range restRegistry.endpoints {
+		slog.Info(fmt.Sprintf("Serving: %s", endpoint.getPathAsString()))
+		thisServer.router.Handle(endpoint.getMethod(), endpoint.getOperationPath(true), thisServer.handleFor(endpoint))
+	}
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -144,12 +140,15 @@ func (thisServer *server) initRoutes() {
 func (thisServer *server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// this is a place for potential middlewares
 	slog.Debug(fmt.Sprintf("%+v", req.Header))
+
 	// w.Header().Set("Access-Control-Allow-Origin", "*")
-	// TODO do better
-	w.Header().Add("Access-Control-Allow-Origin", "*")
-	w.Header().Add("Access-Control-Allow-Methods", "DELETE, POST, GET, OPTIONS")
-	w.Header().Add("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
-	w.Header().Add("Access-Control-Allow-Headers", "Aept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+	// TODO do better / probably through the config
+	if thisServer.IsLocal() || thisServer.IsSandbox() {
+		w.Header().Add("Access-Control-Allow-Origin", "*")
+	}
+	// w.Header().Add("Access-Control-Allow-Methods", "DELETE, POST, GET, OPTIONS")
+	// w.Header().Add("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+	// w.Header().Add("Access-Control-Allow-Headers", "Aept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
 
 	// add protection :https://medium.com/@rahulreza920/go-1-25-is-released-faster-smarter-and-safer-9c97ff8b493d
 
@@ -164,7 +163,7 @@ func (thisServer *server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 func (thisServer *server) Start() {
 	// TODO check the configured host / port, etc
-	core.PanicMsgIf(thisServer.port == 0, "No --port provided!")
+	core.PanicMsgIf(thisServer.config.base().Port == 0, "No --port provided!")
 
 	// TODO fill the requestHandler pool
 
@@ -176,8 +175,8 @@ func (thisServer *server) Start() {
 	// TODO set router PanicHandler
 
 	// listening to HTTP requests (blocking process)
-	addr := fmt.Sprintf(":%d", thisServer.port)
-	slog.Info(fmt.Sprintf("Serving at: http://localhost:%d/", thisServer.port))
+	addr := fmt.Sprintf(":%d", thisServer.config.base().Port)
+	slog.Info(fmt.Sprintf("Serving at: http://localhost:%d/", thisServer.config.base().Port))
 	if errListen := http.ListenAndServe(addr, thisServer); errListen != nil && errListen != http.ErrServerClosed {
 		core.PanicMsgIfErr(errListen, "Could not start the server!")
 	}

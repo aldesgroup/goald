@@ -3,8 +3,6 @@ package goald
 import (
 	"fmt"
 	"log/slog"
-
-	core "github.com/aldesgroup/corego"
 )
 
 // specific queries for SQL Server databases
@@ -24,7 +22,8 @@ func (thisAdapter *dbAdapterMSSQL) getTablesQuery(dbName string) string {
 
 // getSQLColumnDeclaration returns the type of the column to create for the given BO property
 func (thisAdapter *dbAdapterMSSQL) getSQLColumnDeclaration(property iBusinessObjectProperty) string {
-	notNull := core.IfThenElse(property.isMandatory(), " NOT NULL", "")
+	// notNull := core.IfThenElse(property.isMandatory(), " NOT NULL", "")
+	notNull := " NOT NULL" // TODO
 
 	switch property := property.(type) {
 	case *Relationship:

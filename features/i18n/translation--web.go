@@ -4,14 +4,18 @@ import (
 	"fmt"
 
 	g "github.com/aldesgroup/goald"
-	specs "github.com/aldesgroup/goald/_include/_specs"
+	"github.com/aldesgroup/goald/_include/i18n/model"
 	"github.com/aldesgroup/goald/features/hstatus"
 )
 
+var GenericEPs = g.NewEndpointGroup("General", "Generic endpoints for common behaviors")
+
 func init() {
 	g.GetManyWithParams[*Translation, *TranslationUrlParams](listTranslations, "").
-		TargetWith(specs.Translation().Lang()).
-		Label("Returns the translations for the given route")
+		InGroup(GenericEPs).
+		TargetWith(model.Translation().Lang()).
+		Label("List translations").
+		Description("Returns the translations for the given route")
 }
 
 func listTranslations(webCtx g.WebContext, params *TranslationUrlParams) ([]*Translation, hstatus.Code, string) {

@@ -33,28 +33,19 @@ func NewBaseConfig() *serverConfig {
 }
 
 type serverConfig struct {
-	// HTTP        *httpConfig
+	AppName     string
+	AppDesc     string
+	Port        int
 	EnvType     string
 	Databases   []*dbConfig
 	DataLoaders map[string]map[string]string
+	Version     string
 
 	// technical props
-	envTypeVal envType
+	envTypeVal core.EnvType
 }
 
 type DatabaseID string
-
-// type httpConfig struct {
-// 	// Port int
-// 	// ApiPath      string
-// 	StaticRoutes []*staticRouteConfig
-// }
-
-type staticRouteConfig struct {
-	For       string
-	ServeFile string
-	ServeDir  string
-}
 
 type dbConfig struct {
 	DbID      DatabaseID
@@ -95,7 +86,6 @@ func readAndCheckConfig(fromPath string) IServerConfig {
 	core.PanicMsgIfErr(errJson, "Could not convert YAML to JSON '%s'", fromPath)
 
 	// Unmarshalling the YAML file
-	core.PanicMsgIfErr(errRead, "Could not read config file at path '%s'", fromPath)
 	core.PanicMsgIfErr(json.Unmarshal(jsonBytes, configObj),
 		"Could not unmarshal the config file at path '%s'", fromPath)
 
@@ -103,7 +93,7 @@ func readAndCheckConfig(fromPath string) IServerConfig {
 	config := configObj.base()
 
 	// Parsing the env type
-	config.envTypeVal = envTypeValFrom(config.EnvType)
+	config.envTypeVal = core.EnvTypeValFrom(config.EnvType)
 
 	return configObj
 }

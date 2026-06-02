@@ -79,9 +79,9 @@ func (thisServer *server) generateClientAppModel(destdir string, ep iEndpoint, u
 	handledClasses[clsName] = true
 
 	// the business object we're dealing with
-	boSpecs := specsForName(clsName)
-	boClass := getClass(boSpecs)
-	boFields := core.GetSortedValues(boSpecs.base().fields)
+	boModel := modelForName(clsName)
+	boClass := getClass(boModel)
+	boFields := core.GetSortedValues(boModel.base().fields)
 
 	// the file we're dealing with
 	modelName := core.PascalToCamel(string(clsName))
@@ -108,7 +108,7 @@ func (thisServer *server) generateClientAppModel(destdir string, ep iEndpoint, u
 	}
 
 	// getting the file content - which might be empty if the file does not exist yet
-	code := parseCode(filepath).initFixedBlocks(modelName, apiPath+ep.getFullPath(), isWebapp)
+	code := parseCode(filepath).initFixedBlocks(modelName, ep.getOperationPath(true), isWebapp)
 
 	// browsing the entity's properties to fill the get / set cases in the 2 switch
 	for _, field := range boFields {
@@ -273,7 +273,7 @@ func (thisCode *codeFile) addFieldIfNeeded(codeCtx *codeContext, field IField) {
 			}
 
 			// handling the constraints - misc
-			if field.isMandatory() {
+			if field.isMandatoryInput() {
 				thisCode.updateLineIntoBlockWithPrefix(field.getName(), "    mandatory: true,", "mandatory:", "}")
 			} else {
 				thisCode.updateLineIntoBlockWithPrefix(field.getName(), "    mandatory: false,", "mandatory: true", "")

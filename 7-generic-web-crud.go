@@ -11,7 +11,7 @@ import (
 )
 
 func GenericHandleCreate[BOTYPE IBusinessObject]() *oneForOneEndpoint[BOTYPE, BOTYPE] {
-	ep := PostOneGetOne[BOTYPE](
+	ep := PostOneGetOne(
 		// new (anonym) handler function here
 		func(webCtx WebContext, input BOTYPE) (BOTYPE, hstatus.Code, string) {
 			if errCreate := CreateBO(webCtx.GetBloContext(), input); errCreate != nil {
@@ -28,14 +28,14 @@ func GenericHandleCreate[BOTYPE IBusinessObject]() *oneForOneEndpoint[BOTYPE, BO
 }
 
 func GenericHandleRead[BOTYPE IBusinessObject](idProp IField, loadingType LoadingType) *oneForNoneEndpoint[BOTYPE] {
-	ep := GetOne[BOTYPE](
+	ep := GetOne(
 		// new (anonym) handler function here
 		func(webCtx WebContext) (BOTYPE, hstatus.Code, string) {
 			// boClass := GetClass[BOTYPE]()
 			output, errRead := ReadBO(webCtx.GetBloContext(), idProp, webCtx.GetTargetRefOrID(), loadingType)
 			if errRead != nil {
 				return *new(BOTYPE), hstatus.InternalServerError,
-					fmt.Sprintf("Failed reading '%s' instance '%s': %s", idProp.ownerSpecs().base().name, webCtx.GetTargetRefOrID(), errRead)
+					fmt.Sprintf("Failed reading '%s' instance '%s': %s", idProp.ownerModel().base().name, webCtx.GetTargetRefOrID(), errRead)
 			}
 
 			return output.(BOTYPE), hstatus.OK, fmt.Sprintf("Found the targeted '%T' instance", output)
@@ -66,14 +66,14 @@ func GenericHandleUpdate[BOTYPE IBusinessObject](loadingType LoadingType) *oneFo
 }
 
 func GenericHandleDelete[BOTYPE IBusinessObject](idProp IField) *oneForNoneEndpoint[BOTYPE] {
-	ep := DeleteOne[BOTYPE](
+	ep := DeleteOne(
 		// new (anonym) handler function here
 		func(webCtx WebContext) (BOTYPE, hstatus.Code, string) {
 			// boClass := GetClass[BOTYPE]()
 			output, errRead := DeleteBO(webCtx.GetBloContext(), idProp, webCtx.GetTargetRefOrID())
 			if errRead != nil {
 				return *new(BOTYPE), hstatus.InternalServerError,
-					fmt.Sprintf("Failed reading '%s' instance '%s': %s", idProp.ownerSpecs().base().name, webCtx.GetTargetRefOrID(), errRead)
+					fmt.Sprintf("Failed reading '%s' instance '%s': %s", idProp.ownerModel().base().name, webCtx.GetTargetRefOrID(), errRead)
 			}
 
 			return output.(BOTYPE), hstatus.OK, fmt.Sprintf("Deleted the targeted '%T' instance", output)

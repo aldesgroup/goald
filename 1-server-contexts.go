@@ -1,9 +1,9 @@
 // ------------------------------------------------------------------------------------------------
 // Here are defined the contexts passed in the different layers of our multi-tier architecture:
-// - (no context) for the business object layer (*__.go files)
-// - BloContext for the Business LOgic code (used in *__blo.go files)
-// - DaoContext for the Data Access Objects (used in *__dao.go files)
-// - WebContext for the web endpoints code (used in *__web.go files)
+// - (no context) for the business object layer (*--.go files)
+// - BloContext for the Business LOgic code (used in *--blo.go files)
+// - DaoContext for the Data Access Objects (used in *--dao.go files)
+// - WebContext for the web endpoints code (used in *--web.go files)
 // ------------------------------------------------------------------------------------------------
 package goald
 
@@ -70,7 +70,7 @@ type WebContext interface {
 	iRestContext
 	GetBloContext() BloContext
 	GetTargetRefOrID() string
-	GetResource() IBusinessObjectSpecs   // the class of the resource being requested
+	GetResource() IBusinessObjectModel   // the class of the resource being requested
 	GetResourceLoadingType() LoadingType // returns the loading type of the current main resources (BOs) being worked on
 }
 
@@ -79,9 +79,7 @@ type webContextImpl struct {
 	*appContextImpl     // common implem of AppContext
 	*httpRequestContext // wrapping one of the server's children handling 1 request
 	ep                  iEndpoint
-	resource            IBusinessObjectSpecs
-	targetRefOrID       string // the ID or ref, or whatever property value used to clearly identify a resource
-	inputBodyBytes      []byte // keeping track of the incoming request body
+	resource            IBusinessObjectModel
 	bloContext          BloContext
 }
 
@@ -91,9 +89,8 @@ var _ WebContext = (*webContextImpl)(nil)
 func newWebContext(reqCtx *httpRequestContext, ep iEndpoint, targetRefOrID string) *webContextImpl {
 	return &webContextImpl{
 		appContextImpl:     &appContextImpl{},
-		httpRequestContext: reqCtx,
+		httpRequestContext: reqCtx.withTargetRefOrID(targetRefOrID),
 		ep:                 ep,
-		targetRefOrID:      targetRefOrID,
 	}
 }
 
@@ -111,9 +108,9 @@ func (thisWebCtx *webContextImpl) GetBloContext() BloContext {
 	return thisWebCtx.bloContext
 }
 
-func (thisWebCtx *webContextImpl) GetResource() IBusinessObjectSpecs {
+func (thisWebCtx *webContextImpl) GetResource() IBusinessObjectModel {
 	if thisWebCtx.resource == nil {
-		thisWebCtx.resource = specsRegistry.items[thisWebCtx.ep.getInputOrParamsClass()]
+		thisWebCtx.resource = modelRegistry.items[thisWebCtx.ep.getInputOrParamsClass()]
 	}
 
 	return thisWebCtx.resource

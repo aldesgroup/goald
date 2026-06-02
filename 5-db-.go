@@ -89,40 +89,40 @@ func openDB(conf *dbConfig) (*sql.DB, iDBAdapter) {
 	return db, adapter
 }
 
-// ------------------------------------------------------------------------------------------------
-// Quick DB operations
-// ------------------------------------------------------------------------------------------------
+// // ------------------------------------------------------------------------------------------------
+// // Quick DB operations
+// // ------------------------------------------------------------------------------------------------
 
-// Executes a query that should only return an array of string (1 column)
-func (thisDB *DB) FetchStringColumn(query string, args ...interface{}) (results []string, err error) {
-	// TODO better handle logging
-	rows, err := thisDB.Query(query, args...)
-	if err != nil {
-		return nil, ErrorC(err, "Error while executing query '%s': %s", query, err)
-	}
+// // Executes a query that should only return an array of string (1 column)
+// func (thisDB *DB) FetchStringColumn(query string, args ...interface{}) (results []string, err error) {
+// 	// TODO better handle logging
+// 	rows, err := thisDB.Query(query, args...)
+// 	if err != nil {
+// 		return nil, ErrorC(err, "Error while executing query '%s': %s", query, err)
+// 	}
 
-	// making sure we're closing the rows
-	defer func() {
-		if errClose := rows.Close(); errClose != nil {
-			// TODO do something
-			println(errClose)
-		}
-	}()
+// 	// making sure we're closing the rows
+// 	defer func() {
+// 		if errClose := rows.Close(); errClose != nil {
+// 			// TODO do something
+// 			println(errClose)
+// 		}
+// 	}()
 
-	// iterating over the result set
-	var result string
-	for rows.Next() {
-		if err = rows.Scan(&result); err != nil {
-			return nil, ErrorC(err, "Error while scanning a row: %s", err)
-		}
+// 	// iterating over the result set
+// 	var result string
+// 	for rows.Next() {
+// 		if err = rows.Scan(&result); err != nil {
+// 			return nil, ErrorC(err, "Error while scanning a row: %s", err)
+// 		}
 
-		results = append(results, result)
-	}
+// 		results = append(results, result)
+// 	}
 
-	// handling the error occurring during the call to .Next()
-	if err = rows.Err(); err != nil {
-		return nil, ErrorC(err, "Error while iterating over the rows: %s", err)
-	}
+// 	// handling the error occurring during the call to .Next()
+// 	if err = rows.Err(); err != nil {
+// 		return nil, ErrorC(err, "Error while iterating over the rows: %s", err)
+// 	}
 
-	return
-}
+// 	return
+// }

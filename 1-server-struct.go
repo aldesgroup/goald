@@ -3,7 +3,10 @@
 // ------------------------------------------------------------------------------------------------
 package goald
 
-import r "github.com/julienschmidt/httprouter"
+import (
+	core "github.com/aldesgroup/corego"
+	r "github.com/julienschmidt/httprouter"
+)
 
 // ------------------------------------------------------------------------------------------------
 // Server & methods
@@ -11,7 +14,6 @@ import r "github.com/julienschmidt/httprouter"
 
 type server struct {
 	instance string // TODO remove
-	port     int
 	config   IServerConfig
 	router   *r.Router
 }
@@ -23,7 +25,12 @@ func (thisServer *server) CustomConfig() ICustomConfig {
 
 // Shortcut; true if the 'EnvType' config item is "LOCAL"
 func (thisServer *server) IsLocal() bool {
-	return thisServer.config.base().envTypeVal == envTypeLOCAL
+	return thisServer.config.base().envTypeVal == core.EnvTypeLOCAL
+}
+
+// Shortcut; true if the 'EnvType' config item is "SANDBOX"
+func (thisServer *server) IsSandbox() bool {
+	return thisServer.config.base().envTypeVal == core.EnvTypeSANDBOX
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -33,5 +40,12 @@ func (thisServer *server) IsLocal() bool {
 // an HTTP request context proxies the main server, but also contains the info
 // specific to the currently handled HTTP request
 type httpRequestContext struct {
-	*server // proxying the server
+	*server               // proxying the server
+	targetRefOrID  string // the ID or ref, or whatever property value used to clearly identify a resource
+	inputBodyBytes []byte // keeping track of the incoming request body
+}
+
+func (thisReqCtx *httpRequestContext) withTargetRefOrID(targetRefOrID string) *httpRequestContext {
+	thisReqCtx.targetRefOrID = targetRefOrID
+	return thisReqCtx
 }

@@ -198,8 +198,8 @@ func (ep *manyForManyEndpoint[InputType, ResourceType]) returnManyForMany(webCtx
 // ------------------------------------------------------------------------------------------------
 
 // particular business object class
-type IURLQueryParamsSpecs interface {
-	IBusinessObjectSpecs
+type IURLQueryParamsModel interface {
+	IBusinessObjectModel
 }
 
 // particular business object
@@ -208,8 +208,8 @@ type IURLQueryParams interface {
 }
 
 // particular business object class implem
-type urlQueryParamsSpecs struct {
-	businessObjectSpecs
+type urlQueryParamsModel struct {
+	businessObjectModel
 }
 
 // particular business object implem
@@ -217,9 +217,9 @@ type URLQueryParams struct {
 	BusinessObject
 }
 
-func NewURLQueryParamsSpecs() IURLQueryParamsSpecs {
-	class := &urlQueryParamsSpecs{
-		businessObjectSpecs: businessObjectSpecs{
+func NewURLQueryParamsModel() IURLQueryParamsModel {
+	class := &urlQueryParamsModel{
+		businessObjectModel: businessObjectModel{
 			fields: map[string]IField{},
 			inNoDB: true,
 		},
