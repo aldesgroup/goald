@@ -129,7 +129,7 @@ func (thisServer *server) generateClientAppModel(destdir string, ep iEndpoint, u
 	}
 
 	// writing out the code lines
-	core.WriteToFile(strings.Join(codeLines, newline), filepath)
+	core.WriteToFile(strings.Join(codeLines, newline)+newline, filepath)
 	slog.Info(fmt.Sprintf("(Re-)generated file %s", filepath))
 }
 
@@ -313,14 +313,14 @@ func generateWebAppEnum(destdir string, enumType string, enum IEnum) {
 		enumLabel := enum.Values()[enumVal]
 		enumName := makeEnumName(enumLabel)
 		content += fmt.Sprintf("export const %s = %d;", enumName, enumVal) + newline
-		allTypes = append(allTypes, fmt.Sprintf("    { value: %s, label: \"%s\" },", enumName, enumLabel))
+		allTypes = append(allTypes, fmt.Sprintf("    {value: %s, label: '%s'},", enumName, enumLabel))
 		typeDecl = append(typeDecl, fmt.Sprintf("typeof %s", enumName))
 	}
 
 	content += "export const Options = [" + newline
 	content += strings.Join(allTypes, newline) + newline
 	content += "];" + newline
-	content += fmt.Sprintf("export type %s = %s;", enumType, strings.Join(typeDecl, " | "))
+	content += fmt.Sprintf("export type %s = %s;\n", enumType, strings.Join(typeDecl, " | "))
 
 	core.WriteToFile(content, filepath)
 }
