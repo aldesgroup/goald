@@ -7,6 +7,8 @@
 // ------------------------------------------------------------------------------------------------
 package goald
 
+import "github.com/aldesgroup/goald/features/logging"
+
 // ------------------------------------------------------------------------------------------------
 // AppContext contains the minimal info set that should be accessible in all the layers of the app
 // ------------------------------------------------------------------------------------------------
@@ -55,6 +57,7 @@ func (thisServer *server) GetDaoContext() DaoContext {
 // Implemented by the `server` struct
 type ServerContext interface {
 	BloContext
+	logging.ILogger // TODO to be moved to AppContext
 	Start()
 }
 

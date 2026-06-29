@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"runtime/debug"
 
@@ -41,7 +40,7 @@ func (thisServer *server) ServeEndpoint(ep iEndpoint, w http.ResponseWriter, req
 			if len(reqCtx.inputBodyBytes) > 0 {
 				reqBody = " with body: " + string(reqCtx.inputBodyBytes)
 			}
-			slog.Error(fmt.Sprintf("Internal error n°%s = '%v', while calling '%s'%s. Stack: %s", errorReference, err, req.RequestURI, reqBody, string(debug.Stack())))
+			thisServer.Error(false, fmt.Sprintf("Internal error n°%s = '%v', while calling '%s'%s. Stack: %s", errorReference, err, req.RequestURI, reqBody, string(debug.Stack())))
 
 			// responding to the client
 			reqCtx.write(&response{
@@ -82,13 +81,13 @@ func errResp(_ int, _ string, _ ...any) *response {
 	return &response{}
 }
 
-// main HTTP SERVING function
+// main HTTP SERVING functiont.De
 func (thisReqCtx *httpRequestContext) serve(ep iEndpoint, w http.ResponseWriter, req *http.Request, params r.Params) {
 
 	// TODO remove
 	reqCount++
-	prefix := fmt.Sprintf("%06d|%s", reqCount, thisReqCtx.instance) //
-	slog.Info(fmt.Sprintf("[%s] Serving %s (%s)", prefix, ep.getPathAsString(), ep.getLabel()))
+	prefix := fmt.Sprintf("%06d|%s", reqCount, thisReqCtx.instance)                                   //
+	thisReqCtx.Info(fmt.Sprintf("[%s] Serving %s (%s)", prefix, ep.getPathAsString(), ep.getLabel())) // TODO change
 
 	// initialising the web context that's going to be passed to the applicative handler
 	var targetRefOrID string
@@ -130,9 +129,9 @@ func (thisReqCtx *httpRequestContext) serve(ep iEndpoint, w http.ResponseWriter,
 	// TODO only do this in verbose mode!
 	if len(webCtx.inputBodyBytes) > 0 {
 		if trimTo := ep.trimBodyLoggingTo(); trimTo > 0 && len(webCtx.inputBodyBytes) > trimTo {
-			slog.Debug(fmt.Sprintf("Body: %s [...]", string(webCtx.inputBodyBytes)[:trimTo]))
+			thisReqCtx.Debug(fmt.Sprintf("Body: %s [...]", string(webCtx.inputBodyBytes)[:trimTo]))
 		} else {
-			slog.Debug(fmt.Sprintf("Body: %s", string(webCtx.inputBodyBytes)))
+			thisReqCtx.Debug(fmt.Sprintf("Body: %s", string(webCtx.inputBodyBytes)))
 		}
 	}
 
@@ -190,8 +189,8 @@ func (thisReqCtx *httpRequestContext) write(resp *response, w http.ResponseWrite
 
 	// actual writing out of the response
 	if _, errWrite := w.Write(jsonBytes); errWrite != nil {
-		// TODO change logging
-		slog.Error(fmt.Sprintf("Error while writing out the JSON response: %s", errWrite))
+		// TODO change logging, make he request context a logger
+		thisReqCtx.server.Error(true, fmt.Sprintf("Error while writing out the JSON response: %s", errWrite))
 	}
 }
 

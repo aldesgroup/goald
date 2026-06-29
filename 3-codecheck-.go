@@ -6,7 +6,6 @@ package goald
 
 import (
 	"fmt"
-	"log/slog"
 	"strings"
 	"time"
 
@@ -30,7 +29,7 @@ func (thisServer *server) runCodeChecks() {
 		thisServer.checkEndpoint(ep)
 	}
 
-	slog.Info(fmt.Sprintf("done checking the code in %s", time.Since(start)))
+	thisServer.Info(fmt.Sprintf("done checking the code in %s", time.Since(start)))
 }
 
 // ------------------------------------------------------------------------------------------------

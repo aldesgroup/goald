@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	core "github.com/aldesgroup/corego"
+	"github.com/aldesgroup/goald/features/dbconn"
 	"github.com/aldesgroup/goald/features/utils"
 )
 
@@ -22,6 +23,7 @@ type IBusinessObjectModel interface {
 	SetDescription(description string) // to set the description of the model
 	SetNotPersisted()                  // to indicate this class has no instance persisted in a database
 	SetInDB(db *DB)                    // to associate the class with the DB where its instances are stored
+	SetInDbByName(dbName string)       // to associate the class with the DB where its instances are stored, using the name of the DB instead of its instance
 	SetAbstract()                      // to indicate this class does not model concrete business objects, but most probably a super class
 
 	// access to generic properties (fields & relationships)
@@ -72,6 +74,11 @@ func NewBusinessObjectModel() IBusinessObjectModel {
 func (boClass *businessObjectModel) SetInDB(db *DB) {
 	boClass.inNoDB = false
 	boClass.inDB = db
+}
+
+func (boClass *businessObjectModel) SetInDbByName(dbName string) {
+	boClass.inNoDB = false
+	boClass.inDB = GetDB(dbconn.DbSchemaName(dbName))
 }
 
 func (boClass *businessObjectModel) SetDescription(description string) {

@@ -9,7 +9,7 @@ import (
 )
 
 // static, reflect-free access to the definition of the DeviceLinkRequest model
-type deviceLinkRequestModel struct {
+type DeviceLinkRequestModel struct {
 	g.IBusinessObjectModel
 	model            *g.StringField
 	serial           *g.StringField
@@ -23,19 +23,19 @@ type deviceLinkRequestModel struct {
 }
 
 // this is the main way to refer to the DeviceLinkRequest model in the applicative code
-func DeviceLinkRequest() *deviceLinkRequestModel {
+func DeviceLinkRequest() *DeviceLinkRequestModel {
 	return deviceLinkRequest
 }
 
 // internal variables
 var (
-	deviceLinkRequest     *deviceLinkRequestModel
+	deviceLinkRequest     *DeviceLinkRequestModel
 	deviceLinkRequestOnce sync.Once
 )
 
 // fully describing each of this class' properties & relationships
-func newDeviceLinkRequestModel() *deviceLinkRequestModel {
-	newModel := &deviceLinkRequestModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
+func NewDeviceLinkRequestModel() *DeviceLinkRequestModel {
+	newModel := &DeviceLinkRequestModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
 	newModel.model = g.NewStringField(newModel, "Model", false)
 	newModel.serial = g.NewStringField(newModel, "Serial", false)
 	newModel.verificationCode = g.NewStringField(newModel, "VerificationCode", false)
@@ -52,7 +52,7 @@ func newDeviceLinkRequestModel() *deviceLinkRequestModel {
 // making sure the DeviceLinkRequest model exists at app startup
 func init() {
 	deviceLinkRequestOnce.Do(func() {
-		deviceLinkRequest = newDeviceLinkRequestModel()
+		deviceLinkRequest = NewDeviceLinkRequestModel()
 	})
 
 	// this helps dynamically access to the DeviceLinkRequest model
@@ -61,38 +61,38 @@ func init() {
 
 // accessing all the DeviceLinkRequest class' properties and relationships
 
-func (d *deviceLinkRequestModel) Model() *g.StringField {
-	return d.model
+func (D *DeviceLinkRequestModel) Model() *g.StringField {
+	return D.model
 }
 
-func (d *deviceLinkRequestModel) Serial() *g.StringField {
-	return d.serial
+func (D *DeviceLinkRequestModel) Serial() *g.StringField {
+	return D.serial
 }
 
-func (d *deviceLinkRequestModel) VerificationCode() *g.StringField {
-	return d.verificationCode
+func (D *DeviceLinkRequestModel) VerificationCode() *g.StringField {
+	return D.verificationCode
 }
 
-func (d *deviceLinkRequestModel) UserID() *g.IntField {
-	return d.userId
+func (D *DeviceLinkRequestModel) UserID() *g.IntField {
+	return D.userId
 }
 
-func (d *deviceLinkRequestModel) UserFullName() *g.StringField {
-	return d.userFullName
+func (D *DeviceLinkRequestModel) UserFullName() *g.StringField {
+	return D.userFullName
 }
 
-func (d *deviceLinkRequestModel) Users() *g.Relationship {
-	return d.users
+func (D *DeviceLinkRequestModel) Users() *g.Relationship {
+	return D.users
 }
 
-func (d *deviceLinkRequestModel) MainContact() *g.Relationship {
-	return d.mainContact
+func (D *DeviceLinkRequestModel) MainContact() *g.Relationship {
+	return D.mainContact
 }
 
-func (d *deviceLinkRequestModel) ForWho() *g.Relationship {
-	return d.forWho
+func (D *DeviceLinkRequestModel) ForWho() *g.Relationship {
+	return D.forWho
 }
 
-func (d *deviceLinkRequestModel) ENTranslation() *g.Relationship {
-	return d.enTranslation
+func (D *DeviceLinkRequestModel) ENTranslation() *g.Relationship {
+	return D.enTranslation
 }

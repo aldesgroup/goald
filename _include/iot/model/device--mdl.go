@@ -8,7 +8,7 @@ import (
 )
 
 // static, reflect-free access to the definition of the Device model
-type deviceModel struct {
+type DeviceModel struct {
 	g.IBusinessObjectModel
 	status          *g.EnumField
 	statusString    *g.StringField
@@ -18,19 +18,19 @@ type deviceModel struct {
 }
 
 // this is the main way to refer to the Device model in the applicative code
-func Device() *deviceModel {
+func Device() *DeviceModel {
 	return device
 }
 
 // internal variables
 var (
-	device     *deviceModel
+	device     *DeviceModel
 	deviceOnce sync.Once
 )
 
 // fully describing each of this class' properties & relationships
-func newDeviceModel() *deviceModel {
-	newModel := &deviceModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
+func NewDeviceModel() *DeviceModel {
+	newModel := &DeviceModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
 	newModel.status = g.NewEnumField(newModel, "Status", false, "iot.DeviceStatus")
 	newModel.statusString = g.NewStringField(newModel, "StatusString", false)
 	newModel.model = g.NewStringField(newModel, "Model", false)
@@ -43,7 +43,7 @@ func newDeviceModel() *deviceModel {
 // making sure the Device model exists at app startup
 func init() {
 	deviceOnce.Do(func() {
-		device = newDeviceModel()
+		device = NewDeviceModel()
 	})
 
 	// this helps dynamically access to the Device model
@@ -52,22 +52,22 @@ func init() {
 
 // accessing all the Device class' properties and relationships
 
-func (d *deviceModel) Status() *g.EnumField {
-	return d.status
+func (D *DeviceModel) Status() *g.EnumField {
+	return D.status
 }
 
-func (d *deviceModel) StatusString() *g.StringField {
-	return d.statusString
+func (D *DeviceModel) StatusString() *g.StringField {
+	return D.statusString
 }
 
-func (d *deviceModel) Model() *g.StringField {
-	return d.model
+func (D *DeviceModel) Model() *g.StringField {
+	return D.model
 }
 
-func (d *deviceModel) Serial() *g.StringField {
-	return d.serial
+func (D *DeviceModel) Serial() *g.StringField {
+	return D.serial
 }
 
-func (d *deviceModel) AssociatedUsers() *g.Relationship {
-	return d.associatedUsers
+func (D *DeviceModel) AssociatedUsers() *g.Relationship {
+	return D.associatedUsers
 }

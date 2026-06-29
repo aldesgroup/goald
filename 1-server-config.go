@@ -5,9 +5,13 @@ package goald
 
 import (
 	"encoding/json"
+	"log/slog"
 	"os"
+	"strings"
 
 	core "github.com/aldesgroup/corego"
+	"github.com/aldesgroup/goald/features/dbconn"
+	"github.com/aldesgroup/goald/features/logging"
 	"sigs.k8s.io/yaml"
 )
 
@@ -33,29 +37,24 @@ func NewBaseConfig() *serverConfig {
 }
 
 type serverConfig struct {
-	AppName     string
-	AppDesc     string
-	Port        int
-	EnvType     string
-	Databases   []*dbConfig
+	AppName string
+	AppDesc string
+	Port    int
+	EnvType string // LOCAL, SANDBOX, STAGING, PRODUCTION
+	Logging *struct {
+		Level  string              // debug, info, warn, error
+		Type   logging.LoggingType // text or json
+		FNames bool                // whether to include function names in the logs
+
+		// tech props
+		resolvedLogLevel slog.Level
+	}
+	DBServers   map[string]*dbconn.DbConfig
 	DataLoaders map[string]map[string]string
 	Version     string
 
 	// technical props
-	envTypeVal core.EnvType
-}
-
-type DatabaseID string
-
-type dbConfig struct {
-	DbID      DatabaseID
-	DbType    databaseType
-	DbName    string
-	DbHost    string
-	DbPort    int
-	User      string
-	Password  string
-	MakeExist bool
+	resolvedEnvType core.EnvType
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -93,7 +92,51 @@ func readAndCheckConfig(fromPath string) IServerConfig {
 	config := configObj.base()
 
 	// Parsing the env type
-	config.envTypeVal = core.EnvTypeValFrom(config.EnvType)
+	config.resolvedEnvType = core.EnvTypeValFrom(config.EnvType)
+
+	// Parsing the log level
+	core.PanicMsgIf(config.Logging == nil, "No \"Logging\" section configured!")
+	config.Logging.resolvedLogLevel = slog.LevelInfo
+	switch strings.ToUpper(config.Logging.Level) {
+	case slog.LevelDebug.String():
+		config.Logging.resolvedLogLevel = slog.LevelDebug
+	case slog.LevelInfo.String():
+		config.Logging.resolvedLogLevel = slog.LevelInfo
+	case slog.LevelWarn.String():
+		config.Logging.resolvedLogLevel = slog.LevelWarn
+	case slog.LevelError.String():
+		config.Logging.resolvedLogLevel = slog.LevelError
+	default:
+		core.PanicMsg("Invalid log level '%s' in config file", config.Logging.Level)
+	}
+
+	// Checking the logging type
+	if !core.InSlice([]logging.LoggingType{logging.LoggingTypeTEXT, logging.LoggingTypeJSON}, config.Logging.Type) {
+		core.PanicMsg("Invalid logging type '%s' in config file", config.Logging.Type)
+	}
+
+	// controlling the DB servers
+	for dbID, dbConfig := range config.DBServers {
+		if dbConfig.Type == "" {
+			core.PanicMsg("DB server '%s' has no type defined", dbID)
+		}
+		if !core.InSlice(allDbTypes, dbConfig.Type) {
+			core.PanicMsg("DB server '%s' has an invalid type '%s'", dbID, dbConfig.Type)
+		}
+		if dbConfig.Host == "" {
+			core.PanicMsg("DB server '%s' has no host defined", dbID)
+		}
+		if dbConfig.Port <= 0 {
+			core.PanicMsg("DB server '%s' has no port defined", dbID)
+		}
+		if dbConfig.Database == "" {
+			core.PanicMsg("DB server '%s' has no database name defined", dbID)
+		}
+		for schemaName, schemaConfig := range dbConfig.Schemas {
+			schemaConfig.Name = schemaName
+			schemaConfig.DbConfig = dbConfig
+		}
+	}
 
 	return configObj
 }

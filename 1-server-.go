@@ -6,11 +6,11 @@ package goald
 import (
 	"flag"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"os"
 
 	core "github.com/aldesgroup/corego"
+	"github.com/aldesgroup/goald/features/logging"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -56,15 +56,18 @@ func NewServer() ServerContext {
 
 	// reading the config file
 	serverConfig := readAndCheckConfig(confPath)
+	loggerConfig := serverConfig.base().Logging
+
+	// new instance ID for the server
+	instanceID := core.RandomString(3)
 
 	// new server
 	server := &server{
+		ILogger:  logging.NewLogger(loggerConfig.resolvedLogLevel, instanceID, loggerConfig.Type, loggerConfig.FNames),
+		instance: instanceID,
 		config:   serverConfig,
-		instance: core.RandomString(3), // TODO remove ?
 	}
-
-	// init the logger
-	slog.SetLogLoggerLevel(slog.LevelDebug) // TODO configure
+	server.Info("New server")
 
 	// running the app in code generation mode, i.e. no server started here - should only be used by devs
 	if cgParams.codegen > 0 {
@@ -73,18 +76,26 @@ func NewServer() ServerContext {
 		os.Exit(0)
 	}
 
-	// initialising the DBs
-	for _, dbConfig := range serverConfig.base().Databases {
-		initAndRegisterDB(dbConfig)
+	// initialising the DB servers
+	if migrate {
+		for _, dbConfig := range serverConfig.base().DBServers {
+			getDbAdapter(dbConfig.Type).InitDbServer(server, dbConfig)
+		}
 	}
 
-	// bit of logging // TODO remove
-	slog.Info(fmt.Sprintf("Instance: %s", server.instance))
+	// connecting the DB schemas
+	for _, dbConfig := range serverConfig.base().DBServers {
+		for _, dbSchema := range dbConfig.Schemas {
+			server.connectDbSchema(dbSchema)
+		}
+	}
+
+	server.Debug("coucou")
 
 	// migrating the DBs + injecting some data into the DBs
 	if migrate {
 		// making sure the DBs are in sync with the code
-		autoMigrateDBs()
+		server.autoMigrateDBs()
 
 		// loading some data into the DBs
 		server.loadData(true)
@@ -108,28 +119,23 @@ func NewServer() ServerContext {
 const apiPath = "/rest"
 
 func (thisServer *server) initRoutes() {
-	// // no HTTP configured? Let's WARN about it
-	// if thisServer.config.base().HTTP == nil {
-	// 	core.PanicMsg("No \"HTTP\" section configured!")
-	// }
-
 	// new router
 	thisServer.router = httprouter.New()
 	thisServer.router.RedirectTrailingSlash = false
 
 	// serving the API doc
-	slog.Info("Serving: GET /doc/api")
+	thisServer.Info("Serving: GET /doc/api")
 	thisServer.router.Handle(http.MethodGet, "/doc/api", serveDocForAPI)
 
 	// locally, we also serve the API doc from the root path, for easier access
 	if thisServer.IsLocal() {
-		slog.Info("Serving: GET /")
+		thisServer.Info("Serving: GET /")
 		thisServer.router.Handle(http.MethodGet, "/", serveDocForAPI)
 	}
 
 	// configuring & adding the REST API endpoints - should we have to serve an API
 	for _, endpoint := range restRegistry.endpoints {
-		slog.Info(fmt.Sprintf("Serving: %s", endpoint.getPathAsString()))
+		thisServer.Info(fmt.Sprintf("Serving: %s", endpoint.getPathAsString()))
 		thisServer.router.Handle(endpoint.getMethod(), endpoint.getOperationPath(true), thisServer.handleFor(endpoint))
 	}
 }
@@ -139,7 +145,7 @@ func (thisServer *server) initRoutes() {
 // ------------------------------------------------------------------------------------------------
 func (thisServer *server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// this is a place for potential middlewares
-	slog.Debug(fmt.Sprintf("%+v", req.Header))
+	thisServer.Debug(fmt.Sprintf("%+v", req.Header))
 
 	// w.Header().Set("Access-Control-Allow-Origin", "*")
 	// TODO do better / probably through the config
@@ -168,7 +174,7 @@ func (thisServer *server) Start() {
 	// TODO fill the requestHandler pool
 
 	if len(restRegistry.endpoints) == 0 {
-		slog.Warn("No endpoint configured, so no starting of the HTTP server!")
+		thisServer.Warn("No endpoint configured, so no starting of the HTTP server!")
 		return
 	}
 
@@ -176,7 +182,7 @@ func (thisServer *server) Start() {
 
 	// listening to HTTP requests (blocking process)
 	addr := fmt.Sprintf(":%d", thisServer.config.base().Port)
-	slog.Info(fmt.Sprintf("Serving at: http://localhost:%d/", thisServer.config.base().Port))
+	thisServer.Info(fmt.Sprintf("Serving at: http://localhost:%d/", thisServer.config.base().Port))
 	if errListen := http.ListenAndServe(addr, thisServer); errListen != nil && errListen != http.ErrServerClosed {
 		core.PanicMsgIfErr(errListen, "Could not start the server!")
 	}

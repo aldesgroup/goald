@@ -8,26 +8,26 @@ import (
 )
 
 // static, reflect-free access to the definition of the TranslationUrlParams model
-type translationUrlParamsModel struct {
+type TranslationUrlParamsModel struct {
 	g.IURLQueryParamsModel
 	namespace *g.StringField
 	key       *g.StringField
 }
 
 // this is the main way to refer to the TranslationUrlParams model in the applicative code
-func TranslationUrlParams() *translationUrlParamsModel {
+func TranslationUrlParams() *TranslationUrlParamsModel {
 	return translationUrlParams
 }
 
 // internal variables
 var (
-	translationUrlParams     *translationUrlParamsModel
+	translationUrlParams     *TranslationUrlParamsModel
 	translationUrlParamsOnce sync.Once
 )
 
 // fully describing each of this class' properties & relationships
-func newTranslationUrlParamsModel() *translationUrlParamsModel {
-	newModel := &translationUrlParamsModel{IURLQueryParamsModel: g.NewURLQueryParamsModel()}
+func NewTranslationUrlParamsModel() *TranslationUrlParamsModel {
+	newModel := &TranslationUrlParamsModel{IURLQueryParamsModel: g.NewURLQueryParamsModel()}
 	newModel.namespace = g.NewStringField(newModel, "Namespace", false)
 	newModel.key = g.NewStringField(newModel, "Key", false)
 
@@ -37,7 +37,7 @@ func newTranslationUrlParamsModel() *translationUrlParamsModel {
 // making sure the TranslationUrlParams model exists at app startup
 func init() {
 	translationUrlParamsOnce.Do(func() {
-		translationUrlParams = newTranslationUrlParamsModel()
+		translationUrlParams = NewTranslationUrlParamsModel()
 	})
 
 	// this helps dynamically access to the TranslationUrlParams model
@@ -46,10 +46,10 @@ func init() {
 
 // accessing all the TranslationUrlParams class' properties and relationships
 
-func (t *translationUrlParamsModel) Namespace() *g.StringField {
-	return t.namespace
+func (T *TranslationUrlParamsModel) Namespace() *g.StringField {
+	return T.namespace
 }
 
-func (t *translationUrlParamsModel) Key() *g.StringField {
-	return t.key
+func (T *TranslationUrlParamsModel) Key() *g.StringField {
+	return T.key
 }

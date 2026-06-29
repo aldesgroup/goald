@@ -2,8 +2,6 @@ package goald
 
 import (
 	"fmt"
-	"log/slog"
-	"os"
 	"time"
 
 	core "github.com/aldesgroup/corego"
@@ -33,35 +31,47 @@ import (
 //   - name consistency checking (this should prevent column renaming)
 //     -> the checking should be done by the schema testing
 //
-// - creation of missing index
+// - creation of missing indexes
 // - extension of column lengths
 //
 // All the other needed DB operations must be handled by a migration script, that
 // should be written so as to be able to play it anytime, for any version of the app,
 // in order to be free of per-version migration scripts.
 // func AutoMigrate(dbContext DbContext, ignoreWarnings bool) {
-func autoMigrateDBs() {
-	slog.Info("Launching the Auto-Migration procedure")
+func (thisServer *server) autoMigrateDBs() {
+	thisServer.Info("Launching the Auto-Migration procedure")
 	start := time.Now()
+
+	// first, checking that all the models that should be persisted have their respective DB (schema) ready
+	for _, model := range modelRegistry.items {
+		if !model.base().abstract && !model.isNotPersisted() {
+			if model.getInDB() == nil {
+				core.PanicMsg("Model '%s' is persisted and yet it's not associated with a DB", model.base().name)
+			}
+			if model.getInDB().DB == nil {
+				core.PanicMsg("Model '%s' is persisted and yet it's DB '%s' is not initialized", model.base().name, model.getInDB().name)
+			}
+		}
+	}
 
 	// iterating over all the configured DBs
 	for _, db := range dbRegistry.databases {
-		migrate(db)
+		thisServer.migrate(db)
 	}
 
-	slog.Info(fmt.Sprintf("done migrating the %d configured database(s) in %s", len(dbRegistry.databases), time.Since(start)))
+	thisServer.Info(fmt.Sprintf("done migrating the %d configured database(s) in %s", len(dbRegistry.databases), time.Since(start)))
 }
 
-func migrate(db *DB) {
+func (thisServer *server) migrate(db *DB) {
 	// getting all the classes associated with the current DB
-	existingModel := getBOClassesInDB(db)
-	slog.Debug(fmt.Sprintf("Existing classes: %+v\n", core.GetSortedKeys(existingModel)))
+	existingModel := thisServer.getBOClassesInDB(db)
+	thisServer.Debug(fmt.Sprintf("Existing classes: %+v\n", core.GetSortedKeys(existingModel)))
 
 	// getting the names of the tables existing in the current DB
-	existingTables := getTableNames(db)
-	slog.Debug(fmt.Sprintf("Existing tables: %+v\n", existingTables))
+	existingTables := thisServer.getTableNames(db)
+	thisServer.Debug(fmt.Sprintf("Existing tables: %+v\n", existingTables))
 
-	createMissingTables(db, existingModel, existingTables)
+	thisServer.createMissingTables(db, existingModel, existingTables)
 	// tableColumns := getTableColumns(dbContext)
 	// createMissingColumns(dbContext, tableColumns)
 	// createMissingForeignKeys(dbContext)
@@ -77,8 +87,8 @@ func migrate(db *DB) {
 
 // createMissingTables reads the tables contained in the DB, and browses all the persisted BO
 // classes, and create a table for each class that does not have one yet
-func createMissingTables(db *DB, existingModel map[className]IBusinessObjectModel, existingTables []string) {
-	slog.Info("Scanning for missing TABLES, for all our resources")
+func (thisServer *server) createMissingTables(db *DB, existingModel map[className]IBusinessObjectModel, existingTables []string) {
+	thisServer.Info("Scanning for missing TABLES, for all our resources")
 
 	// iterating over all the persisted classes on the given DB, and creating the missing tables if needed
 	for _, model := range existingModel {
@@ -86,8 +96,8 @@ func createMissingTables(db *DB, existingModel map[className]IBusinessObjectMode
 		// requiredTableNames = append(requiredTableNames, __REPLACE__Schema.GetTable(dbContext))
 
 		// adding the table if it does not exist yet
-		if !core.InSlice[string](existingTables, model.getTableName()) {
-			createMissingTable(db, model)
+		if !core.InSlice(existingTables, model.getTableName()) {
+			thisServer.createMissingTable(db, model)
 		}
 	}
 
@@ -105,7 +115,7 @@ func createMissingTables(db *DB, existingModel map[className]IBusinessObjectMode
 }
 
 // getting all the BO classes associated with the given DBs
-func getBOClassesInDB(db *DB) (result map[className]IBusinessObjectModel) {
+func (thisServer *server) getBOClassesInDB(db *DB) (result map[className]IBusinessObjectModel) {
 	result = map[className]IBusinessObjectModel{}
 	for name, model := range modelRegistry.items {
 		if model.getInDB() == db {
@@ -117,48 +127,42 @@ func getBOClassesInDB(db *DB) (result map[className]IBusinessObjectModel) {
 }
 
 // getTableNames fetches the table names from the APP DB
-func getTableNames(db *DB) []string {
-	// tables, errFetch := db.FetchStringColumn(db.adapter.getTablesQuery(db.config.DbName))
-	// if errFetch != nil {
-	// 	slog.Error(fmt.Sprintf("Could not fetch the table names: %s", errFetch))
-	// }
-
-	// return tables
-	return nil
+func (thisServer *server) getTableNames(db *DB) []string {
+	return db.FetchStringColumn(thisServer, true, db.GetTablesQuery(), db.config.Name)
 }
 
 // createMissingTable creates the missing table corresponding to the given BO class
-func createMissingTable(db *DB, model IBusinessObjectModel) {
-	slog.Info(fmt.Sprintf("Creating the missing table: %s", model.getTableName()))
+func (thisServer *server) createMissingTable(db *DB, model IBusinessObjectModel) {
+	// thisServer.Info(fmt.Sprintf("Creating the missing table: %s", model.getTableName()))
 
-	// we can manage these columns manually
-	columnsSQL := newline + `id INT IDENTITY(1,1) PRIMARY KEY`
+	// // we can manage these columns manually
+	// columnsSQL := newline + `id INT IDENTITY(1,1) PRIMARY KEY`
 
-	// adding a column for each property that is persisted in the given BO class's table
-	slog.Debug(fmt.Sprintf("nb properties: %d", len(model.base().getPersistedProperties())))
-	for i, property := range model.base().getPersistedProperties() {
-		// we avoid to treat the id column twice, since we've already added it just below
-		if i > 0 {
-			columnsSQL = columnsSQL + "," + newline + db.adapter.getSQLColumnDeclaration(property)
-		}
-	}
+	// // adding a column for each property that is persisted in the given BO class's table
+	// thisServer.Debug(fmt.Sprintf("nb properties: %d", len(model.base().getPersistedProperties())))
+	// for i, property := range model.base().getPersistedProperties() {
+	// 	// we avoid to treat the id column twice, since we've already added it just below
+	// 	if i > 0 {
+	// 		columnsSQL = columnsSQL + "," + newline + db.adapter.getSQLColumnDeclaration(property)
+	// 	}
+	// }
 
-	// we obviously add a constraint on the ID, the primary key
-	// TODO use adapter here
-	// columnsSQL = columnsSQL + newline + fmt.Sprintf("CONSTRAINT pk__%s PRIMARY KEY CLUSTERED (id ASC)", model.getTableName())
+	// // we obviously add a constraint on the ID, the primary key
+	// // TODO use adapter here
+	// // columnsSQL = columnsSQL + newline + fmt.Sprintf("CONSTRAINT pk__%s PRIMARY KEY CLUSTERED (id ASC)", model.getTableName())
 
-	// this is how we create a table
-	// createQuery := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (%s"+newline+")",
-	// TODO use adapter
-	// createQuery := fmt.Sprintf("CREATE TABLE %s.%s (%s"+newline+")",
-	// 	"dbo", model.getTableName(), columnsSQL)
-	createQuery := fmt.Sprintf("CREATE TABLE %s (%s"+newline+")", model.getTableName(), columnsSQL)
+	// // this is how we create a table
+	// // createQuery := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s (%s"+newline+")",
+	// // TODO use adapter
+	// // createQuery := fmt.Sprintf("CREATE TABLE %s.%s (%s"+newline+")",
+	// // 	"dbo", model.getTableName(), columnsSQL)
+	// createQuery := fmt.Sprintf("CREATE TABLE %s (%s"+newline+")", model.getTableName(), columnsSQL)
 
-	if _, errCreate := db.Exec(createQuery); errCreate != nil {
-		// TODO better logging
-		slog.Error(fmt.Sprintf("Error creating table %s: %s", model.getTableName(), errCreate))
-		os.Exit(1)
-	}
+	// if _, errCreate := db.Exec(createQuery); errCreate != nil {
+	// 	// TODO better logging
+	// 	thisServer.Error(fmt.Sprintf("Error creating table %s: %s", model.getTableName(), errCreate))
+	// 	os.Exit(1)
+	// }
 }
 
 // // type tableColumnInfo helps us retrieve relevant info about the columns of our tables
@@ -281,7 +285,7 @@ func createMissingTable(db *DB, model IBusinessObjectModel) {
 
 // // createMissingColumns adds the columns that are required by the code, but do not exist yet in the DB
 // func createMissingColumns(dbContext DbContext, tableColumns map[string]map[string]*tableColumnInfo) {
-// 	slog.Info("Scanning for missing COLUMNS")
+// 	thisServer.Info("Scanning for missing COLUMNS")
 
 // 	// iterating over all the __REPLACE__ types, and creating the missing link tables if needed
 // 	for __REPLACE__Kind := range Get__REPLACE__Kinds() {
@@ -332,7 +336,7 @@ func createMissingTable(db *DB, model IBusinessObjectModel) {
 
 // // createMissingForeignKeys create the missing foreign keys linking the tables to each other
 // func createMissingForeignKeys(dbContext DbContext) {
-// 	slog.Info("Scanning for missing FOREIGN KEYs")
+// 	thisServer.Info("Scanning for missing FOREIGN KEYs")
 
 // 	// we're going to filter the foreign keys by their names
 // 	fkPrefix := "fk_"
@@ -410,7 +414,7 @@ func createMissingTable(db *DB, model IBusinessObjectModel) {
 // // createMissingLinkTables is used to create the link tables that are missing
 // // Foreign keys can be created only after all the tables have been created, else adding a foreign key can fail
 // func createMissingLinkTables(dbContext DbContext, existingTableNames []string, ignoreWarnings bool) {
-// 	slog.Info("Scanning for missing LINK tables")
+// 	thisServer.Info("Scanning for missing LINK tables")
 
 // 	// listing all the needed link table names, to help us identify the dead tables
 // 	var requiredLinkTableNames []string
@@ -509,7 +513,7 @@ func createMissingTable(db *DB, model IBusinessObjectModel) {
 
 // // createMissingSingleUniqueConstraints create the missing UNIQUE constraints
 // func createMissingSingleUniqueConstraints(dbContext DbContext) {
-// 	slog.Info("Scanning for missing simple UNIQUE constraints")
+// 	thisServer.Info("Scanning for missing simple UNIQUE constraints")
 
 // 	// we're going to filter the unique keys by their names
 // 	ukPrefix := sqlPrefixUNIQUEKEY
@@ -577,7 +581,7 @@ func createMissingTable(db *DB, model IBusinessObjectModel) {
 
 // // createMissingCompositeUniqueConstraints create the missing UNIQUE constraints
 // func createMissingCompositeUniqueConstraints(dbContext DbContext) {
-// 	slog.Info("Scanning for missing composite UNIQUE constraints")
+// 	thisServer.Info("Scanning for missing composite UNIQUE constraints")
 
 // 	// getting the existing UNIQUE constraints
 // 	existingUniqueConstraints := FetchStringMap(dbContext, automigID, "select_composite_unique_constraints",
@@ -686,7 +690,7 @@ func createMissingTable(db *DB, model IBusinessObjectModel) {
 // // createMissingNotNullConstraints create the missing NOT NULL constraints
 // // But it also removes the NOT NULL constraints when the property is not required anymore
 // func createMissingNotNullConstraints(dbContext DbContext, tableColumns map[string]map[string]*tableColumnInfo) {
-// 	slog.Info("Scanning for missing NOT NULL")
+// 	thisServer.Info("Scanning for missing NOT NULL")
 
 // 	// iterating over all the __REPLACE__ types, and creating the missing link tables if needed
 // 	for __REPLACE__Kind := range Get__REPLACE__Kinds() {
@@ -741,7 +745,7 @@ func createMissingTable(db *DB, model IBusinessObjectModel) {
 // // extendsColumns look for columns that have been a maxlength in DB smaller than required by the code.
 // // NB: This function can only extend columns, never shrink them!
 // func extendsColumns(dbContext DbContext, tableColumns map[string]map[string]*tableColumnInfo) {
-// 	slog.Info("Scanning for required column EXTENSIONS")
+// 	thisServer.Info("Scanning for required column EXTENSIONS")
 
 // 	// iterating over all the __REPLACE__ types, and creating the missing link tables if needed
 // 	for __REPLACE__Kind := range Get__REPLACE__Kinds() {

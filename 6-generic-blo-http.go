@@ -8,11 +8,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/aldesgroup/goald/features/hstatus"
+	"github.com/aldesgroup/goald/features/logging"
 )
 
 // interface & general methods
@@ -73,7 +73,7 @@ func (thisReq *outgoingHttpRequest) WithHeader(key, value string) *outgoingHttpR
 }
 
 // Runs a prepared Rest HTTP request to an external service, and fills the given object with the response body
-func HttpGetResponseAs[ResponseType any](outReq *outgoingHttpRequest, responseObj *ResponseType) (*ResponseType, hstatus.Code, error) {
+func HttpGetResponseAs[ResponseType any](logger logging.ILogger, outReq *outgoingHttpRequest, responseObj *ResponseType) (*ResponseType, hstatus.Code, error) {
 	// the object that's maybe being sent in the request body
 	var dataBuffer *bytes.Buffer
 	if outReq.dataObj != nil {
@@ -87,7 +87,7 @@ func HttpGetResponseAs[ResponseType any](outReq *outgoingHttpRequest, responseOb
 		// TODO do better
 		if true {
 			prettyJson, _ := json.MarshalIndent(outReq.dataObj, "", "	")
-			slog.Debug(fmt.Sprintf("Sending this data: %s", string(prettyJson)))
+			logger.Debug(fmt.Sprintf("Sending this data: %s", string(prettyJson)))
 		}
 	}
 
@@ -111,7 +111,7 @@ func HttpGetResponseAs[ResponseType any](outReq *outgoingHttpRequest, responseOb
 	}
 
 	// processing the request by calling the remote URL using our client (and timing it)
-	slog.Debug(fmt.Sprintf("HTTP call: %s %s", outReq.method, outReq.url))
+	logger.Debug(fmt.Sprintf("HTTP call: %s %s", outReq.method, outReq.url))
 	resp, errResponse := client.Do(httpRequest)
 	if errResponse != nil {
 		return nil, hstatus.InternalServerError, ErrorC(errResponse, "Error while HTTP calling")
@@ -122,7 +122,7 @@ func HttpGetResponseAs[ResponseType any](outReq *outgoingHttpRequest, responseOb
 	// has to be done right before the read, since before that the body is nil
 	defer func() {
 		if errClose := resp.Body.Close(); errClose != nil {
-			slog.Error(fmt.Sprintf("error while closing the response body: %s", errClose.Error()))
+			logger.Error(false, fmt.Sprintf("error while closing the response body: %s", errClose.Error()))
 		}
 	}()
 
@@ -134,7 +134,7 @@ func HttpGetResponseAs[ResponseType any](outReq *outgoingHttpRequest, responseOb
 
 	// TODO better logging
 	if true {
-		slog.Debug(fmt.Sprintf("Got this data: %s", string(respBody)))
+		logger.Debug(fmt.Sprintf("Got this data: %s", string(respBody)))
 	}
 
 	// reading the response status - should we fail on a bad status code, we don't even need to read the body
@@ -153,8 +153,8 @@ func HttpGetResponseAs[ResponseType any](outReq *outgoingHttpRequest, responseOb
 }
 
 // Runs a prepared Rest HTTP request to an external service, and retrieves the Goald business object from the response
-func HttpGetBObject[ResponseType IBusinessObject](outReq *outgoingHttpRequest, responseObj ResponseType) (ResponseType, hstatus.Code, error) {
-	resp, status, err := HttpGetResponseAs(outReq, &response{Object: responseObj})
+func HttpGetBObject[ResponseType IBusinessObject](logger logging.ILogger, outReq *outgoingHttpRequest, responseObj ResponseType) (ResponseType, hstatus.Code, error) {
+	resp, status, err := HttpGetResponseAs(logger, outReq, &response{Object: responseObj})
 	if err != nil || resp == nil || resp.Object == nil {
 		return responseObj, status, err
 	}
@@ -162,8 +162,8 @@ func HttpGetBObject[ResponseType IBusinessObject](outReq *outgoingHttpRequest, r
 }
 
 // Runs a prepared Rest HTTP request to an external service, and retrieves the list of Goald business objects from the response
-func HttpGetBObjList[ResponseType IBusinessObject](outReq *outgoingHttpRequest, responseList []ResponseType) ([]ResponseType, hstatus.Code, error) {
-	resp, status, err := HttpGetResponseAs(outReq, &response{ObjectList: responseList})
+func HttpGetBObjList[ResponseType IBusinessObject](logger logging.ILogger, outReq *outgoingHttpRequest, responseList []ResponseType) ([]ResponseType, hstatus.Code, error) {
+	resp, status, err := HttpGetResponseAs(logger, outReq, &response{ObjectList: responseList})
 	if err != nil || resp == nil || resp.ObjectList == nil {
 		return responseList, status, err
 	}

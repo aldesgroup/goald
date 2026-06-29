@@ -8,7 +8,7 @@ import (
 )
 
 // static, reflect-free access to the definition of the DeviceBootstrapRequest model
-type deviceBootstrapRequestModel struct {
+type DeviceBootstrapRequestModel struct {
 	g.IBusinessObjectModel
 	factoryCertPem *g.StringField
 	payloadB64     *g.StringField
@@ -16,19 +16,19 @@ type deviceBootstrapRequestModel struct {
 }
 
 // this is the main way to refer to the DeviceBootstrapRequest model in the applicative code
-func DeviceBootstrapRequest() *deviceBootstrapRequestModel {
+func DeviceBootstrapRequest() *DeviceBootstrapRequestModel {
 	return deviceBootstrapRequest
 }
 
 // internal variables
 var (
-	deviceBootstrapRequest     *deviceBootstrapRequestModel
+	deviceBootstrapRequest     *DeviceBootstrapRequestModel
 	deviceBootstrapRequestOnce sync.Once
 )
 
 // fully describing each of this class' properties & relationships
-func newDeviceBootstrapRequestModel() *deviceBootstrapRequestModel {
-	newModel := &deviceBootstrapRequestModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
+func NewDeviceBootstrapRequestModel() *DeviceBootstrapRequestModel {
+	newModel := &DeviceBootstrapRequestModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
 	newModel.factoryCertPem = g.NewStringField(newModel, "FactoryCertPEM", false)
 	newModel.payloadB64 = g.NewStringField(newModel, "PayloadB64", false)
 	newModel.signatureB64 = g.NewStringField(newModel, "SignatureB64", false)
@@ -39,7 +39,7 @@ func newDeviceBootstrapRequestModel() *deviceBootstrapRequestModel {
 // making sure the DeviceBootstrapRequest model exists at app startup
 func init() {
 	deviceBootstrapRequestOnce.Do(func() {
-		deviceBootstrapRequest = newDeviceBootstrapRequestModel()
+		deviceBootstrapRequest = NewDeviceBootstrapRequestModel()
 	})
 
 	// this helps dynamically access to the DeviceBootstrapRequest model
@@ -48,14 +48,14 @@ func init() {
 
 // accessing all the DeviceBootstrapRequest class' properties and relationships
 
-func (d *deviceBootstrapRequestModel) FactoryCertPEM() *g.StringField {
-	return d.factoryCertPem
+func (D *DeviceBootstrapRequestModel) FactoryCertPEM() *g.StringField {
+	return D.factoryCertPem
 }
 
-func (d *deviceBootstrapRequestModel) PayloadB64() *g.StringField {
-	return d.payloadB64
+func (D *DeviceBootstrapRequestModel) PayloadB64() *g.StringField {
+	return D.payloadB64
 }
 
-func (d *deviceBootstrapRequestModel) SignatureB64() *g.StringField {
-	return d.signatureB64
+func (D *DeviceBootstrapRequestModel) SignatureB64() *g.StringField {
+	return D.signatureB64
 }

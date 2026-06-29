@@ -5,7 +5,6 @@ package goald
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 	"path"
 	"strings"
@@ -25,21 +24,21 @@ import (
 )
 
 // static, reflect-free access to the definition of the $$Upper$$ model
-type $$lower$$Model struct {
+type $$Upper$$Model struct {
 $$propdecl$$
 }
 
 // this is the main way to refer to the $$Upper$$ model in the applicative code
-func $$Upper$$() *$$lower$$Model {
+func $$Upper$$() *$$Upper$$Model {
 	return $$lower$$
 }
 
 // internal variables
-var $$lower$$ *$$lower$$Model
+var $$lower$$ *$$Upper$$Model
 var $$lower$$Once sync.Once
 
 // fully describing each of this class' properties & relationships
-func new$$Upper$$Model() *$$lower$$Model {
+func New$$Upper$$Model() *$$Upper$$Model {
 	$$propinit$$
 
 	return newModel
@@ -48,7 +47,7 @@ func new$$Upper$$Model() *$$lower$$Model {
 // making sure the $$Upper$$ model exists at app startup
 func init() {
 	$$lower$$Once.Do(func() {
-		$$lower$$ = new$$Upper$$Model()
+		$$lower$$ = New$$Upper$$Model()
 	})
 
 	// this helps dynamically access to the $$Upper$$ model
@@ -78,7 +77,7 @@ func (thisServer *server) generateAllObjectModels(srcdir string, regen bool) (co
 	core.EnsureDir(srcdir, includePATH)
 	for _, modelDirEntry := range core.EnsureReadDir(srcdir, includePATH) {
 		// if it's not a directory, we skip it
-		if !modelDirEntry.IsDir() {
+		if !modelDirEntry.IsDir() || modelDirEntry.Name() == dbFOLDER {
 			continue
 		}
 
@@ -108,7 +107,7 @@ func (thisServer *server) generateAllObjectModels(srcdir string, regen bool) (co
 				if existingModel := existingModelFiles[name]; regen ||
 					existingModel == nil || existingModel.modTime.Before(class.getLastBOMod()) {
 					// generating the missing or outdated class
-					generateOneModel(modelDir, class)
+					thisServer.generateOneModel(modelDir, class)
 
 					// the code has changed
 					codeChanged = true
@@ -121,7 +120,7 @@ func (thisServer *server) generateAllObjectModels(srcdir string, regen bool) (co
 
 		// removing the unneeded classes
 		for _, unneededModel := range existingModelFiles {
-			slog.Info(fmt.Sprintf("removing %s", unneededModel.filename))
+			thisServer.Info(fmt.Sprintf("removing %s", unneededModel.filename))
 			if errRem := os.Remove(path.Join(modelDir, unneededModel.filename)); errRem != nil {
 				core.PanicMsgIfErr(errRem, "Could not delete class file '%s'", unneededModel.filename)
 			}
@@ -151,7 +150,7 @@ type classGenPropertyInfo struct {
 	// targetTypes []string
 }
 
-func generateOneModel(modelDir string, class IClass) {
+func (thisServer *server) generateOneModel(modelDir string, class IClass) {
 	// starting to build the file content, with the same context
 	context := &modelGenerationContext{propertiesMap: map[string]classGenPropertyInfo{}}
 
@@ -164,6 +163,12 @@ func generateOneModel(modelDir string, class IClass) {
 	imports := map[string]string{}
 	content = strings.Replace(content, "$$propdecl$$", buildPropDecl(class, context, imports), 1)
 
+	// valueing the properties
+	content = strings.Replace(content, "$$propinit$$", buildPropInit(class, context, imports), 1)
+
+	// building the accessors to the properties
+	content = strings.Replace(content, "$$accessors$$", buildAccessors(class, context), 1)
+
 	// building the imports section	if len(imports) > 0 {
 	importLines := core.GetSortedValues(imports)
 	if len(importLines) > 0 {
@@ -172,16 +177,10 @@ func generateOneModel(modelDir string, class IClass) {
 		content = strings.Replace(content, "$$imports$$", "", 1)
 	}
 
-	// valueing the properties
-	content = strings.Replace(content, "$$propinit$$", buildPropInit(class, context), 1)
-
-	// building the accessors to the properties
-	content = strings.Replace(content, "$$accessors$$", buildAccessors(class, context), 1)
-
 	// writing to file
 	core.WriteToFile(content, modelDir, core.PascalToKebab(clsName)+modelFILExSUFFIX)
 
-	slog.Info(fmt.Sprintf("(Re-)generated model %s", clsName))
+	thisServer.Info(fmt.Sprintf("(Re-)generated model %s", clsName))
 }
 
 // this function helps declare 1 property (field or relationship) in the declaration of the model type
@@ -201,7 +200,8 @@ func buildPropDecl(class IClass, context *modelGenerationContext, imports map[st
 	} else if context.superType.Equals(typeURLxQUERYxOBJECT) {
 		result += "g.IURLQueryParamsModel"
 	} else {
-		result += "" + core.PascalToCamel(superClassField.Type().Name()) + modelNAMExSUFFIX
+		result += "" + getImportPkg(imports, class, superClassField.Type().Name()) +
+			superClassField.Type().Name() + modelNAMExSUFFIX
 	}
 
 	// browsing the entity's properties
@@ -287,20 +287,20 @@ func getFieldForType(typeFamily utils.TypeFamily) string {
 }
 
 // This function builds the line that helps initialise a model instance, for 1 property
-func buildPropInit(class IClass, context *modelGenerationContext) string {
+func buildPropInit(class IClass, context *modelGenerationContext, imports map[string]string) string {
 	// the class as a variable
-	className := core.PascalToCamel(string(class.getClassName()))
+	clsName := string(class.getClassName())
 
 	// dealing with the class initialisation
-	modelInit := "newModel := &" + className + modelNAMExSUFFIX + "{%s: %s}"
+	modelInit := "newModel := &" + clsName + modelNAMExSUFFIX + "{%s: %s}"
 	superModelDecl := "IBusinessObjectModel"
 	superModelValue := "g.NewBusinessObjectModel()"
 	if context.superType.Equals(typeURLxQUERYxOBJECT) {
 		superModelDecl = "IURLQueryParamsModel"
 		superModelValue = "g.NewURLQueryParamsModel()"
 	} else if !context.superType.Equals(typeBUSINESSxOBJECT) {
-		superModelDecl = core.PascalToCamel(context.superType.Name()) + modelNAMExSUFFIX
-		superModelValue = "*new" + context.superType.Name() + "Model()"
+		superModelDecl = context.superType.Name() + modelNAMExSUFFIX
+		superModelValue = "*" + getImportPkg(imports, class, context.superType.Name()) + "New" + context.superType.Name() + "Model()"
 	}
 	modelInit = fmt.Sprintf(modelInit, superModelDecl, superModelValue)
 
@@ -340,6 +340,22 @@ func buildPropInit(class IClass, context *modelGenerationContext) string {
 	return strings.Join(propLines, newline)
 }
 
+func getImportPkg(imports map[string]string, fromClass IClass, forClsName string) string {
+	clsName := className(forClsName)
+	clsObject := classForName(clsName)
+	clsPkg := clsObject.getPackage()
+	clsMod := clsObject.getModule()
+	superImport := ""
+	if clsMod != getCurrentModuleName() || clsPkg != fromClass.getPackage() {
+		if imports[clsObject.getPackage()] == "" {
+			imports[clsObject.getPackage()] = getImportLineForClass(clsObject) // the needed import
+		}
+		superImport = clsPkg + "_model."
+	}
+
+	return superImport
+}
+
 // This function builds an access for a property (field or relationship)
 func buildAccessors(class IClass, context *modelGenerationContext) string {
 	accessors := []string{}
@@ -347,7 +363,7 @@ func buildAccessors(class IClass, context *modelGenerationContext) string {
 	// generating 1 accessor per
 	for _, propName := range context.propertyNames {
 		propInfo := context.propertiesMap[propName]
-		owner := core.PascalToCamel(string(class.getClassName()))
+		owner := (class.getClassName())
 		ownerShort := owner[:1]
 		accType := getFieldForType(propInfo.propType)
 		if propInfo.propType.IsRelationship() {

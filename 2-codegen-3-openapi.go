@@ -5,7 +5,6 @@ package goald
 
 import (
 	"fmt"
-	"log/slog"
 	"net/http"
 	"path"
 	"strconv"
@@ -54,7 +53,7 @@ func (thisServer *server) generateOpenAPIDoc(srcdirs []string, docpath string, r
 		docModified := core.EnsureModTime(docpath)
 
 		// let's check if a business object involved web exchanges has changed, or the endpoints code has changed
-		doRegen = doRegen || isWebModelsChanged(docModified) || isWebCodeChanged(srcdirs, docModified)
+		doRegen = doRegen || thisServer.isWebModelsChanged(docModified) || thisServer.isWebCodeChanged(srcdirs, docModified)
 	}
 
 	// let's do it if we must
@@ -66,7 +65,7 @@ func (thisServer *server) generateOpenAPIDoc(srcdirs []string, docpath string, r
 
 		// writing it out
 		core.WriteBytesToFile(docpath, doc)
-		slog.Info("New version for: " + docpath)
+		thisServer.Info("New version for: " + docpath)
 
 		// also writing the HTML version
 		core.WriteStringToFile(strings.Replace(docpath, ".yaml", ".html", 1), openAPIHTMLTemplate, string(doc))
@@ -74,15 +73,15 @@ func (thisServer *server) generateOpenAPIDoc(srcdirs []string, docpath string, r
 }
 
 // Checking if at least 1 business object involved in an endpoint has changed
-func isWebModelsChanged(docModified time.Time) bool {
+func (thisServer *server) isWebModelsChanged(docModified time.Time) bool {
 	// going over all the endpoints
 	for _, ep := range restRegistry.endpoints {
 		if classRegistry.items[ep.getResourceClass()].getLastBOMod().After(docModified) {
-			slog.Info(fmt.Sprintf("Output model '%s' for endpoint '%s %s' has changed!", ep.getResourceClass(), ep.getMethod(), ep.getLabel()))
+			thisServer.Info(fmt.Sprintf("Output model '%s' for endpoint '%s %s' has changed!", ep.getResourceClass(), ep.getMethod(), ep.getLabel()))
 			return true
 		}
 		if inputClass := ep.getInputOrParamsClass(); inputClass != "" && classRegistry.items[inputClass].getLastBOMod().After(docModified) {
-			slog.Info(fmt.Sprintf("Input model '%s' for endpoint '%s %s' has changed!", ep.getResourceClass(), ep.getMethod(), ep.getLabel()))
+			thisServer.Info(fmt.Sprintf("Input model '%s' for endpoint '%s %s' has changed!", ep.getResourceClass(), ep.getMethod(), ep.getLabel()))
 			return true
 		}
 	}
@@ -91,10 +90,10 @@ func isWebModelsChanged(docModified time.Time) bool {
 }
 
 // Checks in all the given source directories if some web code has changed and is more recent than the given date
-func isWebCodeChanged(srcdirs []string, docModified time.Time) bool {
+func (thisServer *server) isWebCodeChanged(srcdirs []string, docModified time.Time) bool {
 	for _, codedir := range srcdirs {
 		if core.DirExists(codedir) {
-			if checkWebCodeChanged(codedir, docModified) {
+			if thisServer.checkWebCodeChanged(codedir, docModified) {
 				return true
 			}
 		}
@@ -104,16 +103,16 @@ func isWebCodeChanged(srcdirs []string, docModified time.Time) bool {
 }
 
 // Checks in a the given source directory has some web code has changed more recent than the given date
-func checkWebCodeChanged(codedir string, docModified time.Time) bool {
+func (thisServer *server) checkWebCodeChanged(codedir string, docModified time.Time) bool {
 	for _, entry := range core.EnsureReadDir(codedir) {
 		if entry.IsDir() {
-			if checkWebCodeChanged(path.Join(codedir, entry.Name()), docModified) {
+			if thisServer.checkWebCodeChanged(path.Join(codedir, entry.Name()), docModified) {
 				return true
 			}
 		} else {
 			if strings.HasSuffix(entry.Name(), "--web.go") {
 				if filename := path.Join(codedir, entry.Name()); core.EnsureModTime(filename).After(docModified) {
-					slog.Info("Endpoints might have changed with the latest change to this file: " + filename)
+					thisServer.Info("Endpoints might have changed with the latest change to this file: " + filename)
 					return true
 				}
 			}

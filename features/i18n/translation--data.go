@@ -4,8 +4,6 @@
 package i18n
 
 import (
-	"fmt"
-	"log/slog"
 	"path"
 	"strings"
 	"sync"
@@ -83,7 +81,8 @@ func loadTranslations(ctx g.BloContext, params map[string]string) error {
 		}
 	}
 
-	slog.Debug(fmt.Sprintf("Found %d languages and %d translation files in total", len(languages), filesNb))
+	// restablish once the blo context can log
+	// bloContext.Debug(fmt.Sprintf("Found %d languages and %d translation files in total", len(languages), filesNb))
 
 	// prepping for loading of all the translation files done in parallel
 	filesToLoad := make(chan *fileLoadingWorkerCtx, (filesNb))
@@ -142,7 +141,7 @@ func doLoadFile(workerID int, folderPath string, fileToLoad *fileLoadingWorkerCt
 	filePath := path.Join(folderPath, fileToLoad.lang.String(), fileToLoad.file)
 
 	// a bit of logging
-	// slog.Debug(fmt.Sprintf("Worker %02d: loading '%s'", workerID, filePath))
+	// logger.Debug(fmt.Sprintf("Worker %02d: loading '%s'", workerID, filePath))
 
 	// JSON => key-value map of the translations
 	rawTranslations := *core.ReadFileFromJSON(filePath, &map[string]string{}, true)

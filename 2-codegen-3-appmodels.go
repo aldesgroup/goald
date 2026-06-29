@@ -6,12 +6,12 @@ package goald
 import (
 	"bufio"
 	"fmt"
-	"log/slog"
 	"os"
 	"path"
 	"strings"
 
 	core "github.com/aldesgroup/corego"
+	"github.com/aldesgroup/goald/features/logging"
 	"github.com/aldesgroup/goald/features/utils"
 )
 
@@ -108,7 +108,7 @@ func (thisServer *server) generateClientAppModel(destdir string, ep iEndpoint, u
 	}
 
 	// getting the file content - which might be empty if the file does not exist yet
-	code := parseCode(filepath).initFixedBlocks(modelName, ep.getOperationPath(true), isWebapp)
+	code := thisServer.parseCode(filepath).initFixedBlocks(modelName, ep.getOperationPath(true), isWebapp)
 
 	// browsing the entity's properties to fill the get / set cases in the 2 switch
 	for _, field := range boFields {
@@ -130,7 +130,7 @@ func (thisServer *server) generateClientAppModel(destdir string, ep iEndpoint, u
 
 	// writing out the code lines
 	core.WriteToFile(strings.Join(codeLines, newline)+newline, filepath)
-	slog.Info(fmt.Sprintf("(Re-)generated file %s", filepath))
+	thisServer.Info(fmt.Sprintf("(Re-)generated file %s", filepath))
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -384,9 +384,10 @@ func (block *codeBlock) appendLine(rawline string, isCode bool) *codeBlock {
 }
 
 type codeFile struct {
-	blocks    []*codeBlock
-	blocksMap map[string]*codeBlock // some code blocks mapped with their ID
-	current   *codeBlock            // used during the parsing
+	logging.ILogger // logger for error reporting
+	blocks          []*codeBlock
+	blocksMap       map[string]*codeBlock // some code blocks mapped with their ID
+	current         *codeBlock            // used during the parsing
 }
 
 // adding a new block of code after the last one already present
@@ -482,13 +483,13 @@ func (thisCode *codeFile) insertLineIntoBlockBeforePrefix(blockID string, newLin
 		if pos >= 0 {
 			block.lines = append(block.lines[:pos], append([]*codeLine{newCodeLine(newLine, true)}, block.lines[pos:]...)...)
 		} else {
-			slog.Error(fmt.Sprintf("Could not insert '%s' into block '%s' before '%s'. Block =", newLine, blockID, insertBeforePrefix))
+			thisCode.Error(false, fmt.Sprintf("Could not insert '%s' into block '%s' before '%s'. Block =", newLine, blockID, insertBeforePrefix))
 			for _, line := range block.lines {
-				slog.Error(line.rawline)
+				thisCode.Error(false, line.rawline)
 			}
 		}
 	} else {
-		slog.Error("No block found with ID: " + blockID)
+		thisCode.Error(false, "No block found with ID: "+blockID)
 	}
 }
 
@@ -503,9 +504,9 @@ func (thisCode *codeFile) insertLineIntoBlockBeforePrefix(blockID string, newLin
 // 				return
 // 			}
 // 		}
-// 		slog.Error(fmt.Sprintf("Could not insert '%s' into block '%s' after '%s'.", newLine, blockID, insertAfterPrefix))
+// 		thisCode.Error(fmt.Sprintf("Could not insert '%s' into block '%s' after '%s'.", newLine, blockID, insertAfterPrefix))
 // 	} else {
-// 		slog.Error("No block found with ID: " + blockID)
+// 		thisCode.Error("No block found with ID: " + blockID)
 // 	}
 // }
 
@@ -526,7 +527,7 @@ func (thisCode *codeFile) updateLineIntoBlockWithPrefix(blockID string, newLine 
 			thisCode.insertLineIntoBlockBeforePrefix(blockID, newLine, insertBeforePrefix)
 		}
 	} else {
-		slog.Error("No block found with ID: " + blockID)
+		thisCode.Error(false, "No block found with ID: "+blockID)
 	}
 }
 
@@ -539,7 +540,7 @@ func (thisCode *codeFile) blockHasLineStartingWith(blockID string, prefix string
 			}
 		}
 	} else {
-		slog.Error("No block found with ID: " + blockID)
+		thisCode.Error(false, "No block found with ID: "+blockID)
 	}
 
 	return false
@@ -556,9 +557,10 @@ func (thisCode *codeFile) addLineToCurrentBlock(rawline string, isCode bool, con
 }
 
 // main function reading a file into a structure containing code blocks in a organized fashion
-func parseCode(filepath string) (code *codeFile) {
+func (thisServer *server) parseCode(filepath string) (code *codeFile) {
 	// what's gonna be returned
 	code = &codeFile{
+		ILogger:   thisServer,
 		blocks:    []*codeBlock{},
 		blocksMap: make(map[string]*codeBlock),
 	}

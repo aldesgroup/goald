@@ -17,10 +17,9 @@ func init() {
 // 1) once to check the device linking has been made by the mobile = rendez-vous made, which should trigger an enrollment with the DPS by the backend
 // 2) a final time to get the result of the DPS enrollment, i.e. the signature of the factory cert, and the IoT certs
 func handleDeviceBootstrap(webCtx g.WebContext, req *iot.DeviceBootstrapRequest) (*iot.DeviceBootstrap, hstatus.Code, string) {
-	result, errBoot := doBootstrapDevice(webCtx.GetBloContext(), req)
+	result, errBoot := doBootstrapDevice(nil, webCtx.GetBloContext(), req)
 	if errBoot != nil {
 		errHandle := g.ErrorC(errBoot, "Error while bootstrapping").Error()
-		// slog.Error(errHandle)
 		return nil, hstatus.InternalServerError, errHandle
 	}
 

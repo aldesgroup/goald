@@ -4,22 +4,46 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log/slog"
 	"time"
 
 	core "github.com/aldesgroup/corego"
+	"github.com/aldesgroup/goald/features/dbconn"
+	"github.com/aldesgroup/goald/features/logging"
 	_ "github.com/microsoft/go-mssqldb"
 )
 
 // ------------------------------------------------------------------------------------------------
-// Listing the known DB drivers
+// Listing the DB types Goald can handle
 // ------------------------------------------------------------------------------------------------
 
-type databaseType string
-
 const (
-	dbTypeSQLSERVER = "sqlserver"
+	// DbTypeSQLSERVER  = "sqlserver"
+	DbTypePOSTGRESQL dbconn.DatabaseType = "postgresql"
 )
+
+var allDbTypes = []dbconn.DatabaseType{
+	// DbTypeSQLSERVER,
+	DbTypePOSTGRESQL,
+}
+
+// ------------------------------------------------------------------------------------------------
+// Describing how a DB adapter should behave
+// ------------------------------------------------------------------------------------------------
+
+// Helps adapt to several types of SQL databases
+type iDBAdapter interface {
+	// Registration
+	GetDatabaseType() dbconn.DatabaseType
+
+	// DB server init
+	InitDbServer(logger logging.ILogger, dbConfig *dbconn.DbConfig)
+
+	// DB schema opening
+	OpenDbSchema(logger logging.ILogger, dbSchema *dbconn.DbSchemaConfig) (*sql.DB, error)
+
+	// Specific queries
+	GetTablesQuery() string
+}
 
 // ------------------------------------------------------------------------------------------------
 // Goald databases
@@ -28,23 +52,27 @@ const (
 // goald's own DB object
 type DB struct {
 	*sql.DB
-	config  *dbConfig
-	adapter iDBAdapter
+	iDBAdapter
+	name   dbconn.DbSchemaName
+	config *dbconn.DbSchemaConfig
 }
 
-func logSQL(start time.Time, query string, args ...any) {
-	slog.Debug(fmt.Sprintf("Run in %s: %s (with args: %+v)", time.Since(start), query, args))
+func logSQL(logger logging.ILogger, start time.Time, query string, args ...any) {
+	if logger.IsVerbose() {
+		// TODO later: plug in a mechanism of gathering analytics here
+		logger.Debug(fmt.Sprintf("Run in %s: %s (with args: %+v)", time.Since(start), query, args))
+	}
 }
 
 // proxying this function so as to add functionality
-func (thisDB *DB) Query(query string, args ...any) (*sql.Rows, error) {
-	defer logSQL(time.Now(), query, args...)
+func (thisDB *DB) Query(logger logging.ILogger, query string, args ...any) (*sql.Rows, error) {
+	defer logSQL(logger, time.Now(), query, args...)
 	return thisDB.DB.Query(query, args...)
 }
 
 // proxying this function so as to add functionality
-func (thisDB *DB) Exec(query string, args ...any) (sql.Result, error) {
-	defer logSQL(time.Now(), query, args...)
+func (thisDB *DB) Exec(logger logging.ILogger, query string, args ...any) (sql.Result, error) {
+	defer logSQL(logger, time.Now(), query, args...)
 	return thisDB.DB.Exec(query, args...)
 }
 
@@ -52,41 +80,30 @@ func (thisDB *DB) Exec(query string, args ...any) (sql.Result, error) {
 // Opening a DB, checking it, etc.
 // ------------------------------------------------------------------------------------------------
 
-func openDB(conf *dbConfig) (*sql.DB, iDBAdapter) {
+func (thisServer *server) connectDbSchema(dbSchema *dbconn.DbSchemaConfig) {
+	// LFG
+	start := time.Now()
+
 	// getting the right adapter for the current DB config
-	var adapter iDBAdapter
-	switch conf.DbType {
-	case dbTypeSQLSERVER:
-		adapter = &dbAdapterMSSQL{}
-	default:
-		core.PanicMsg("Unhandled DB type: %s", conf.DbType)
-	}
+	adapter := getDbAdapter(dbSchema.DbConfig.Type)
 
-	// // making sure the DB exists
-	// if conf.MakeExist {
+	// opening the DB schema
+	db, err := adapter.OpenDbSchema(thisServer, dbSchema)
+	core.PanicMsgIfErr(err, "Error opening DB schema '%s' from DB '%s'", dbSchema.Name, dbSchema.DbConfig.Database)
 
-	// }
-
-	// connection string
-	connStr := adapter.getConnectionString(conf)
-
-	// Creating the DB object by opening connections with it
-	startDB := time.Now()
-	db, errOpen := sql.Open(string(conf.DbType), connStr)
-	if errOpen != nil {
-		core.PanicMsg("Error opening DB '%s': %s", conf.DbID, errOpen)
-	}
-
-	// Pinging
+	// checking the connection to the DB schema
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if errPing := db.PingContext(ctx); errPing != nil {
-		core.PanicMsg("Issue while testing the '%s' DB: %s", conf.DbID, errPing)
-	}
+	core.PanicMsgIfErr(db.PingContext(ctx), "Error pinging DB schema '%s' from DB '%s'", dbSchema.Name, dbSchema.DbConfig.Database)
 
-	slog.Info(fmt.Sprintf("Established connection to DB '%s' in %s!\n", conf.DbID, time.Since(startDB)))
+	// registration for later use
+	goaldDB := GetDB(dbSchema.Name)
+	goaldDB.iDBAdapter = adapter
+	goaldDB.config = dbSchema
+	goaldDB.DB = db
 
-	return db, adapter
+	// bit of logging
+	thisServer.Info(fmt.Sprintf("Established connection to DB schema '%s' in %s", dbSchema.Name, time.Since(start)))
 }
 
 // // ------------------------------------------------------------------------------------------------
@@ -103,6 +120,7 @@ func openDB(conf *dbConfig) (*sql.DB, iDBAdapter) {
 
 // 	// making sure we're closing the rows
 // 	defer func() {
+
 // 		if errClose := rows.Close(); errClose != nil {
 // 			// TODO do something
 // 			println(errClose)

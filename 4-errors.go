@@ -2,8 +2,9 @@ package goald
 
 import (
 	"fmt"
-	"log/slog"
 	"runtime/debug"
+
+	"github.com/aldesgroup/goald/features/logging"
 )
 
 // ------------------------------------------------------------------------------------------------
@@ -18,9 +19,9 @@ func ErrorC(cause error, msg string, params ...any) error {
 	return fmt.Errorf(fmt.Sprintf(msg, params...)+" --==|| Cause: %w", cause)
 }
 
-func RecoverError(msg string, params ...any) {
+func RecoverError(logger logging.ILogger, msg string, params ...any) {
 	if err := recover(); err != nil {
 		// TODO change
-		slog.Error(fmt.Sprintf(msg+". Cause: %v. Stack: \n%s", append(params, err, string(debug.Stack()))...))
+		logger.Error(false, fmt.Sprintf(msg+". Cause: %v. Stack: \n%s", append(params, err, string(debug.Stack()))...))
 	}
 }

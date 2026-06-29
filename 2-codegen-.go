@@ -5,7 +5,6 @@ package goald
 
 import (
 	"fmt"
-	"log/slog"
 	"strings"
 	"time"
 
@@ -39,7 +38,7 @@ func (thisServer *server) runCodeGen(cgp *codegenParams) {
 		// saving the dirty state
 		core.WriteToFile(fmt.Sprintf("%t", codeChanged), cgp.bindir, dirtyFILENAME)
 
-		slog.Info(fmt.Sprintf("done generating the DB & BO registries in %s", time.Since(start)))
+		thisServer.Info(fmt.Sprintf("done generating the DB & BO registries in %s", time.Since(start)))
 
 	case codeGenMODELS:
 		start := time.Now()
@@ -51,7 +50,7 @@ func (thisServer *server) runCodeGen(cgp *codegenParams) {
 		// saving the dirty state
 		core.WriteToFile(fmt.Sprintf("%t", codeChanged), cgp.bindir, dirtyFILENAME)
 
-		slog.Info(fmt.Sprintf("done generating the BO models in %s", time.Since(start)))
+		thisServer.Info(fmt.Sprintf("done generating the BO models in %s", time.Since(start)))
 
 	case codeGenUTILS:
 		start := time.Now()
@@ -72,7 +71,7 @@ func (thisServer *server) runCodeGen(cgp *codegenParams) {
 			thisServer.generateOpenAPIDoc(srcdirs, cgp.docpath, cgp.regen, cgp.servers)
 		}
 
-		slog.Info(fmt.Sprintf("done generating the BO utils, client models & API doc in %s", time.Since(start)))
+		thisServer.Info(fmt.Sprintf("done generating the BO utils, client models & API doc in %s", time.Since(start)))
 
 	case codeGenCHECK:
 		// at the end, we check the code is fine

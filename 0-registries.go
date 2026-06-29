@@ -4,6 +4,7 @@
 package goald
 
 import (
+	"fmt"
 	"path"
 	"sort"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	core "github.com/aldesgroup/corego"
+	"github.com/aldesgroup/goald/features/dbconn"
 	"github.com/aldesgroup/goald/features/utils"
 )
 
@@ -148,12 +150,17 @@ func (m *moduleClassRegitry) Register(class IClass) *moduleClassRegitry {
 }
 
 func classForName(clsName className) IClass {
+	if classRegistry.items[clsName] == nil {
+		panic(fmt.Sprintf("It looks like no class named '%s' has been registered, "+
+			"i.e. its package has probably not been 'included', i.e. imported in the start.go file,"+
+			" like this: import _ \"module_full_name/_include/package_name\"", clsName))
+	}
 	return classRegistry.items[clsName]
 }
 
 // 1 Class for 1 Business Object Model
 func getClass(model IBusinessObjectModel) IClass {
-	return classRegistry.items[model.base().name]
+	return classForName(model.base().name)
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -227,41 +234,58 @@ func getSortedEndpointList() []iEndpoint {
 }
 
 // ------------------------------------------------------------------------------------------------
+// DB Adapters registry
+// ------------------------------------------------------------------------------------------------
+
+var dbAdapterRegistry = &struct {
+	dbAdapters map[dbconn.DatabaseType]iDBAdapter
+	mx         sync.Mutex
+}{
+	dbAdapters: map[dbconn.DatabaseType]iDBAdapter{},
+}
+
+// registering happens in the "goald" package, gence the private function
+func RegisterDbAdapter(dbAdapter iDBAdapter) iDBAdapter {
+	dbAdapterRegistry.mx.Lock()
+	if dbAdapterRegistry.dbAdapters[dbAdapter.GetDatabaseType()] != nil {
+		panic(fmt.Sprintf("There's already a DB adapter registered for database type '%s'", dbAdapter.GetDatabaseType()))
+	}
+	dbAdapterRegistry.dbAdapters[dbAdapter.GetDatabaseType()] = dbAdapter
+	dbAdapterRegistry.mx.Unlock()
+	return dbAdapter
+}
+
+// returning the right adapter for the given database type, or panicking if not found
+func getDbAdapter(dbType dbconn.DatabaseType) iDBAdapter {
+	dbAdapterRegistry.mx.Lock()
+	defer dbAdapterRegistry.mx.Unlock()
+
+	dbAdapter := dbAdapterRegistry.dbAdapters[dbType]
+	if dbAdapter == nil {
+		panic(fmt.Sprintf("No DB adapter found for database type '%s'", dbType))
+	}
+
+	return dbAdapter
+}
+
+// ------------------------------------------------------------------------------------------------
 // DB registry
 // ------------------------------------------------------------------------------------------------
 
 var dbRegistry = &struct {
-	databases map[DatabaseID]*DB
+	databases map[dbconn.DbSchemaName]*DB
 	mx        sync.Mutex
 }{
-	databases: map[DatabaseID]*DB{},
+	databases: map[dbconn.DbSchemaName]*DB{},
 }
 
-func initAndRegisterDB(config *dbConfig) {
-	dbRegistry.mx.Lock()
-	defer dbRegistry.mx.Unlock()
-
-	// init the instance if needed
-	db := dbRegistry.databases[config.DbID]
-	if db == nil {
-		db = &DB{}
-	}
-
-	// init the DB driver
-	db.DB, db.adapter = openDB(config)
-	db.config = config
-
-	// back into the registry (not needed if already done
-	dbRegistry.databases[config.DbID] = db
-}
-
-func GetDB(dbID DatabaseID) *DB {
+func GetDB(dbID dbconn.DbSchemaName) *DB {
 	dbRegistry.mx.Lock()
 	defer dbRegistry.mx.Unlock()
 
 	db := dbRegistry.databases[dbID]
 	if db == nil {
-		db = &DB{}
+		db = &DB{name: dbID}
 		dbRegistry.databases[dbID] = db
 	}
 

@@ -8,7 +8,7 @@ import (
 )
 
 // static, reflect-free access to the definition of the DeviceBootstrapPayload model
-type deviceBootstrapPayloadModel struct {
+type DeviceBootstrapPayloadModel struct {
 	g.IBusinessObjectModel
 	serial    *g.StringField
 	model     *g.StringField
@@ -17,19 +17,19 @@ type deviceBootstrapPayloadModel struct {
 }
 
 // this is the main way to refer to the DeviceBootstrapPayload model in the applicative code
-func DeviceBootstrapPayload() *deviceBootstrapPayloadModel {
+func DeviceBootstrapPayload() *DeviceBootstrapPayloadModel {
 	return deviceBootstrapPayload
 }
 
 // internal variables
 var (
-	deviceBootstrapPayload     *deviceBootstrapPayloadModel
+	deviceBootstrapPayload     *DeviceBootstrapPayloadModel
 	deviceBootstrapPayloadOnce sync.Once
 )
 
 // fully describing each of this class' properties & relationships
-func newDeviceBootstrapPayloadModel() *deviceBootstrapPayloadModel {
-	newModel := &deviceBootstrapPayloadModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
+func NewDeviceBootstrapPayloadModel() *DeviceBootstrapPayloadModel {
+	newModel := &DeviceBootstrapPayloadModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
 	newModel.serial = g.NewStringField(newModel, "Serial", false)
 	newModel.model = g.NewStringField(newModel, "Model", false)
 	newModel.timestamp = g.NewBigIntField(newModel, "Timestamp", false)
@@ -41,7 +41,7 @@ func newDeviceBootstrapPayloadModel() *deviceBootstrapPayloadModel {
 // making sure the DeviceBootstrapPayload model exists at app startup
 func init() {
 	deviceBootstrapPayloadOnce.Do(func() {
-		deviceBootstrapPayload = newDeviceBootstrapPayloadModel()
+		deviceBootstrapPayload = NewDeviceBootstrapPayloadModel()
 	})
 
 	// this helps dynamically access to the DeviceBootstrapPayload model
@@ -50,18 +50,18 @@ func init() {
 
 // accessing all the DeviceBootstrapPayload class' properties and relationships
 
-func (d *deviceBootstrapPayloadModel) Serial() *g.StringField {
-	return d.serial
+func (D *DeviceBootstrapPayloadModel) Serial() *g.StringField {
+	return D.serial
 }
 
-func (d *deviceBootstrapPayloadModel) Model() *g.StringField {
-	return d.model
+func (D *DeviceBootstrapPayloadModel) Model() *g.StringField {
+	return D.model
 }
 
-func (d *deviceBootstrapPayloadModel) Timestamp() *g.BigIntField {
-	return d.timestamp
+func (D *DeviceBootstrapPayloadModel) Timestamp() *g.BigIntField {
+	return D.timestamp
 }
 
-func (d *deviceBootstrapPayloadModel) Nonce() *g.StringField {
-	return d.nonce
+func (D *DeviceBootstrapPayloadModel) Nonce() *g.StringField {
+	return D.nonce
 }
