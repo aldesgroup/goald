@@ -28,12 +28,12 @@ var (
 
 // fully describing each of this class' properties & relationships
 func NewDeviceBootstrapRequestModel() *DeviceBootstrapRequestModel {
-	newModel := &DeviceBootstrapRequestModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
-	newModel.factoryCertPem = g.NewStringField(newModel, "FactoryCertPEM", false)
-	newModel.payloadB64 = g.NewStringField(newModel, "PayloadB64", false)
-	newModel.signatureB64 = g.NewStringField(newModel, "SignatureB64", false)
+	thisModel := &DeviceBootstrapRequestModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
+	thisModel.factoryCertPem = g.NewStringField(thisModel, "FactoryCertPEM", false)
+	thisModel.payloadB64 = g.NewStringField(thisModel, "PayloadB64", false)
+	thisModel.signatureB64 = g.NewStringField(thisModel, "SignatureB64", false)
 
-	return newModel
+	return thisModel
 }
 
 // making sure the DeviceBootstrapRequest model exists at app startup

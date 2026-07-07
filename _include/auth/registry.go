@@ -9,5 +9,5 @@ import (
 
 func init() {
 	g.In("goald").
-		Register(auth.ClassForUser("features/auth", "2026-06-23T10:14:49+02:00"))
+		Register(auth.ClassForUser("features/auth", "2026-06-30T08:26:30+02:00"))
 }

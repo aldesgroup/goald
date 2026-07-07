@@ -134,9 +134,9 @@ func generateObjectValueMappersForBO(class IClass, filepath string) {
 	// browsing the entity's properties to fill the get / set cases in the 2 switch
 	for _, field := range core.GetSortedValues(model.base().fields) {
 		// adding to the context, and the class file content
-		if typeFamily := field.getTypeFamily(); typeFamily != utils.TypeFamilyUNKNOWN && typeFamily != utils.TypeFamilyRELATIONSHIPxMONOM {
+		if propertyType := field.getPropertyType(); propertyType != propertyTypeUNKNOWN && propertyType != propertyTypeRELATIONSHIPxMONOM {
 			// not handling multiple properties for now
-			if fieldName := field.getName(); !field.isMultiple() {
+			if fieldName := field.GetName(); !field.IsMultiple() {
 				// is the field type a type alias, or a built-in type?
 				fieldTypeAlias := getNonBuiltInFieldType(bObjectType, fieldName, importsMap)
 
@@ -147,47 +147,47 @@ func generateObjectValueMappersForBO(class IClass, filepath string) {
 				// this is going to come up a lot
 				fieldID := fmt.Sprintf("(*%s.%s).%s", shortPkg, className, fieldName)
 
-				switch typeFamily {
-				case utils.TypeFamilyBOOL:
+				switch propertyType {
+				case propertyTypeBOOL:
 					getBit, setBit, end := getBits(fieldTypeAlias, "bool")
 					getCase += newline + fmt.Sprintf("\t\treturn core.BoolToString(%sbo.%s%s)", getBit, fieldID, end)
 					importUtils = true
 					setCase += newline + fmt.Sprintf("\t\tbo.%s = %score.StringToBool(valueAsString, \"%s\")%s", fieldID, setBit, fieldID, end)
 
-				case utils.TypeFamilySTRING:
+				case propertyTypeSTRING:
 					getBit, setBit, end := getBits(fieldTypeAlias, "string")
 					getCase += newline + fmt.Sprintf("\t\treturn %sbo.%s%s", getBit, fieldID, end)
 					setCase += newline + fmt.Sprintf("\t\tbo.%s = %svalueAsString%s", fieldID, setBit, end)
 
-				case utils.TypeFamilyINT:
+				case propertyTypeINT:
 					getBit, setBit, end := getBits(fieldTypeAlias, "int")
 					getCase += newline + fmt.Sprintf("\t\treturn core.IntToString(%sbo.%s%s)", getBit, fieldID, end)
 					importUtils = true
 					setCase += newline + fmt.Sprintf("\t\tbo.%s = %score.StringToInt(valueAsString, \"%s\")%s", fieldID, setBit, fieldID, end)
 
-				case utils.TypeFamilyBIGINT:
+				case propertyTypeBIGINT:
 					getBit, setBit, end := getBits(fieldTypeAlias, "int64")
 					getCase += newline + fmt.Sprintf("\t\treturn core.Int64ToString(%sbo.%s%s)", getBit, fieldID, end)
 					importUtils = true
 					setCase += newline + fmt.Sprintf("\t\tbo.%s = %score.StringToInt64(valueAsString, \"%s\")%s", fieldID, setBit, fieldID, end)
 
-				case utils.TypeFamilyREAL:
+				case propertyTypeREAL:
 					getBit, setBit, end := getBits(fieldTypeAlias, "float32")
 					getCase += newline + fmt.Sprintf("\t\treturn core.Float32ToString(%sbo.%s%s)", getBit, fieldID, end)
 					importUtils = true
 					setCase += newline + fmt.Sprintf("\t\tbo.%s = %score.StringToFloat32(valueAsString, \"%s\")%s", fieldID, setBit, fieldID, end)
 
-				case utils.TypeFamilyDOUBLE:
+				case propertyTypeDOUBLE:
 					getBit, setBit, end := getBits(fieldTypeAlias, "float64")
 					getCase += newline + fmt.Sprintf("\t\treturn core.Float64ToString(%sbo.%s%s)", getBit, fieldID, end)
 					importUtils = true
 					setCase += newline + fmt.Sprintf("\t\tbo.%s = %score.StringToFloat64(valueAsString, \"%s\")%s", fieldID, setBit, fieldID, end)
 
-				case utils.TypeFamilyDATE:
+				case propertyTypeDATE:
 					getCase += newline + fmt.Sprintf("\t\treturn core.DateToString(bo.%s)", fieldID)
 					setCase += newline + fmt.Sprintf("\t\tbo.%s = core.StringToDate(valueAsString, \"%s\")", fieldID, fieldID)
 
-				case utils.TypeFamilyENUM:
+				case propertyTypeENUM:
 					getCase += newline + fmt.Sprintf("\t\treturn core.IntToString(bo.%s.Val())", fieldID)
 					importUtils = true
 					setCase += newline + fmt.Sprintf("\t\tbo.%s = %s(core.StringToInt(valueAsString, \"%s\"))", fieldID, fieldTypeAlias, fieldID)

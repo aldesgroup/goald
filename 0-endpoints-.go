@@ -109,7 +109,7 @@ func (ep *endpoint[ResourceType]) getOperationPath(includeIdOrRefName bool) stri
 		}
 	}
 	if ep.idProp != nil && includeIdOrRefName {
-		operationPath += "/:" + ep.idProp.getName()
+		operationPath += "/:" + ep.idProp.GetName()
 	}
 
 	return operationPath

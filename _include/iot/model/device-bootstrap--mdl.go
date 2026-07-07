@@ -30,14 +30,14 @@ var (
 
 // fully describing each of this class' properties & relationships
 func NewDeviceBootstrapModel() *DeviceBootstrapModel {
-	newModel := &DeviceBootstrapModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
-	newModel.status = g.NewEnumField(newModel, "Status", false, "iot.BootstrapStatus")
-	newModel.iotCertPem = g.NewStringField(newModel, "IotCertPEM", false)
-	newModel.iotChainPem = g.NewStringField(newModel, "IotChainPEM", false)
-	newModel.deviceId = g.NewStringField(newModel, "DeviceID", false)
-	newModel.scopeId = g.NewStringField(newModel, "ScopeID", false)
+	thisModel := &DeviceBootstrapModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
+	thisModel.status = g.NewEnumField(thisModel, "Status", false, "iot.BootstrapStatus")
+	thisModel.iotCertPem = g.NewStringField(thisModel, "IotCertPEM", false)
+	thisModel.iotChainPem = g.NewStringField(thisModel, "IotChainPEM", false)
+	thisModel.deviceId = g.NewStringField(thisModel, "DeviceID", false)
+	thisModel.scopeId = g.NewStringField(thisModel, "ScopeID", false)
 
-	return newModel
+	return thisModel
 }
 
 // making sure the DeviceBootstrap model exists at app startup

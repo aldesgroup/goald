@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	g "github.com/aldesgroup/goald"
-	i18n_model "github.com/aldesgroup/goald/_include/i18n/model"
 )
 
 // static, reflect-free access to the definition of the DeviceLinkRequest model
@@ -35,18 +34,18 @@ var (
 
 // fully describing each of this class' properties & relationships
 func NewDeviceLinkRequestModel() *DeviceLinkRequestModel {
-	newModel := &DeviceLinkRequestModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
-	newModel.model = g.NewStringField(newModel, "Model", false)
-	newModel.serial = g.NewStringField(newModel, "Serial", false)
-	newModel.verificationCode = g.NewStringField(newModel, "VerificationCode", false)
-	newModel.userId = g.NewIntField(newModel, "UserID", false)
-	newModel.userFullName = g.NewStringField(newModel, "UserFullName", false)
-	newModel.users = g.NewPolyRelationship(newModel, "Users", true)
-	newModel.mainContact = g.NewPolyRelationship(newModel, "MainContact", false)
-	newModel.forWho = g.NewPolyRelationship(newModel, "ForWho", false)
-	newModel.enTranslation = g.NewRelationship(newModel, "ENTranslation", false, i18n_model.Translation())
+	thisModel := &DeviceLinkRequestModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
+	thisModel.model = g.NewStringField(thisModel, "Model", false)
+	thisModel.serial = g.NewStringField(thisModel, "Serial", false)
+	thisModel.verificationCode = g.NewStringField(thisModel, "VerificationCode", false)
+	thisModel.userId = g.NewIntField(thisModel, "UserID", false)
+	thisModel.userFullName = g.NewStringField(thisModel, "UserFullName", false)
+	thisModel.users = g.NewPolyRelationship(thisModel, "Users", true)
+	thisModel.mainContact = g.NewPolyRelationship(thisModel, "MainContact", false)
+	thisModel.forWho = g.NewPolyRelationship(thisModel, "ForWho", false)
+	thisModel.enTranslation = g.NewRelationship(thisModel, "ENTranslation", false, "Translation")
 
-	return newModel
+	return thisModel
 }
 
 // making sure the DeviceLinkRequest model exists at app startup

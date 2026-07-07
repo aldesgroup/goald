@@ -16,41 +16,18 @@ var (
 	typeIxENUM            = utils.TypeOf((*IEnum)(nil), true)
 )
 
-// // GetAllProperties returns all this class' properties
-// func (model *businessObjectClass) GetAllProperties() []iBusinessObjectProperty {
-// 	if model.allProperties == nil {
-// 		for _, field := range model.fields {
-// 			model.allProperties = append(model.allProperties, field)
-// 		}
-
-// 		for _, relationship := range model.getRelationshipsWithColumn() {
-// 			model.allProperties = append(model.allProperties, relationship)
-// 		}
-
-// 		sort.SliceStable(model.allProperties, func(i, j int) bool {
-// 			return model.allProperties[i].getName() < model.allProperties[j].getName()
-// 		})
-// 	}
-
-// 	return model.allProperties
-// }
-
 // getPersistedProperties returns the sorted list of the properties persisted
-// within the BO class' table, i.e. the persisted single Relationships + the persisted fields
-func (model *businessObjectModel) getPersistedProperties() []iBusinessObjectProperty {
+// within the BO model's table, i.e. the persisted single Relationships + the persisted fields
+func (model *businessObjectModel) getPersistedProperties() []IBusinessObjectProperty {
 	if model.persistedProperties == nil {
-		// how many persisted properties - fields + single Relationships - do we have ?
-		// nbFields := len(model.fields)
-		// size := nbFields + len(model.getRelationshipsWithColumn())
-
-		// let's gather all the persisted properties
-		// model.persistedProperties = make([]iBusinessObjectProperty, size)
+		// let's gather all the persisted properties - the fields first
 		for _, field := range model.fields {
 			if !field.isNotPersisted() {
 				model.persistedProperties = append(model.persistedProperties, field)
 			}
 		}
 
+		// and the relationships
 		for _, relationship := range model.getRelationshipsWithColumn() {
 			model.persistedProperties = append(model.persistedProperties, relationship)
 		}
@@ -74,11 +51,12 @@ func (model *businessObjectModel) getPersistedProperties() []iBusinessObjectProp
 	return model.persistedProperties
 }
 
-// getRelationshipsWithColumn returns the sorted list of the fields that are persisted
+// getRelationshipsWithColumn returns the sorted list of the relationships that are persisted using a column in the BO model's table
 func (model *businessObjectModel) getRelationshipsWithColumn() []*Relationship {
 	// initialising it, the first time we need it
 	if model.relationshipsWithColumn == nil {
-		// first, we retrieve a list of IDs of the Relationships that are persisted
+		// first, we retrieve a list of IDs of the Relationships that are directly persisted
+		// i.e. through a column in this BO model's table, and not through a link table nor a foreign table
 		relationshipsWithColumnNames := []string{}
 
 		for relationshipName, relationship := range model.relationships {
@@ -100,4 +78,33 @@ func (model *businessObjectModel) getRelationshipsWithColumn() []*Relationship {
 	}
 
 	return model.relationshipsWithColumn
+}
+
+// getRelationshipsWithLinkTable returns the sorted list of the relationships that are persisted using a link table in the BO model's table
+func (model *businessObjectModel) getRelationshipsWithLinkTable() []*Relationship {
+	// initialising it, the first time we need it
+	if model.relationshipsWithLinkTable == nil {
+		// first, we retrieve a list of IDs of the Relationships that are directly persisted
+		// i.e. through a link table in this BO model's table, and not through a column nor a foreign table
+		relationshipsWithLinkTableNames := []string{}
+
+		for relationshipName, relationship := range model.relationships {
+			if relationship.needsLinkTable() {
+				relationshipsWithLinkTableNames = append(relationshipsWithLinkTableNames, string(relationshipName))
+			}
+		}
+
+		// sorting that list
+		sort.Strings(relationshipsWithLinkTableNames)
+
+		// creating the list of persisted relationships
+		model.relationshipsWithLinkTable = make([]*Relationship, len(relationshipsWithLinkTableNames))
+
+		// using that list to build a sorted list of persisted relationships
+		for i := 0; i < len(relationshipsWithLinkTableNames); i++ {
+			model.relationshipsWithLinkTable[i] = model.relationships[relationshipsWithLinkTableNames[i]]
+		}
+	}
+
+	return model.relationshipsWithLinkTable
 }

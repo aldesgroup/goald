@@ -5,8 +5,8 @@ package dbconn
 // ------------------------------------------------------------------------------------------------
 
 type DatabaseType string
-
 type DbSchemaName string
+type DbUserName string
 
 type DbConfig struct {
 	Type     DatabaseType
@@ -15,7 +15,7 @@ type DbConfig struct {
 	Database string
 	SSLMode  string // e.g. "require" for Azure, empty = pgx default (prefer)
 	Admin    *struct {
-		User string
+		User DbUserName
 		Pass string
 	}
 	Schemas map[DbSchemaName]*DbSchemaConfig
@@ -30,8 +30,8 @@ const (
 
 type DbSchemaConfig struct {
 	Name     DbSchemaName
-	User     string
+	User     DbUserName
 	Pass     string
-	Access   map[DbSchemaName]schemaAccessType // access to other schemas, to allow for easy joins
-	DbConfig *DbConfig                         // back reference to the parent DB config
+	Access   map[DbUserName]schemaAccessType // access to this schema for other users (user -> access type)
+	DbConfig *DbConfig                       // back reference to the parent DB config
 }

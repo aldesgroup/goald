@@ -8,10 +8,10 @@ import "log/slog"
 
 type ILogger interface {
 	IsVerbose() bool
-	Debug(msg string, args ...interface{})
-	Info(msg string, args ...interface{})
-	Warn(msg string, args ...interface{})
-	Error(isFatal bool, msg string, args ...interface{})
+	Debug(msg string, args ...any)
+	Info(msg string, args ...any)
+	Warn(msg string, args ...any)
+	Error(isFatal bool, msg string, args ...any)
 	WithLevel(level slog.Level) ILogger
 }
 

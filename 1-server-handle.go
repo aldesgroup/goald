@@ -92,7 +92,7 @@ func (thisReqCtx *httpRequestContext) serve(ep iEndpoint, w http.ResponseWriter,
 	// initialising the web context that's going to be passed to the applicative handler
 	var targetRefOrID string
 	if ep.getIDProp() != nil {
-		targetRefOrID = params.ByName(ep.getIDProp().getName())
+		targetRefOrID = params.ByName(ep.getIDProp().GetName())
 	}
 
 	// prepping the context that's going to contain all the input data
@@ -252,11 +252,11 @@ func retrieveURLParams(request *http.Request, _ *webContextImpl, ep iEndpoint) (
 
 	// transferring the URL param values from the URL to the object
 	for _, field := range modelForName(ep.getInputOrParamsClass()).base().fields {
-		valueToSet := request.URL.Query().Get(field.getName())
+		valueToSet := request.URL.Query().Get(field.GetName())
 		if valueToSet == "" {
 			valueToSet = field.getDefaultValue()
 		}
-		classUtils.SetValueAsString(urlParams, field.getName(), valueToSet)
+		classUtils.SetValueAsString(urlParams, field.GetName(), valueToSet)
 	}
 
 	return urlParams, nil

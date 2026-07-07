@@ -36,7 +36,7 @@ func $$DbID$$() *g.DB {
 }
 `
 
-const dbFOLDER = "_include/db"
+const dbFOLDERNAME = "db"
 const dbFILE = "db-list.go"
 
 func (thisServer *server) generateDatabasesList(srcdir string) {
@@ -71,8 +71,8 @@ func (thisServer *server) generateDatabasesList(srcdir string) {
 	content = strings.ReplaceAll(content, "$$otherImports$$", otherImports)
 
 	// writing to file
-	core.WriteToFile(content, srcdir, dbFOLDER, dbFILE)
-	println(fmt.Sprintf("DB list generated in %s", time.Since(start)))
+	core.WriteToFile(content, srcdir, includePATH, dbFOLDERNAME, dbFILE)
+	thisServer.Info(fmt.Sprintf("DB list generated in %s", time.Since(start)))
 }
 
 func getPackageForDbServerType(databaseType dbconn.DatabaseType) string {

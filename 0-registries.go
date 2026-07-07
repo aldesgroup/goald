@@ -247,10 +247,10 @@ var dbAdapterRegistry = &struct {
 // registering happens in the "goald" package, gence the private function
 func RegisterDbAdapter(dbAdapter iDBAdapter) iDBAdapter {
 	dbAdapterRegistry.mx.Lock()
-	if dbAdapterRegistry.dbAdapters[dbAdapter.GetDatabaseType()] != nil {
-		panic(fmt.Sprintf("There's already a DB adapter registered for database type '%s'", dbAdapter.GetDatabaseType()))
+	if dbAdapterRegistry.dbAdapters[dbAdapter.DatabaseType()] != nil {
+		panic(fmt.Sprintf("There's already a DB adapter registered for database type '%s'", dbAdapter.DatabaseType()))
 	}
-	dbAdapterRegistry.dbAdapters[dbAdapter.GetDatabaseType()] = dbAdapter
+	dbAdapterRegistry.dbAdapters[dbAdapter.DatabaseType()] = dbAdapter
 	dbAdapterRegistry.mx.Unlock()
 	return dbAdapter
 }
@@ -285,7 +285,8 @@ func GetDB(dbID dbconn.DbSchemaName) *DB {
 
 	db := dbRegistry.databases[dbID]
 	if db == nil {
-		db = &DB{name: dbID}
+		// db = &DB{name: dbID}
+		db = &DB{}
 		dbRegistry.databases[dbID] = db
 	}
 

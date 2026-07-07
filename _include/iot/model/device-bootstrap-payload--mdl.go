@@ -29,13 +29,13 @@ var (
 
 // fully describing each of this class' properties & relationships
 func NewDeviceBootstrapPayloadModel() *DeviceBootstrapPayloadModel {
-	newModel := &DeviceBootstrapPayloadModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
-	newModel.serial = g.NewStringField(newModel, "Serial", false)
-	newModel.model = g.NewStringField(newModel, "Model", false)
-	newModel.timestamp = g.NewBigIntField(newModel, "Timestamp", false)
-	newModel.nonce = g.NewStringField(newModel, "Nonce", false)
+	thisModel := &DeviceBootstrapPayloadModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
+	thisModel.serial = g.NewStringField(thisModel, "Serial", false)
+	thisModel.model = g.NewStringField(thisModel, "Model", false)
+	thisModel.timestamp = g.NewBigIntField(thisModel, "Timestamp", false)
+	thisModel.nonce = g.NewStringField(thisModel, "Nonce", false)
 
-	return newModel
+	return thisModel
 }
 
 // making sure the DeviceBootstrapPayload model exists at app startup

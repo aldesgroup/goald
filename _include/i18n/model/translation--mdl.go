@@ -29,13 +29,13 @@ var (
 
 // fully describing each of this class' properties & relationships
 func NewTranslationModel() *TranslationModel {
-	newModel := &TranslationModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
-	newModel.lang = g.NewStringField(newModel, "Lang", false)
-	newModel.namespace = g.NewStringField(newModel, "Namespace", false)
-	newModel.key = g.NewStringField(newModel, "Key", false)
-	newModel.value = g.NewStringField(newModel, "Value", false)
+	thisModel := &TranslationModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
+	thisModel.lang = g.NewStringField(thisModel, "Lang", false)
+	thisModel.namespace = g.NewStringField(thisModel, "Namespace", false)
+	thisModel.key = g.NewStringField(thisModel, "Key", false)
+	thisModel.value = g.NewStringField(thisModel, "Value", false)
 
-	return newModel
+	return thisModel
 }
 
 // making sure the Translation model exists at app startup

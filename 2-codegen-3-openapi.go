@@ -188,8 +188,8 @@ func addEndpointToDoc(doc *openapi3.T, ep iEndpoint) error {
 	openapiPath := basePath
 	operationID := strings.ToLower(ep.getMethod()) + basePath
 	if idProp := ep.getIDProp(); idProp != nil {
-		openapiPath += "/{" + idProp.getName() + "}"
-		operationID += "/" + idProp.getName()
+		openapiPath += "/{" + idProp.GetName() + "}"
+		operationID += "/" + idProp.GetName()
 	}
 
 	pathItem := doc.Paths.Find(openapiPath)
@@ -214,7 +214,7 @@ func addEndpointToDoc(doc *openapi3.T, ep iEndpoint) error {
 	if idProp := ep.getIDProp(); idProp != nil {
 		op.Parameters = append(op.Parameters, &openapi3.ParameterRef{
 			Value: &openapi3.Parameter{
-				Name:        idProp.getName(),
+				Name:        idProp.GetName(),
 				In:          "path",
 				Required:    true,
 				Schema:      schemaFromPrimitiveType(idProp, false),
@@ -349,7 +349,7 @@ func schemaFromModel(doc *openapi3.T, model IBusinessObjectModel) *openapi3.Sche
 
 	// going over the basic properties, i.e. the fields
 	for _, field := range core.GetSortedValues(model.base().fields) {
-		fieldJSONName := core.PascalToCamel(field.getName())
+		fieldJSONName := core.PascalToCamel(field.GetName())
 
 		var prop *openapi3.SchemaRef = schemaFromPrimitiveType(field, true)
 
@@ -366,14 +366,14 @@ func schemaFromModel(doc *openapi3.T, model IBusinessObjectModel) *openapi3.Sche
 
 	// going over the relationships, i.e. the object-type properties
 	for _, relationship := range core.GetSortedValues(model.base().relationships) {
-		relationshipJSONName := core.PascalToCamel(relationship.getName())
+		relationshipJSONName := core.PascalToCamel(relationship.GetName())
 
-		if !relationship.polymorphic || len(relationship.targets) == 1 {
+		if !relationship.IsPolymorphic() || len(relationship.targetNames) == 1 {
 
 			// getting the schema REF for the relationship target
-			prop, errRef := getSchemaRef(doc, relationship.targets[0].base().name)
+			prop, errRef := getSchemaRef(doc, relationship.targetNames[0])
 			core.PanicMsgIfErr(errRef, "Error while getting schema ref for relationship '%s#%s'",
-				model.base().name, relationship.getName())
+				model.base().name, relationship.GetName())
 
 			// linking this relationship to the schema
 			if relationship.isPureOutput() {
@@ -399,14 +399,14 @@ func schemaFromModel(doc *openapi3.T, model IBusinessObjectModel) *openapi3.Sche
 				},
 			}
 
-			if len(relationship.targets) == 0 {
-				core.PanicMsg("Polymorphic relationship '%s#%s' does not have any target model", model.base().name, relationship.getName())
+			if len(relationship.getTargetNames()) == 0 {
+				core.PanicMsg("Polymorphic relationship '%s#%s' does not have any target model", model.base().name, relationship.GetName())
 			}
 
-			for _, target := range relationship.targets {
-				prop, errRef := getSchemaRef(doc, target.base().name)
+			for _, targetName := range relationship.targetNames {
+				prop, errRef := getSchemaRef(doc, targetName)
 				core.PanicMsgIfErr(errRef, "Error while getting schema ref for relationship '%s#%s'",
-					model.base().name, relationship.getName())
+					model.base().name, relationship.GetName())
 				schema.Properties[relationshipJSONName].Value.OneOf = append(schema.Properties[relationshipJSONName].Value.OneOf, prop)
 			}
 
@@ -434,7 +434,7 @@ func paramsFromClass(clsName className, path string) (openapi3.Parameters, error
 	for _, field := range core.GetSortedValues(model.base().fields) {
 		schema := schemaFromPrimitiveType(field, true)
 		parameter := &openapi3.Parameter{
-			Name:        field.getName(),
+			Name:        field.GetName(),
 			In:          "query",
 			Required:    field.isMandatoryInput(),
 			Schema:      schema,
@@ -458,38 +458,38 @@ func schemaFromPrimitiveType(field IField, addDesc bool) *openapi3.SchemaRef {
 
 	var description string
 	if addDesc {
-		if field.getName() == "ID" {
+		if field.GetName() == BoFieldID {
 			description = "the unique identifier of the " + string(field.ownerModel().base().name)
 		} else {
 			description = field.getTag("desc")
 		}
 	}
 
-	switch field.getTypeFamily() {
+	switch field.getPropertyType() {
 
-	case utils.TypeFamilyBOOL:
+	case propertyTypeBOOL:
 		return &openapi3.SchemaRef{Value: withDescription(openapi3.NewBoolSchema(), description)}
 
-	case utils.TypeFamilySTRING:
+	case propertyTypeSTRING:
 		return &openapi3.SchemaRef{Value: withDescription(openapi3.NewStringSchema(), description)}
 
-	case utils.TypeFamilyINT:
+	case propertyTypeINT:
 		return &openapi3.SchemaRef{Value: withDescription(openapi3.NewInt32Schema(), description)}
 
-	case utils.TypeFamilyBIGINT:
+	case propertyTypeBIGINT:
 		return &openapi3.SchemaRef{Value: withDescription(openapi3.NewInt64Schema(), description)}
 
-	case utils.TypeFamilyREAL, utils.TypeFamilyDOUBLE:
+	case propertyTypeREAL, propertyTypeDOUBLE:
 		return &openapi3.SchemaRef{Value: withDescription(openapi3.NewFloat64Schema(), description)}
 
-	// case utils.TypeFamilyDATE:               "date", // TODO
+	// case propertyTypeDATE:               "date", // TODO
 
-	case utils.TypeFamilyENUM:
+	case propertyTypeENUM:
 		// instantiating an instance of the owner of this field
 		enumOwner := getClass(field.ownerModel()).NewObject()
 
 		// this owner has a zero-value for this field, which is enough for us to do the rest
-		enumVal := utils.ValueOf(enumOwner).GetFieldValue(field.getName())
+		enumVal := utils.ValueOf(enumOwner).GetFieldValue(field.GetName())
 
 		// controlling we do have an enum
 		if enum, ok := enumVal.(IEnum); ok {
@@ -515,7 +515,7 @@ func schemaFromPrimitiveType(field IField, addDesc bool) *openapi3.SchemaRef {
 
 		} else {
 			// should never happen
-			core.PanicMsg("It seems field '%s' is not a proper enum (does not implement goald.IEnum)", field.getName())
+			core.PanicMsg("It seems field '%s' is not a proper enum (does not implement goald.IEnum)", field.GetName())
 			return nil
 		}
 
@@ -526,7 +526,7 @@ func schemaFromPrimitiveType(field IField, addDesc bool) *openapi3.SchemaRef {
 	// 	}}
 
 	default:
-		panic("Unhandled type in Open API doc generation: " + field.getTypeFamily().String())
+		panic("Unhandled type in Open API doc generation: " + field.getPropertyType().String())
 	}
 }
 

@@ -73,14 +73,26 @@ func (thisServer *server) checkModel(clsName className, model IBusinessObjectMod
 				core.PanicMsg("Model '%s' should be SetNotPersisted, SetAbstract, or associated with a DB", clsName)
 			}
 
-			// checking the fields
+			// checking the fields, depending on their type
 			for _, field := range model.base().fields {
-				// type-related checks
 				switch field := field.(type) {
 				case *StringField:
-					if field.name != "ID" && field.size == 0 && !field.isNotPersisted() {
+					if field.name != BoFieldID && field.size == 0 && !field.isNotPersisted() {
 						core.PanicMsg("Field '%s.%s' should have a max size set, or be SetNotPersisted()", clsName, field.name)
 					}
+				case *RealField:
+					if field.totalDigits == 0 || field.decimals == 0 {
+						core.PanicMsg("Field '%s.%s' should have a total digits and decimals set, with SetFormat(totalDigits, decimals)", clsName, field.name)
+					}
+				case *DoubleField:
+					if field.totalDigits == 0 || field.decimals == 0 {
+						core.PanicMsg("Field '%s.%s' should have a total digits and decimals set, with SetFormat(totalDigits, decimals)", clsName, field.name)
+					}
+				case *BoolField:
+					// no specific check for boolean fields
+				case *DateField:
+					// no specific check for date fields
+
 				}
 			}
 		}
@@ -135,26 +147,26 @@ var ioTagsMap = map[string]string{
 
 var ioTagsStr = core.MapToString(ioTagsMap, true, ": ", ",\n")
 
-func (thisServer *server) genericPropertyCodeCheck(property iBusinessObjectProperty) {
+func (thisServer *server) genericPropertyCodeCheck(property IBusinessObjectProperty) {
 	// Empty ("-") or valid camel-case JSON name
 	jsonTags := strings.Split(property.getTag("json"), ",")
 	jsonName := jsonTags[0]
-	if jsonName == "" || jsonName != "-" && jsonName != core.PascalToCamel(property.getName()) {
+	if jsonName == "" || jsonName != "-" && jsonName != core.PascalToCamel(property.GetName()) {
 		core.PanicMsg("Property '%s.%s' should be ignored with \"-\", or have a json tag set to '%s', not '%s'",
-			property.ownerModel().base().name, property.getName(), core.PascalToCamel(property.getName()), jsonName)
+			property.ownerModel().base().name, property.GetName(), core.PascalToCamel(property.GetName()), jsonName)
 	}
 
 	// Valid I/O tag
 	ioTag := property.getTag("io")
 	if _, ok := ioTagsMap[ioTag]; !ok {
 		core.PanicMsg("Property '%s.%s' should have an 'io' tag equals to '%s' but should have one of these values: \n%s",
-			property.ownerModel().base().name, property.getName(), ioTag, ioTagsStr)
+			property.ownerModel().base().name, property.GetName(), ioTag, ioTagsStr)
 	}
 
 	// Non-empty description in the "desc" tag
 	desc := property.getTag("desc")
 	if desc == "" {
-		core.PanicMsg("Property '%s.%s' should have a non-empty description in the 'desc' tag", property.ownerModel().base().name, property.getName())
+		core.PanicMsg("Property '%s.%s' should have a non-empty description in the 'desc' tag", property.ownerModel().base().name, property.GetName())
 	}
 }
 

@@ -41,7 +41,7 @@ var $$lower$$Once sync.Once
 func New$$Upper$$Model() *$$Upper$$Model {
 	$$propinit$$
 
-	return newModel
+	return thisModel
 }
 
 // making sure the $$Upper$$ model exists at app startup
@@ -77,7 +77,7 @@ func (thisServer *server) generateAllObjectModels(srcdir string, regen bool) (co
 	core.EnsureDir(srcdir, includePATH)
 	for _, modelDirEntry := range core.EnsureReadDir(srcdir, includePATH) {
 		// if it's not a directory, we skip it
-		if !modelDirEntry.IsDir() || modelDirEntry.Name() == dbFOLDER {
+		if !modelDirEntry.IsDir() || modelDirEntry.Name() == dbFOLDERNAME {
 			continue
 		}
 
@@ -144,7 +144,7 @@ type modelGenerationContext struct {
 }
 
 type classGenPropertyInfo struct {
-	propType   utils.TypeFamily
+	propType   propertyType
 	multiple   bool
 	targetType string
 	// targetTypes []string
@@ -210,44 +210,28 @@ func buildPropDecl(class IClass, context *modelGenerationContext, imports map[st
 		field := bObjType.Field(fieldNum)
 
 		// detecting its type and multiplicity
-		typeFamily, multiple := utils.GetTypeFamily(field, typeIxBUSINESSxOBJECT, typeIxENUM)
+		propertyType, multiple := detectPropertyType(field, typeIxBUSINESSxOBJECT, typeIxENUM)
 
 		// adding to the context, and the class file content
-		if typeFamily != utils.TypeFamilyUNKNOWN {
+		if propertyType != propertyTypeUNKNOWN {
 			context.propertyNames = append(context.propertyNames, field.Name()) // we're keeping the original order
 
-			targetType := ""                                      // makes no sense for basic BO fields...
-			if typeFamily == utils.TypeFamilyRELATIONSHIPxMONOM { // ... but it does for relationships
+			targetType := ""                                    // makes no sense for basic BO fields...
+			if propertyType == propertyTypeRELATIONSHIPxMONOM { // ... but it does for relationships
 				entityType := core.IfThenElse(multiple, field.Type().Elem(), field.Type()) // e.g. *Object or []Object -> type Object
-				targetClsName := className(entityType.Elem().Name())                       // e.g. Object
-				targetClass := classForName((targetClsName))                               // e.g. ClassForObject
-				targetObjPkg := targetClass.getPackage()                                   // e.g. packagename
-				targetObjMod := targetClass.getModule()                                    // e.g. projectname
-				if targetObjMod != getCurrentModuleName() || targetObjPkg != class.getPackage() {
-					if imports[targetClass.getPackage()] == "" {
-						imports[targetClass.getPackage()] = getImportLineForClass(targetClass) // the needed import
-					}
-					targetType = fmt.Sprintf("%s_model.%s()", targetObjPkg, targetClsName) // e.g. packagename_model.Object()
-				} else {
-					if class.getClassName() == targetClsName {
-						// relationship to the same class => we need to use THIS model
-						targetType = "newModel"
-					} else {
-						targetType = string(targetClsName)
-					}
-				}
-			} else if typeFamily == utils.TypeFamilyENUM { // or enums.
+				targetType = entityType.Elem().Name()
+			} else if propertyType == propertyTypeENUM { // or enums.
 				targetType = field.Type().String()
 			}
 
 			// keeping track of the property's characteristics - this will be of use in the init function of the Model object
-			context.propertiesMap[field.Name()] = classGenPropertyInfo{typeFamily, multiple, targetType}
+			context.propertiesMap[field.Name()] = classGenPropertyInfo{propertyType, multiple, targetType}
 
 			// writing out the property's declaration inside the Model object it belong to
-			if typeFamily.IsRelationship() {
+			if propertyType.IsRelationship() {
 				result += newline + "" + core.PascalToCamel(field.Name()) + " *g.Relationship"
 			} else {
-				result += newline + "" + core.PascalToCamel(field.Name()) + " *g." + getFieldForType(typeFamily)
+				result += newline + "" + core.PascalToCamel(field.Name()) + " *g." + getFieldForType(propertyType)
 			}
 		}
 	}
@@ -263,26 +247,26 @@ func getImportLineForClass(targetClass IClass) string {
 	return fmt.Sprintf("%[1]s_model \"%[2]s_include/%[1]s/model\"", targetClass.getPackage(), targetObjGoModule) // e.g. packagename_model "github.com/aldesgroup/project/_include/packagename"
 }
 
-func getFieldForType(typeFamily utils.TypeFamily) string {
-	switch typeFamily {
-	case utils.TypeFamilyBOOL:
+func getFieldForType(propertyType propertyType) string {
+	switch propertyType {
+	case propertyTypeBOOL:
 		return "BoolField"
-	case utils.TypeFamilySTRING:
+	case propertyTypeSTRING:
 		return "StringField"
-	case utils.TypeFamilyINT:
+	case propertyTypeINT:
 		return "IntField"
-	case utils.TypeFamilyBIGINT:
+	case propertyTypeBIGINT:
 		return "BigIntField"
-	case utils.TypeFamilyREAL:
+	case propertyTypeREAL:
 		return "RealField"
-	case utils.TypeFamilyDOUBLE:
+	case propertyTypeDOUBLE:
 		return "DoubleField"
-	case utils.TypeFamilyDATE:
+	case propertyTypeDATE:
 		return "DateField"
-	case utils.TypeFamilyENUM:
+	case propertyTypeENUM:
 		return "EnumField"
 	default:
-		return typeFamily.String()
+		return propertyType.String()
 	}
 }
 
@@ -292,7 +276,7 @@ func buildPropInit(class IClass, context *modelGenerationContext, imports map[st
 	clsName := string(class.getClassName())
 
 	// dealing with the class initialisation
-	modelInit := "newModel := &" + clsName + modelNAMExSUFFIX + "{%s: %s}"
+	modelInit := "thisModel := &" + clsName + modelNAMExSUFFIX + "{%s: %s}"
 	superModelDecl := "IBusinessObjectModel"
 	superModelValue := "g.NewBusinessObjectModel()"
 	if context.superType.Equals(typeURLxQUERYxOBJECT) {
@@ -310,26 +294,26 @@ func buildPropInit(class IClass, context *modelGenerationContext, imports map[st
 	// valueing each class property
 	for _, propName := range context.propertyNames {
 		propInfo := context.propertiesMap[propName]
-		propLine := "newModel." + core.PascalToCamel(propName) + " = "
+		propLine := "thisModel." + core.PascalToCamel(propName) + " = "
 
 		multiple := "false"
 		if propInfo.multiple {
 			multiple = "true"
 		}
 
-		if propInfo.propType == utils.TypeFamilyRELATIONSHIPxMONOM {
-			propLine += fmt.Sprintf("g.NewRelationship(%s, \"%s\", %s, %s)",
-				"newModel", propName, multiple, core.PascalToCamel(propInfo.targetType))
-		} else if propInfo.propType == utils.TypeFamilyRELATIONSHIPxPOLYM {
+		if propInfo.propType == propertyTypeRELATIONSHIPxMONOM {
+			propLine += fmt.Sprintf("g.NewRelationship(%s, \"%s\", %s, \"%s\")",
+				"thisModel", propName, multiple, propInfo.targetType)
+		} else if propInfo.propType == propertyTypeRELATIONSHIPxPOLYM {
 			propLine += fmt.Sprintf("g.NewPolyRelationship(%s, \"%s\", %s)",
-				"newModel", propName, multiple)
+				"thisModel", propName, multiple)
 		} else {
-			if propInfo.propType == utils.TypeFamilyENUM {
+			if propInfo.propType == propertyTypeENUM {
 				propLine += fmt.Sprintf("g.New%s(%s, \"%s\", %s, %s)",
-					getFieldForType(propInfo.propType), "newModel", propName, multiple, "\""+propInfo.targetType+"\"")
+					getFieldForType(propInfo.propType), "thisModel", propName, multiple, "\""+propInfo.targetType+"\"")
 			} else {
 				propLine += fmt.Sprintf("g.New%s(%s, \"%s\", %s)",
-					getFieldForType(propInfo.propType), "newModel", propName, multiple)
+					getFieldForType(propInfo.propType), "thisModel", propName, multiple)
 			}
 		}
 

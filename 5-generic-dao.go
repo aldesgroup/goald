@@ -44,7 +44,7 @@ func dbLoadOne(_ DaoContext, idProp IField, idPropVal string) (result IBusinessO
 	// 	}
 	// }
 
-	return nil, Error("No '%s' found with '%s = %s'", idProp.ownerModel().base().name, idProp.getName(), idPropVal)
+	return nil, Error("No '%s' found with '%s = %s'", idProp.ownerModel().base().name, idProp.GetName(), idPropVal)
 }
 
 func dbRemoveOne(_ DaoContext, idProp IField, idPropVal string) (result IBusinessObject, err error) {
@@ -55,7 +55,7 @@ func dbRemoveOne(_ DaoContext, idProp IField, idPropVal string) (result IBusines
 	// 	}
 	// }
 
-	return nil, Error("No '%s' found with '%s = %s'", idProp.ownerModel().base().name, idProp.getName(), idPropVal)
+	return nil, Error("No '%s' found with '%s = %s'", idProp.ownerModel().base().name, idProp.GetName(), idPropVal)
 }
 
 func dbUpdate(_ DaoContext, input IBusinessObject) error {

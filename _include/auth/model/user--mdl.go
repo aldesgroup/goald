@@ -29,13 +29,13 @@ var (
 
 // fully describing each of this class' properties & relationships
 func NewUserModel() *UserModel {
-	newModel := &UserModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
-	newModel.email = g.NewStringField(newModel, "Email", false)
-	newModel.password = g.NewStringField(newModel, "Password", false)
-	newModel.firstName = g.NewStringField(newModel, "FirstName", false)
-	newModel.lastName = g.NewStringField(newModel, "LastName", false)
+	thisModel := &UserModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
+	thisModel.email = g.NewStringField(thisModel, "Email", false)
+	thisModel.password = g.NewStringField(thisModel, "Password", false)
+	thisModel.firstName = g.NewStringField(thisModel, "FirstName", false)
+	thisModel.lastName = g.NewStringField(thisModel, "LastName", false)
 
-	return newModel
+	return thisModel
 }
 
 // making sure the User model exists at app startup

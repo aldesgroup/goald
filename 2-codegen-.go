@@ -45,7 +45,6 @@ func (thisServer *server) runCodeGen(cgp *codegenParams) {
 
 		// now, using the `reflect` package, we can "easily" build a static representation of our BOs
 		codeChanged := thisServer.generateAllObjectModels(cgp.srcdir, cgp.regen)
-		codeChanged = thisServer.generateResolvedRelationships(cgp.srcdir, cgp.regen || codeChanged) || codeChanged
 
 		// saving the dirty state
 		core.WriteToFile(fmt.Sprintf("%t", codeChanged), cgp.bindir, dirtyFILENAME)
@@ -80,5 +79,4 @@ func (thisServer *server) runCodeGen(cgp *codegenParams) {
 	default:
 		core.PanicMsg("Not handling to code generation level: %d", level)
 	}
-
 }

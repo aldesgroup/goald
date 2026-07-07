@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"reflect"
 	"runtime"
-	"time"
 )
 
 // ------------------------------------------------------------------------------------------------
@@ -86,6 +85,10 @@ func (t GoaldType) Name() string {
 	return t.val.Name()
 }
 
+func (t GoaldType) Kind() reflect.Kind {
+	return t.val.Kind()
+}
+
 func (t GoaldType) Elem() GoaldType {
 	return newType(t.val.Elem())
 }
@@ -112,6 +115,14 @@ func (f GoaldField) Type() GoaldType {
 	return f.typ
 }
 
+func (f GoaldField) PkgPath() string {
+	return f.val.PkgPath
+}
+
+func (f GoaldField) Val() reflect.StructField {
+	return f.val
+}
+
 func (f GoaldField) IsAnonymous() bool {
 	return f.val.Anonymous
 }
@@ -122,156 +133,6 @@ func (f GoaldField) Name() string {
 
 func (f GoaldField) Tag() reflect.StructTag {
 	return f.val.Tag
-}
-
-// ------------------------------------------------------------------------------------------------
-// global variables
-// ------------------------------------------------------------------------------------------------
-
-var (
-	typeTIMExPTR = TypeOf((*time.Time)(nil), false)
-)
-
-// ------------------------------------------------------------------------------------------------
-// defining type families
-// ------------------------------------------------------------------------------------------------
-
-// TypeFamily represents the type of a business object's property
-type TypeFamily int
-
-const (
-	TypeFamilyUNKNOWN TypeFamily = iota - 1
-	TypeFamilyBOOL
-	TypeFamilySTRING
-	TypeFamilyINT
-	TypeFamilyBIGINT
-	TypeFamilyREAL
-	TypeFamilyDOUBLE
-	TypeFamilyDATE
-	TypeFamilyENUM
-	TypeFamilyRELATIONSHIPxMONOM
-	TypeFamilyRELATIONSHIPxPOLYM
-)
-
-var typeFamilies = map[int]string{
-	int(TypeFamilyUNKNOWN):            "unknown",
-	int(TypeFamilyBOOL):               "boolean",
-	int(TypeFamilySTRING):             "string",
-	int(TypeFamilyINT):                "integer",
-	int(TypeFamilyBIGINT):             "bigint",
-	int(TypeFamilyREAL):               "real number",
-	int(TypeFamilyDOUBLE):             "real number 64",
-	int(TypeFamilyDATE):               "date",
-	int(TypeFamilyENUM):               "enum",
-	int(TypeFamilyRELATIONSHIPxMONOM): "relationship (monomorphic)",
-	int(TypeFamilyRELATIONSHIPxPOLYM): "relationship (polymorphic)",
-}
-
-func (thisProperty TypeFamily) String() string {
-	return typeFamilies[int(thisProperty)]
-}
-
-// Val helps implement the IEnum interface
-func (thisProperty TypeFamily) Val() int {
-	return int(thisProperty)
-}
-
-// Values helps implement the IEnum interface
-func (thisProperty TypeFamily) Values() map[int]string {
-	return typeFamilies
-}
-
-// Tells if we have a relationship here
-func (thisProperty TypeFamily) IsRelationship() bool {
-	return thisProperty == TypeFamilyRELATIONSHIPxMONOM || thisProperty == TypeFamilyRELATIONSHIPxPOLYM
-}
-
-// GetTypeFamily returns the type family of a given structfield
-func GetTypeFamily(field GoaldField, iBoTypeFamily, enumTypeFamily GoaldType) (TypeFamily TypeFamily, multiple bool) {
-
-	// to debug - to comment/uncomment when needed
-	// if structField.Name == "Num" {
-	// fmt.Printf("\n--------------------------")
-	// fmt.Printf("\nName: %s ", field.Name())
-	// fmt.Printf("\nType: %s ", field.Type())
-	// fmt.Printf("\nType: %s ", field.Type().val.Kind())
-	// fmt.Printf("\nKind: %s ", field.Type().Kind)
-	// }
-
-	// a business object's real property must be exported, and therefore PkgPath should be empty
-	// Cf. https://golang.org/pkg/reflect/#StructField
-	if fieldType := field.Type(); field.val.PkgPath == "" {
-		// getting the field kind
-		fieldKind := fieldType.val.Kind()
-
-		// handling the case where we have a slice in here
-		if fieldKind == reflect.Slice {
-			// what's in there?
-			innerSliceType := fieldType.Elem()
-			innerSliceKind := innerSliceType.val.Kind()
-
-			// detecting an enum
-			if innerSliceType.Implements(enumTypeFamily) {
-				return TypeFamilyENUM, true
-			}
-
-			// detecting a polymorphic type, i.e. an interface; this should point to something implementing IBusinessObject
-			if innerSliceKind == reflect.Interface && innerSliceType.Implements(iBoTypeFamily) {
-				return TypeFamilyRELATIONSHIPxPOLYM, true
-			}
-
-			// detecting a single relationship to a business object
-			if innerSliceKind == reflect.Ptr && innerSliceType.Implements(iBoTypeFamily) {
-				return TypeFamilyRELATIONSHIPxMONOM, true
-			}
-
-		} else { // we have a single element here
-
-			// detecting an enum
-			if fieldType.Implements(enumTypeFamily) {
-				return TypeFamilyENUM, false
-			}
-
-			// detecting a time
-			if fieldType.Equals(typeTIMExPTR) {
-				return TypeFamilyDATE, false
-			}
-
-			// detecting the basic types here
-			switch fieldKind {
-			case reflect.Bool:
-				return TypeFamilyBOOL, false
-
-			case reflect.String:
-				return TypeFamilySTRING, false
-
-			case reflect.Int:
-				return TypeFamilyINT, false
-
-			case reflect.Int64:
-				return TypeFamilyBIGINT, false
-
-			case reflect.Float32:
-				return TypeFamilyREAL, false
-
-			case reflect.Float64:
-				return TypeFamilyDOUBLE, false
-			}
-
-			// detecting a polymorphic type, i.e. an interface; this should point to something implementing IBusinessObject
-			if fieldKind == reflect.Interface && fieldType.Implements(iBoTypeFamily) {
-				return TypeFamilyRELATIONSHIPxPOLYM, false
-			}
-
-			// detecting a single relationship to a business object
-			if fieldKind == reflect.Ptr && fieldType.Implements(iBoTypeFamily) {
-				return TypeFamilyRELATIONSHIPxMONOM, false
-			}
-		}
-	}
-
-	// this happens with technical fields !
-	return TypeFamilyUNKNOWN, false
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -304,3 +165,17 @@ func (thisValue GoaldValue) GetFieldValue(fieldName string) any {
 func GetFnName(fn any) string {
 	return runtime.FuncForPC(reflect.ValueOf(fn).Pointer()).Name()
 }
+
+// ------------------------------------------------------------------------------------------------
+// proxied kinds
+// ------------------------------------------------------------------------------------------------
+
+const KindSLICE = reflect.Slice
+const KindINTERFACE = reflect.Interface
+const KindPTR = reflect.Ptr
+const KindBOOL = reflect.Bool
+const KindSTRING = reflect.String
+const KindINT = reflect.Int
+const KindINT64 = reflect.Int64
+const KindFLOAT32 = reflect.Float32
+const KindFLOAT64 = reflect.Float64

@@ -30,14 +30,14 @@ var (
 
 // fully describing each of this class' properties & relationships
 func NewDeviceModel() *DeviceModel {
-	newModel := &DeviceModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
-	newModel.status = g.NewEnumField(newModel, "Status", false, "iot.DeviceStatus")
-	newModel.statusString = g.NewStringField(newModel, "StatusString", false)
-	newModel.model = g.NewStringField(newModel, "Model", false)
-	newModel.serial = g.NewStringField(newModel, "Serial", false)
-	newModel.associatedUsers = g.NewPolyRelationship(newModel, "AssociatedUsers", true)
+	thisModel := &DeviceModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
+	thisModel.status = g.NewEnumField(thisModel, "Status", false, "iot.DeviceStatus")
+	thisModel.statusString = g.NewStringField(thisModel, "StatusString", false)
+	thisModel.model = g.NewStringField(thisModel, "Model", false)
+	thisModel.serial = g.NewStringField(thisModel, "Serial", false)
+	thisModel.associatedUsers = g.NewPolyRelationship(thisModel, "AssociatedUsers", true)
 
-	return newModel
+	return thisModel
 }
 
 // making sure the Device model exists at app startup

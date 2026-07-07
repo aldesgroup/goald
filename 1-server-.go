@@ -79,7 +79,7 @@ func NewServer() ServerContext {
 	// initialising the DB servers
 	if migrate {
 		for _, dbConfig := range serverConfig.base().DBServers {
-			getDbAdapter(dbConfig.Type).InitDbServer(server, dbConfig)
+			server.initDbServer(dbConfig)
 		}
 	}
 
@@ -90,12 +90,10 @@ func NewServer() ServerContext {
 		}
 	}
 
-	server.Debug("coucou")
-
 	// migrating the DBs + injecting some data into the DBs
 	if migrate {
 		// making sure the DBs are in sync with the code
-		server.autoMigrateDBs()
+		server.migrateDBs()
 
 		// loading some data into the DBs
 		server.loadData(true)

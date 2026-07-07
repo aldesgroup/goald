@@ -62,7 +62,7 @@ type codeContext struct {
 }
 
 func (ctx *codeContext) getEnumType(field IField) string {
-	return ctx.bObjType.FieldByName(field.getName()).Type().Name()
+	return ctx.bObjType.FieldByName(field.GetName()).Type().Name()
 }
 
 func (thisServer *server) generateClientAppModel(destdir string, ep iEndpoint, useInputClass bool,
@@ -97,8 +97,8 @@ func (thisServer *server) generateClientAppModel(destdir string, ep iEndpoint, u
 
 	// gathering the needed enums
 	for _, field := range boFields {
-		if field.getTypeFamily() == utils.TypeFamilyENUM {
-			enums[codeCtx.getEnumType(field)] = codeCtx.boInstance.GetFieldValue(field.getName()).(IEnum)
+		if field.getPropertyType() == propertyTypeENUM {
+			enums[codeCtx.getEnumType(field)] = codeCtx.boInstance.GetFieldValue(field.GetName()).(IEnum)
 		}
 	}
 
@@ -154,9 +154,9 @@ func (thisCode *codeFile) initFixedBlocks(modelName string, endpointPath string,
 // handling a field, adding it if not in the code already, flagging an enum for generation if it's an enum field
 func (thisCode *codeFile) addFieldIfNeeded(codeCtx *codeContext, field IField) {
 	// adding to the context, and the class file content
-	if typeFamily := field.getTypeFamily(); typeFamily != utils.TypeFamilyUNKNOWN && typeFamily != utils.TypeFamilyRELATIONSHIPxMONOM {
+	if typeFamily := field.getPropertyType(); typeFamily != propertyTypeUNKNOWN && typeFamily != propertyTypeRELATIONSHIPxMONOM {
 		// not handling multiple properties for now - nor the ID field
-		if !field.isMultiple() && field.getName() != "ID" {
+		if !field.IsMultiple() && field.GetName() != BoFieldID {
 			var (
 				enumType, enumVar, initVal, fieldAtomType string
 			)
@@ -164,7 +164,7 @@ func (thisCode *codeFile) addFieldIfNeeded(codeCtx *codeContext, field IField) {
 			// dealing with some field specificities
 			switch typeFamily {
 			// --- enums -------------------------------------------------------------------
-			case utils.TypeFamilyENUM:
+			case propertyTypeENUM:
 				// flagging this enum type for code generation
 				enumType = codeCtx.getEnumType(field)
 
@@ -182,17 +182,17 @@ func (thisCode *codeFile) addFieldIfNeeded(codeCtx *codeContext, field IField) {
 				initVal = fmt.Sprintf("%s.%s", enumVar, makeEnumName(core.GetFirstMapValue(codeCtx.enums[enumType].Values())))
 
 			// --- numbers -----------------------------------------------------------------
-			case utils.TypeFamilyINT, utils.TypeFamilyBIGINT, utils.TypeFamilyREAL, utils.TypeFamilyDOUBLE:
+			case propertyTypeINT, propertyTypeBIGINT, propertyTypeREAL, propertyTypeDOUBLE:
 				// proposing an init value
 				initVal = "0"
 
 			// --- booleans ----------------------------------------------------------------
-			case utils.TypeFamilyBOOL:
+			case propertyTypeBOOL:
 				// proposing an init value
 				initVal = "false"
 
 			// --- dates ----------------------------------------------------------------
-			case utils.TypeFamilyDATE:
+			case propertyTypeDATE:
 				// setting the field atom's type
 				fieldAtomType = "<Date | null>"
 
@@ -203,23 +203,23 @@ func (thisCode *codeFile) addFieldIfNeeded(codeCtx *codeContext, field IField) {
 			}
 
 			// adding the field name to the model block if needed
-			if !thisCode.blockHasLineStartingWith(newModelNAME, field.getName()+":") {
-				thisCode.insertLineIntoBlockBeforePrefix(newModelNAME, fmt.Sprintf("    %s,", field.getName()), "}")
+			if !thisCode.blockHasLineStartingWith(newModelNAME, field.GetName()+":") {
+				thisCode.insertLineIntoBlockBeforePrefix(newModelNAME, fmt.Sprintf("    %s,", field.GetName()), "}")
 			}
 
 			// adding the field if needed
-			missingField := thisCode.blocksMap[field.getName()] == nil
+			missingField := thisCode.blocksMap[field.GetName()] == nil
 			if missingField {
-				fieldDecl := fmt.Sprintf("const %s = "+newFieldNAME+"%s('%s', {", field.getName(), fieldAtomType, field.getName())
-				newBlock := thisCode.addNewBlockBeforeEndPosition(fieldDecl, true, field.getName(), true, 1)
+				fieldDecl := fmt.Sprintf("const %s = "+newFieldNAME+"%s('%s', {", field.GetName(), fieldAtomType, field.GetName())
+				newBlock := thisCode.addNewBlockBeforeEndPosition(fieldDecl, true, field.GetName(), true, 1)
 				newBlock.appendLine(fmt.Sprintf("    initialValue: %s?,", initVal), true)
 				newBlock.appendLine("});", true)
 			}
 
 			// linking the enum's options to the field, if needed
-			if typeFamily == utils.TypeFamilyENUM {
-				if missingField || !thisCode.blockHasLineStartingWith(field.getName(), "options:") {
-					thisCode.insertLineIntoBlockBeforePrefix(field.getName(), fmt.Sprintf("    options: %s.Options,", enumVar), "}")
+			if typeFamily == propertyTypeENUM {
+				if missingField || !thisCode.blockHasLineStartingWith(field.GetName(), "options:") {
+					thisCode.insertLineIntoBlockBeforePrefix(field.GetName(), fmt.Sprintf("    options: %s.Options,", enumVar), "}")
 				}
 
 				if enumField := field.(*EnumField); len(enumField.onlyValues) > 0 {
@@ -227,7 +227,7 @@ func (thisCode *codeFile) addFieldIfNeeded(codeCtx *codeContext, field IField) {
 					for _, restrictedValue := range enumField.onlyValues {
 						restrictedValues = append(restrictedValues, fmt.Sprintf("%s.%s", enumVar, makeEnumName(restrictedValue.String())))
 					}
-					thisCode.updateLineIntoBlockWithPrefix(field.getName(), fmt.Sprintf("    optionsOnly: [%s],", strings.Join(restrictedValues, ", ")), "optionsOnly:", "}")
+					thisCode.updateLineIntoBlockWithPrefix(field.GetName(), fmt.Sprintf("    optionsOnly: [%s],", strings.Join(restrictedValues, ", ")), "optionsOnly:", "}")
 				}
 			}
 
@@ -237,13 +237,13 @@ func (thisCode *codeFile) addFieldIfNeeded(codeCtx *codeContext, field IField) {
 				if numField.isMinSet() {
 					switch nf := numField.(type) {
 					case *IntField:
-						thisCode.updateLineIntoBlockWithPrefix(field.getName(), fmt.Sprintf("    min: %d,", nf.min), "min:", "}")
+						thisCode.updateLineIntoBlockWithPrefix(field.GetName(), fmt.Sprintf("    min: %d,", nf.min), "min:", "}")
 					case *BigIntField:
-						thisCode.updateLineIntoBlockWithPrefix(field.getName(), fmt.Sprintf("    min: %d,", nf.min), "min:", "}")
+						thisCode.updateLineIntoBlockWithPrefix(field.GetName(), fmt.Sprintf("    min: %d,", nf.min), "min:", "}")
 					case *RealField:
-						thisCode.updateLineIntoBlockWithPrefix(field.getName(), fmt.Sprintf("    min: %f,", nf.min), "min:", "}")
+						thisCode.updateLineIntoBlockWithPrefix(field.GetName(), fmt.Sprintf("    min: %f,", nf.min), "min:", "}")
 					case *DoubleField:
-						thisCode.updateLineIntoBlockWithPrefix(field.getName(), fmt.Sprintf("    min: %f,", nf.min), "min:", "}")
+						thisCode.updateLineIntoBlockWithPrefix(field.GetName(), fmt.Sprintf("    min: %f,", nf.min), "min:", "}")
 					}
 				}
 
@@ -251,13 +251,13 @@ func (thisCode *codeFile) addFieldIfNeeded(codeCtx *codeContext, field IField) {
 				if numField.isMaxSet() {
 					switch nf := numField.(type) {
 					case *IntField:
-						thisCode.updateLineIntoBlockWithPrefix(field.getName(), fmt.Sprintf("    max: %d,", nf.max), "max:", "}")
+						thisCode.updateLineIntoBlockWithPrefix(field.GetName(), fmt.Sprintf("    max: %d,", nf.max), "max:", "}")
 					case *BigIntField:
-						thisCode.updateLineIntoBlockWithPrefix(field.getName(), fmt.Sprintf("    max: %d,", nf.max), "max:", "}")
+						thisCode.updateLineIntoBlockWithPrefix(field.GetName(), fmt.Sprintf("    max: %d,", nf.max), "max:", "}")
 					case *RealField:
-						thisCode.updateLineIntoBlockWithPrefix(field.getName(), fmt.Sprintf("    max: %f,", nf.max), "max:", "}")
+						thisCode.updateLineIntoBlockWithPrefix(field.GetName(), fmt.Sprintf("    max: %f,", nf.max), "max:", "}")
 					case *DoubleField:
-						thisCode.updateLineIntoBlockWithPrefix(field.getName(), fmt.Sprintf("    max: %f,", nf.max), "max:", "}")
+						thisCode.updateLineIntoBlockWithPrefix(field.GetName(), fmt.Sprintf("    max: %f,", nf.max), "max:", "}")
 					}
 				}
 			}
@@ -265,18 +265,18 @@ func (thisCode *codeFile) addFieldIfNeeded(codeCtx *codeContext, field IField) {
 			// handling the constraints - for string fields
 			if sf, ok := field.(*StringField); ok {
 				if sf.size > 0 {
-					thisCode.updateLineIntoBlockWithPrefix(field.getName(), fmt.Sprintf("    max: %d,", sf.size), "max:", "}")
+					thisCode.updateLineIntoBlockWithPrefix(field.GetName(), fmt.Sprintf("    max: %d,", sf.size), "max:", "}")
 				}
 				if sf.atLeast > 0 {
-					thisCode.updateLineIntoBlockWithPrefix(field.getName(), fmt.Sprintf("    min: %d,", sf.atLeast), "min:", "}")
+					thisCode.updateLineIntoBlockWithPrefix(field.GetName(), fmt.Sprintf("    min: %d,", sf.atLeast), "min:", "}")
 				}
 			}
 
 			// handling the constraints - misc
 			if field.isMandatoryInput() {
-				thisCode.updateLineIntoBlockWithPrefix(field.getName(), "    mandatory: true,", "mandatory:", "}")
+				thisCode.updateLineIntoBlockWithPrefix(field.GetName(), "    mandatory: true,", "mandatory:", "}")
 			} else {
-				thisCode.updateLineIntoBlockWithPrefix(field.getName(), "    mandatory: false,", "mandatory: true", "")
+				thisCode.updateLineIntoBlockWithPrefix(field.GetName(), "    mandatory: false,", "mandatory: true", "")
 			}
 		}
 	}
