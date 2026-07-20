@@ -23,7 +23,6 @@ const sourceFILExSUFFIX = "--.go"
 const sourceCLSxSUFFIX = "--cls.go"
 const sourceREGISTRYxNAME = "registry.go"
 const sourceCLASSxDIR = "class"
-const importPLACEHOLDER = "// import models here"
 
 // ------------------------------------------------------------------------------------------------
 // Going over all the physical source code files and generating stuff along the way
@@ -105,12 +104,12 @@ func (thisServer *server) generateAllClasses(srcdir, currentPath string, _ bool,
 // Writing the registry file
 // ------------------------------------------------------------------------------------------------
 
+const goaldIMPORT = "g \"github.com/aldesgroup/goald\""
 const registryFileTemplate = `// Generated file, do not edit!
 package %s
 
 import (
-	g "github.com/aldesgroup/goald"
-	%s
+	` + goaldIMPORT + `
 %s
 )
 
@@ -191,7 +190,7 @@ func (thisServer *server) writeRegistryFilesIfNeeded(srcdir string, allClassCore
 
 			// which content?
 			dot := "." + newline
-			content := fmt.Sprintf(registryFileTemplate, pkgName, importPLACEHOLDER, strings.Join(imports, newline), strings.Join(registrationLines, dot))
+			content := fmt.Sprintf(registryFileTemplate, pkgName, strings.Join(imports, newline), strings.Join(registrationLines, dot))
 
 			// writing to the file
 			core.WriteToFile(content, filename)

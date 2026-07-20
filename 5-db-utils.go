@@ -3,9 +3,9 @@ package goald
 import "github.com/aldesgroup/goald/features/logging"
 
 // FetchStringColumn executes a query that should only return an array of string (1 column)
-func (thisDB *DB) FetchStringColumn(logger logging.ILogger, failIfErr bool, query string, args ...any) (results []string) {
+func (thisDB *DB) FetchStringColumn(logger logging.ILogger, failIfErr bool, m mask, query string, args ...any) (results []string) {
 	// executing the query
-	rows, errQuery := thisDB.Query(logger, query, args...)
+	rows, errQuery := thisDB.query(logger, m, query, args...)
 	if errQuery != nil {
 		logger.Error(failIfErr, "Error while executing query '%s': %s", query, errQuery)
 		return
@@ -40,9 +40,9 @@ func (thisDB *DB) FetchStringColumn(logger logging.ILogger, failIfErr bool, quer
 }
 
 // FetchStringMap executes a query that should only return a map of string -> string
-func (thisDB *DB) FetchStringMap(logger logging.ILogger, failIfErr bool, query string, args ...any) (results map[string]string) {
+func (thisDB *DB) FetchStringMap(logger logging.ILogger, failIfErr bool, m mask, query string, args ...any) (results map[string]string) {
 	// executing the query
-	rows, errQuery := thisDB.Query(logger, query, args...)
+	rows, errQuery := thisDB.query(logger, m, query, args...)
 	if errQuery != nil {
 		logger.Error(failIfErr, "Error while executing query '%s': %s", query, errQuery)
 		return

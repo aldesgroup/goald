@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	core "github.com/aldesgroup/corego"
-	"github.com/aldesgroup/goald/features/utils"
+	"github.com/aldesgroup/goald/features/reflection"
 )
 
 const vmapFileTEMPLATE = `// Generated file, do not edit!
@@ -35,6 +35,33 @@ $$setcases$$
 	}
 
 	return goald.Error("Unknown property: %T.%s", bo, propertyName)
+}
+
+// setting a single-valued relationship's target, given the relationship's name, without using reflection
+func (thisClass *$$Upper$$Class) SetRelationshipValue(bo goald.IBusinessObject, relationshipName string, value goald.IBusinessObject) error {
+	switch relationshipName {
+$$setrelcases$$
+	}
+
+	return goald.Error("Unknown or non-single-valued relationship: %T.%s", bo, relationshipName)
+}
+
+// appending a target to a multi-valued relationship, given the relationship's name, without using reflection
+func (thisClass *$$Upper$$Class) AddRelationshipValue(bo goald.IBusinessObject, relationshipName string, value goald.IBusinessObject) error {
+	switch relationshipName {
+$$addrelcases$$
+	}
+
+	return goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+}
+
+// resetting a multi-valued relationship to an empty slice, given the relationship's name, without using reflection
+func (thisClass *$$Upper$$Class) ClearRelationshipValue(bo goald.IBusinessObject, relationshipName string) error {
+	switch relationshipName {
+$$clearrelcases$$
+	}
+
+	return goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
 }
 `
 
@@ -99,7 +126,7 @@ func generateObjectValueMappersForBO(class IClass, filepath string) {
 	model := modelForName(className)
 
 	// checking the BO code makes use of its class
-	// TODO - auto-add this code block to the BO code + the import
+	// TODO - auto-add this code block into the BO code + the import
 	if model == nil {
 		core.PanicMsg("It looks like class '%s' has never been imported and thus not initialized and registered. \n"+
 			"Add this - and complete as necessary - to your business object definition code: \n\n"+
@@ -129,7 +156,7 @@ func generateObjectValueMappersForBO(class IClass, filepath string) {
 	var importUtils bool
 
 	// getting the type of business object
-	bObjectType := utils.TypeOf(class.NewObject(), true)
+	bObjectType := reflection.TypeOf(class.NewObject(), true)
 
 	// browsing the entity's properties to fill the get / set cases in the 2 switch
 	for _, field := range core.GetSortedValues(model.base().fields) {
@@ -203,9 +230,47 @@ func generateObjectValueMappersForBO(class IClass, filepath string) {
 		}
 	}
 
+	setRelCases := []string{}
+	addRelCases := []string{}
+	clearRelCases := []string{}
+
+	// browsing the entity's relationships to fill the set / add cases for the relationship setters
+	for _, relationship := range core.GetSortedValues(model.base().relationships) {
+		relName := relationship.GetName()
+
+		// the Go type to assert the incoming value against, e.g. "domain.IContact" or "*domain.Employee"
+		targetType := getRelationshipFieldType(bObjectType, relName, importsMap)
+
+		relCase := fmt.Sprintf("\tcase \"%s\":", relName)
+		relCase += newline + fmt.Sprintf("\t\ttargetValue, ok := value.(%s)", targetType)
+		relCase += newline + "\t\tif !ok {"
+		relCase += newline + fmt.Sprintf("\t\t\treturn goald.Error(\"Expected a value of type '%s' for '%s.%s', got %%T\", value)", targetType, className, relName)
+		relCase += newline + "\t\t}"
+
+		fieldID := fmt.Sprintf("(*%s.%s).%s", shortPkg, className, relName)
+
+		if relationship.IsMultiple() {
+			relCase += newline + fmt.Sprintf("\t\tbo.%s = append(bo.%s, targetValue)", fieldID, fieldID)
+			relCase += newline + "\t\treturn nil"
+			addRelCases = append(addRelCases, relCase)
+
+			clearCase := fmt.Sprintf("\tcase \"%s\":", relName)
+			clearCase += newline + fmt.Sprintf("\t\tbo.%s = []%s{}", fieldID, targetType)
+			clearCase += newline + "\t\treturn nil"
+			clearRelCases = append(clearRelCases, clearCase)
+		} else {
+			relCase += newline + fmt.Sprintf("\t\tbo.%s = targetValue", fieldID)
+			relCase += newline + "\t\treturn nil"
+			setRelCases = append(setRelCases, relCase)
+		}
+	}
+
 	// handling the imports
 	content = strings.ReplaceAll(content, "$$getcases$$", strings.Join(getCases, newline))
 	content = strings.ReplaceAll(content, "$$setcases$$", strings.Join(setCases, newline))
+	content = strings.ReplaceAll(content, "$$setrelcases$$", strings.Join(setRelCases, newline))
+	content = strings.ReplaceAll(content, "$$addrelcases$$", strings.Join(addRelCases, newline))
+	content = strings.ReplaceAll(content, "$$clearrelcases$$", strings.Join(clearRelCases, newline))
 
 	if importUtils {
 		importsMap["github.com/aldesgroup/corego"] = true
@@ -229,7 +294,7 @@ func getBits(fieldTypeAlias, getBit string) (string, string, string) {
 	return "", "", ""
 }
 
-func getNonBuiltInFieldType(bOjbType utils.GoaldType, fieldName string, toBeImported map[string]bool) string {
+func getNonBuiltInFieldType(bOjbType reflection.GoaldType, fieldName string, toBeImported map[string]bool) string {
 	fieldType := bOjbType.FieldByName(fieldName).Type()
 	fieldPkg := fieldType.PkgPath()
 
@@ -244,4 +309,29 @@ func getNonBuiltInFieldType(bOjbType utils.GoaldType, fieldName string, toBeImpo
 	}
 
 	return fieldType.String() // e.g.: thatpackage.MyEnumType
+}
+
+// returns the Go type to use to type-assert a relationship's incoming value against, e.g.
+// "domain.IContact" for a polymorphic relationship, or "*domain.Employee" for a monomorphic one -
+// also registering the corresponding package for import, if needed
+func getRelationshipFieldType(bOjbType reflection.GoaldType, fieldName string, toBeImported map[string]bool) string {
+	fieldType := bOjbType.FieldByName(fieldName).Type()
+
+	// for a multi-valued relationship, the Go field is a slice: we need its element type
+	elemType := fieldType
+	if fieldType.Kind() == reflection.KindSLICE {
+		elemType = fieldType.Elem()
+	}
+
+	// the package to import is the one declaring the pointed-to type, whether we have a pointer or an interface
+	pkgSource := elemType
+	if elemType.Kind() == reflection.KindPTR {
+		pkgSource = elemType.Elem()
+	}
+
+	if pkgPath := pkgSource.PkgPath(); pkgPath != "" && toBeImported != nil {
+		toBeImported[pkgPath] = true
+	}
+
+	return elemType.String()
 }

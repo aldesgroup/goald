@@ -6,14 +6,14 @@ package goald
 import (
 	"sort"
 
-	"github.com/aldesgroup/goald/features/utils"
+	"github.com/aldesgroup/goald/features/reflection"
 )
 
 var (
-	typeBUSINESSxOBJECT   = utils.TypeOf((*BusinessObject)(nil), true)
-	typeURLxQUERYxOBJECT  = utils.TypeOf((*URLQueryParams)(nil), true)
-	typeIxBUSINESSxOBJECT = utils.TypeOf((*IBusinessObject)(nil), true)
-	typeIxENUM            = utils.TypeOf((*IEnum)(nil), true)
+	typeBUSINESSxOBJECT   = reflection.TypeOf((*BusinessObject)(nil), true)
+	typeURLxQUERYxOBJECT  = reflection.TypeOf((*URLQueryParams)(nil), true)
+	typeIxBUSINESSxOBJECT = reflection.TypeOf((*IBusinessObject)(nil), true)
+	typeIxENUM            = reflection.TypeOf((*IEnum)(nil), true)
 )
 
 // getPersistedProperties returns the sorted list of the properties persisted

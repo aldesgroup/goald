@@ -13,116 +13,24 @@ import "github.com/aldesgroup/goald/features/logging"
 // AppContext contains the minimal info set that should be accessible in all the layers of the app
 // ------------------------------------------------------------------------------------------------
 type AppContext interface {
+	logging.ILogger              // we should be able to log from anywhere
 	CustomConfig() ICustomConfig // returns the app's custom part of the config
 }
 
-type appContextImpl struct {
-}
-
 // ------------------------------------------------------------------------------------------------
-// iRestContext is used in the context of handling with a REST resource (single or plural)
-type iRestContext interface {
+// restContext is used in the context of handling with a REST resource (single or plural)
+// ------------------------------------------------------------------------------------------------
+
+type restContext interface { // TODO keep ?
 	AppContext
-}
-
-// ------------------------------------------------------------------------------------------------
-// BloContext is a context that should provide the necessary info for Business LOgic code
-type BloContext interface {
-	iRestContext
-	GetDaoContext() DaoContext
-}
-
-type baseBloContextImpl struct {
-	*appContextImpl // common implem of AppContext
-}
-
-// default implementation for business logic context
-type bloContextImpl struct {
-	*baseBloContextImpl
-	*httpRequestContext // wrapping one of the server's children handling 1 request
-	daoContext          DaoContext
-}
-
-func (thisBloCtx *bloContextImpl) GetDaoContext() DaoContext {
-	return thisBloCtx.daoContext // TODO instantiate
-}
-
-// the server is its own DAo context
-func (thisServer *server) GetDaoContext() DaoContext {
-	return thisServer
+	getTargetResourceClass() className // the class of the resource being requested
 }
 
 // ------------------------------------------------------------------------------------------------
 // ServerContext is a particular Business Logic Context used at app startup
 // Implemented by the `server` struct
+// ------------------------------------------------------------------------------------------------
 type ServerContext interface {
 	BloContext
-	logging.ILogger // TODO to be moved to AppContext
 	Start()
-}
-
-// ------------------------------------------------------------------------------------------------
-// DaoContext should contain the necessary info for handling database access
-type DaoContext interface {
-	iRestContext
-}
-
-// ------------------------------------------------------------------------------------------------
-// WebContext provides the necessary info to applicatively handle incoming HTTP requests
-type WebContext interface {
-	iRestContext
-	GetBloContext() BloContext
-	GetTargetRefOrID() string
-	GetResource() IBusinessObjectModel   // the class of the resource being requested
-	GetResourceLoadingType() LoadingType // returns the loading type of the current main resources (BOs) being worked on
-}
-
-// default implementation for web context
-type webContextImpl struct {
-	*appContextImpl     // common implem of AppContext
-	*httpRequestContext // wrapping one of the server's children handling 1 request
-	ep                  iEndpoint
-	resource            IBusinessObjectModel
-	bloContext          BloContext
-}
-
-// type check
-var _ WebContext = (*webContextImpl)(nil)
-
-func newWebContext(reqCtx *httpRequestContext, ep iEndpoint, targetRefOrID string) *webContextImpl {
-	return &webContextImpl{
-		appContextImpl:     &appContextImpl{},
-		httpRequestContext: reqCtx.withTargetRefOrID(targetRefOrID),
-		ep:                 ep,
-	}
-}
-
-func (thisWebCtx *webContextImpl) GetBloContext() BloContext {
-	// initialising it when first needed
-	if thisWebCtx.bloContext == nil {
-		thisWebCtx.bloContext = &bloContextImpl{
-			httpRequestContext: thisWebCtx.httpRequestContext,
-			baseBloContextImpl: &baseBloContextImpl{
-				appContextImpl: thisWebCtx.appContextImpl,
-			},
-		}
-	}
-
-	return thisWebCtx.bloContext
-}
-
-func (thisWebCtx *webContextImpl) GetResource() IBusinessObjectModel {
-	if thisWebCtx.resource == nil {
-		thisWebCtx.resource = modelRegistry.items[thisWebCtx.ep.getInputOrParamsClass()]
-	}
-
-	return thisWebCtx.resource
-}
-
-func (thisWebCtx *webContextImpl) GetTargetRefOrID() string {
-	return thisWebCtx.targetRefOrID
-}
-
-func (thisWebCtx *webContextImpl) GetResourceLoadingType() LoadingType {
-	return thisWebCtx.ep.getLoadingType()
 }

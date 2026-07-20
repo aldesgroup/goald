@@ -28,6 +28,11 @@ func (thisAdapter *dbAdapterPGSQL) DriverName() string {
 	return "pgx"
 }
 
+// SupportsReturningID implements [goald.iDBAdapter].
+func (thisAdapter *dbAdapterPGSQL) SupportsReturningID() bool {
+	return true
+}
+
 // ConnectionString implements [goald.iDBAdapter].
 func (thisAdapter *dbAdapterPGSQL) ConnectionString(dbConfig *dbconn.DbConfig, user dbconn.DbUserName, pass string) string {
 	sslMode := dbConfig.SSLMode

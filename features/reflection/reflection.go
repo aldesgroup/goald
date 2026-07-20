@@ -6,7 +6,7 @@
 // - 2) in init functions
 // NEVER DURING THE RUNTIME! At least not in OUR code (but some 3rd party libraries prolly do)
 // ------------------------------------------------------------------------------------------------
-package utils
+package reflection
 
 import (
 	"fmt"
@@ -126,6 +126,12 @@ func (f GoaldField) Val() reflect.StructField {
 func (f GoaldField) IsAnonymous() bool {
 	return f.val.Anonymous
 }
+
+// // IsPromoted tells whether this field was found through an embedded (anonymous) struct
+// // rather than being declared directly on the type it was looked up on - cf. reflect.StructField.Index
+// func (f GoaldField) IsPromoted() bool {
+// 	return len(f.val.Index) > 1
+// }
 
 func (f GoaldField) Name() string {
 	return f.val.Name

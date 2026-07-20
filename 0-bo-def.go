@@ -3,7 +3,11 @@
 // ------------------------------------------------------------------------------------------------
 package goald
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/aldesgroup/goald/features/reflection"
+)
 
 // ------------------------------------------------------------------------------------------------
 // Interface for all the business objects - All the generic functions will rely on this
@@ -11,11 +15,10 @@ import "fmt"
 
 type IBusinessObject interface {
 	// identification
-	GetModel() IBusinessObjectModel
-	getClassName() className
-	setClassName(className)
+	GetClassName(thisBO IBusinessObject) className
+	getClass(thisBO IBusinessObject) IClass
 	GetID() BObjID
-	setID(int)
+	setID(BObjID)
 
 	// business logic
 	ChangeBeforeInsert(BloContext) error
@@ -31,33 +34,51 @@ type IBusinessObject interface {
 type BObjID int64 // probably a UUID here
 
 type BusinessObject struct {
-	model     IBusinessObjectModel
+	// properties common to all business objects
+	ID    BObjID    `json:"id,omitempty"    io:"o*" desc:"The unique identifier of this business object"`
+	Class className `json:"class,omitempty" io:"in" desc:"The name of the business object's class, sometimes used to resolve polymorphic relationships"`
+
+	// technical stuff
 	className className
-	ID        BObjID `json:"id,omitempty" io:"o*" desc:"The unique identifier of this business object"`
+	model     IBusinessObjectModel
+	db        *DB
 }
 
 var _ IBusinessObject = (*BusinessObject)(nil)
 
-func (thisBO *BusinessObject) GetModel() IBusinessObjectModel {
-	if thisBO.model == nil {
-		thisBO.model = modelForName(thisBO.className)
-	}
+// Basic accessors
+func (thisBO *BusinessObject) GetID() BObjID   { return thisBO.ID }
+func (thisBO *BusinessObject) setID(id BObjID) { thisBO.ID = id }
 
-	if thisBO.model == nil {
-		panic("unknown class for a business object!")
-	}
-
-	return thisBO.model
-}
-
-/* default implementations */
-func (thisBO *BusinessObject) getClassName() className             { return thisBO.className }
-func (thisBO *BusinessObject) setClassName(cn className)           { thisBO.className = cn }
-func (thisBO *BusinessObject) GetID() BObjID                       { return thisBO.ID }
-func (thisBO *BusinessObject) setID(id int)                        { thisBO.ID = BObjID(id) }
+// Triggers - default implems
 func (thisBO *BusinessObject) ChangeBeforeInsert(BloContext) error { return nil }
 func (thisBO *BusinessObject) IsValid(BloContext) error            { return nil }
 func (thisBO *BusinessObject) ChangeAfterInsert(BloContext) error  { return nil }
+
+// ------------------------------------------------------------------------------------------------
+// Special accessors
+// ------------------------------------------------------------------------------------------------
+
+func (thisBO *BusinessObject) GetClassName(thisActualBO IBusinessObject) className {
+	if thisBO == nil {
+		panic("nil business object")
+	}
+
+	if thisBO.className == "" {
+		// one of the rare cases where we directly use reflection at runtime!
+		thisBO.className = className(reflection.TypeNameOf(thisActualBO, true))
+	}
+
+	if thisBO.className == "" {
+		panic("Could not find class name for business object")
+	}
+
+	return thisBO.className
+}
+
+func (thisBO *BusinessObject) getClass(thisActualBO IBusinessObject) IClass {
+	return classForName(thisBO.GetClassName(thisActualBO))
+}
 
 // ------------------------------------------------------------------------------------------------
 // Modelling enum types

@@ -15,5 +15,16 @@ type User struct {
 }
 
 func init() {
-	model.User().SetAbstract()
+	u := model.User()
+	u.SetAbstract()
+	u.FirstName().SetSize(24)
+	u.FirstName().SetPersonal()
+	u.LastName().SetSize(24)
+	u.LastName().SetPersonal()
+	u.Email().SetSize(64)
+	u.Email().SetUnique()
+	u.Email().SetPersonal()
+	u.Password().SetSize(64)
+	u.Password().SetSecret()
+	u.Password().SetPersonal()
 }

@@ -12,7 +12,7 @@ import (
 
 	core "github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald/features/logging"
-	"github.com/aldesgroup/goald/features/utils"
+	"github.com/aldesgroup/goald/features/reflection"
 )
 
 // ------------------------------------------------------------------------------------------------
@@ -57,8 +57,8 @@ func (thisServer *server) generateAllClientAppModels(destdir string, regen bool,
 
 type codeContext struct {
 	enums      map[string]IEnum
-	bObjType   utils.GoaldType
-	boInstance utils.GoaldValue
+	bObjType   reflection.GoaldType
+	boInstance reflection.GoaldValue
 }
 
 func (ctx *codeContext) getEnumType(field IField) string {
@@ -91,8 +91,8 @@ func (thisServer *server) generateClientAppModel(destdir string, ep iEndpoint, u
 	// gathering needed info into a context
 	codeCtx := &codeContext{
 		enums:      enums,
-		bObjType:   utils.TypeOf(boClass.NewObject(), true),
-		boInstance: utils.ValueOf(boClass.NewObject()),
+		bObjType:   reflection.TypeOf(boClass.NewObject(), true),
+		boInstance: reflection.ValueOf(boClass.NewObject()),
 	}
 
 	// gathering the needed enums

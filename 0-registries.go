@@ -13,7 +13,7 @@ import (
 
 	core "github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald/features/dbconn"
-	"github.com/aldesgroup/goald/features/utils"
+	"github.com/aldesgroup/goald/features/reflection"
 )
 
 // ------------------------------------------------------------------------------------------------
@@ -22,16 +22,22 @@ import (
 
 // A Class Core is a set of information fields that are common to all the Class objects.
 type IClassCore interface {
-	getClassName() className                                // class of the associated Business Object
-	getLastBOMod() time.Time                                // last modification of the associated Business Object
-	getModule() moduleName                                  // the application or library in which the associated BO is developed
-	setModule(module moduleName)                            // setting the module
-	getSrcPath() string                                     // source path of the associated Business Object
-	getPackage() string                                     // the name of the package the class is from
-	isInterface() bool                                      // tells if the class is a concrete one, or an interface
-	AsInterface() IClassCore                                // sets the class as an interface
-	GetValueAsString(IBusinessObject, string) string        // returning a BO's field's value, given the field's name
-	SetValueAsString(IBusinessObject, string, string) error // setting a BO's field's value, given the field's name
+	getClassName() className                                                              // class of the associated Business Object
+	getLastBOMod() time.Time                                                              // last modification of the associated Business Object
+	getModule() moduleName                                                                // the application or library in which the associated BO is developed
+	setModule(module moduleName)                                                          // setting the module
+	getSrcPath() string                                                                   // source path of the associated Business Object
+	getPackage() string                                                                   // the name of the package the class is from
+	isInterface() bool                                                                    // tells if the class is a concrete one, or an interface
+	isFromDir(dirName string) bool                                                        // tells if the class is from the given package
+	AsInterface() IClassCore                                                              // sets the class as an interface
+	GetValueAsString(IBusinessObject, string) string                                      // returning a BO's field's value, given the field's name
+	SetValueAsString(IBusinessObject, string, string) error                               // setting a BO's field's value, given the field's name
+	SetRelationshipValue(bo IBusinessObject, relName string, value IBusinessObject) error // setting a single-valued relationship's target, given the relationship's name - without using reflection
+	AddRelationshipValue(bo IBusinessObject, relName string, value IBusinessObject) error // appending a target to a multi-valued relationship, given the relationship's name - without using reflection
+	ClearRelationshipValue(bo IBusinessObject, relName string) error                      // resetting a multi-valued relationship to an empty slice, given the relationship's name - without using reflection
+	IsModelValid(bObj IBusinessObject) error                                              // checking a business object's general validity - without using reflection
+
 }
 
 // An internal struct that should implement IClassCore
@@ -82,6 +88,10 @@ func (thisCore *classCore) isInterface() bool {
 	return thisCore.intrface
 }
 
+func (thisCore *classCore) isFromDir(dirName string) bool {
+	return thisCore.getModule() == getCurrentModuleName() && thisCore.getPackage() == dirName
+}
+
 func (thisCore *classCore) AsInterface() IClassCore {
 	thisCore.intrface = true
 	return thisCore
@@ -93,6 +103,22 @@ func (thisCore *classCore) GetValueAsString(IBusinessObject, string) string {
 
 func (thisCore *classCore) SetValueAsString(IBusinessObject, string, string) error {
 	panic("SetValueAsString has to be implemented by a concrete Class__UTILS__ object")
+}
+
+func (thisCore *classCore) SetRelationshipValue(IBusinessObject, string, IBusinessObject) error {
+	panic("SetRelationshipValue has to be implemented by a concrete Class__UTILS__ object")
+}
+
+func (thisCore *classCore) AddRelationshipValue(IBusinessObject, string, IBusinessObject) error {
+	panic("AddRelationshipValue has to be implemented by a concrete Class__UTILS__ object")
+}
+
+func (thisCore *classCore) ClearRelationshipValue(IBusinessObject, string) error {
+	panic("ClearRelationshipValue has to be implemented by a concrete Class__UTILS__ object")
+}
+
+func (thisCore *classCore) IsModelValid(IBusinessObject) error {
+	panic("IsModelValid has to be implemented by a concrete Class__CHK__ object")
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -136,7 +162,6 @@ func In(module moduleName) *moduleClassRegitry {
 	return &moduleClassRegitry{module}
 }
 
-// registering happens in all the applicative packages, gence the public function
 func (m *moduleClassRegitry) Register(class IClass) *moduleClassRegitry {
 	classRegistry.mx.Lock()
 	defer classRegistry.mx.Unlock()
@@ -174,22 +199,13 @@ var modelRegistry = struct {
 	items: map[className]IBusinessObjectModel{},
 }
 
-// registering happens in the "model" package, gence the public function
 func RegisterModel(name className, model IBusinessObjectModel) {
 	modelRegistry.mx.Lock()
 
 	// setting the class name
 	model.base().name = name
 
-	// making sure this class own its fields, including the inherited ones
-	for _, field := range model.base().fields {
-		field.setOwner(model)
-	}
-
-	// making sure this model own its relationships, including the inherited ones
-	for _, relationship := range model.base().relationships {
-		relationship.setOwner(model)
-	}
+	// actual registration
 	modelRegistry.items[name] = model
 	modelRegistry.mx.Unlock()
 }
@@ -208,7 +224,7 @@ var restRegistry = &struct {
 	mx        sync.Mutex
 }{}
 
-// registering happens in the "goald" package, gence the private function
+// registering happens in the "goald" package, hence the private function
 func registerEndpoint(ep iEndpoint) iEndpoint {
 	restRegistry.mx.Lock()
 	restRegistry.endpoints = append(restRegistry.endpoints, ep)
@@ -244,7 +260,6 @@ var dbAdapterRegistry = &struct {
 	dbAdapters: map[dbconn.DatabaseType]iDBAdapter{},
 }
 
-// registering happens in the "goald" package, gence the private function
 func RegisterDbAdapter(dbAdapter iDBAdapter) iDBAdapter {
 	dbAdapterRegistry.mx.Lock()
 	if dbAdapterRegistry.dbAdapters[dbAdapter.DatabaseType()] != nil {
@@ -285,8 +300,7 @@ func GetDB(dbID dbconn.DbSchemaName) *DB {
 
 	db := dbRegistry.databases[dbID]
 	if db == nil {
-		// db = &DB{name: dbID}
-		db = &DB{}
+		db = &DB{name: dbID}
 		dbRegistry.databases[dbID] = db
 	}
 
@@ -307,7 +321,7 @@ var dataLoaderRegistry = &struct {
 }
 
 func RegisterDataLoader(fn dataLoader, migrationPhase bool) {
-	fnName := utils.GetFnName(fn)
+	fnName := reflection.GetFnName(fn)
 	fnName = fnName[strings.LastIndex(fnName, ".")+1:]
 	dataLoaderRegistry.mx.Lock()
 	if migrationPhase {
@@ -318,4 +332,41 @@ func RegisterDataLoader(fn dataLoader, migrationPhase bool) {
 		dataLoaderRegistry.appServerLoaders[fnName] = fn
 	}
 	dataLoaderRegistry.mx.Unlock()
+}
+
+// ------------------------------------------------------------------------------------------------
+// Data Access Objects (DAO) registry
+// ------------------------------------------------------------------------------------------------
+
+var daoRegistry = &struct {
+	daos map[className]IBusinessObjectDAO
+	mx   sync.Mutex
+}{
+	daos: map[className]IBusinessObjectDAO{},
+}
+
+func RegisterDAO(clsName className, dao IBusinessObjectDAO) IBusinessObjectDAO {
+	daoRegistry.mx.Lock()
+	if daoRegistry.daos[clsName] != nil {
+		panic(fmt.Sprintf("There's already a DAO registered for class '%s'", clsName))
+	}
+	daoRegistry.daos[clsName] = dao
+	daoRegistry.mx.Unlock()
+	return dao
+}
+
+func newDaoForClass(clsName className) IBusinessObjectDAO {
+	daoRegistry.mx.Lock()
+	defer daoRegistry.mx.Unlock()
+
+	dao := daoRegistry.daos[clsName]
+	if dao == nil {
+		panic(fmt.Sprintf("No DAO found for class '%s'", clsName))
+	}
+
+	return dao.NewDAO()
+}
+
+func newDaoFor(bObj IBusinessObject) IBusinessObjectDAO {
+	return newDaoForClass(bObj.GetClassName(bObj))
 }

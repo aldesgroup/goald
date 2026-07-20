@@ -12,7 +12,7 @@ import (
 
 	core "github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald/features/dbconn"
-	"github.com/aldesgroup/goald/features/utils"
+	"github.com/aldesgroup/goald/features/reflection"
 )
 
 // TODO pagination all the way
@@ -29,6 +29,7 @@ type IBusinessObjectModel interface {
 	SetInDbByName(dbName string)                           // to associate the class with the DB where its instances are stored, using the name of the DB instead of its instance
 	SetAbstract()                                          // to indicate this class does not model concrete business objects, but most probably a super class
 	AddUniqueCombination(props ...IBusinessObjectProperty) // to indicate that a combination of properties must be unique in the DB
+	SetAutoCRUD()                                          // to automatically start the generic CRUD endpoints for this business object model
 
 	// access to generic properties (fields & relationships)
 	ID() IField
@@ -37,11 +38,12 @@ type IBusinessObjectModel interface {
 	isNotPersisted() bool
 	getInDB() *DB
 	getTableName(withSchema bool) string
+	resolve() IBusinessObjectModel
 
 	// access to the base implementation
 	base() *businessObjectModel
 	addField(field IField) IField
-	getType() *utils.GoaldType
+	getType() *reflection.GoaldType
 }
 
 type className string
@@ -60,9 +62,12 @@ type businessObjectModel struct {
 	idField                    IField                               // accessor to the ID field
 	usedInNativeApp            bool                                 // true if this class is used in the native app
 	usedInWebApp               bool                                 // true if this class is used in the web app
-	boType                     *utils.GoaldType                     // the Go type associated with this BO model
+	boType                     *reflection.GoaldType                // the Go type associated with this BO model
 	relationshipsWithColumn    []*Relationship                      // all the relationships for which this class has a column in its table
 	relationshipsWithLinkTable []*Relationship                      // all the relationships for which this class has a column in its table
+	resolved                   bool                                 // if true, then this model has been resolved, i.e. all its properties have been detected and registered
+	autoCRUD                   bool                                 // if true, then the generic CRUD endpoints will be automatically started for this business object model
+	childToParentRelationship  *Relationship                        // if this class is a child in a parent-child relationship, then this is the relationship to the parent
 }
 
 const BoFieldID = "ID" // the name of the ID field, which is a special case in Goald
@@ -74,7 +79,7 @@ func NewBusinessObjectModel() IBusinessObjectModel {
 	}
 
 	// adding the generic fields
-	model.idField = NewBigIntField(model, BoFieldID, false)
+	model.idField = AddBigIntField(model, "BusinessObject", BoFieldID, false)
 
 	return model
 }
@@ -121,6 +126,7 @@ func (boModel *businessObjectModel) AddUniqueCombination(props ...IBusinessObjec
 	if boModel.uniqueCombinations == nil {
 		boModel.uniqueCombinations = map[string][]IBusinessObjectProperty{}
 	}
+
 	boModel.uniqueCombinations[constraintName] = props
 }
 
@@ -146,7 +152,7 @@ func (boModel *businessObjectModel) getTableName(withSchema bool) string {
 	}
 
 	if withSchema {
-		return string(boModel.inDB.config.Name) + "." + boModel.tableName
+		return string(boModel.inDB.name) + "." + boModel.tableName
 	}
 
 	return boModel.tableName
@@ -162,13 +168,26 @@ func (boModel *businessObjectModel) addField(field IField) IField {
 	return field
 }
 
-func (boModel *businessObjectModel) getType() *utils.GoaldType {
+func (boModel *businessObjectModel) getType() *reflection.GoaldType {
 	if boModel.boType == nil {
-		boType := utils.TypeOf(getClass(boModel).NewObject(), true)
+		boType := reflection.TypeOf(getClass(boModel).NewObject(), true)
 		boModel.boType = &boType
 	}
 
 	return boModel.boType
+}
+
+func (boModel *businessObjectModel) SetAutoCRUD() {
+	boModel.autoCRUD = true
+}
+
+func (boModel *businessObjectModel) setChildToParentRelationship(rel *Relationship) {
+	if boModel.childToParentRelationship != nil {
+		panic(fmt.Sprintf("Business object model '%s' already has a parent relationship '%s', cannot set another one '%s'",
+			boModel.name, boModel.childToParentRelationship.GetName(), rel.GetName()))
+	}
+
+	boModel.childToParentRelationship = rel
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -207,7 +226,7 @@ var typeFamilies = map[int]string{
 }
 
 var (
-	typeTIMExPTR = utils.TypeOf((*time.Time)(nil), false)
+	typeTIMExPTR = reflection.TypeOf((*time.Time)(nil), false)
 )
 
 func (thispropertyType propertyType) String() string {
@@ -230,7 +249,7 @@ func (thispropertyType propertyType) IsRelationship() bool {
 }
 
 // detectPropertyType returns the type family of a given structfield
-func detectPropertyType(field utils.GoaldField, iBopropertyType, enumpropertyType utils.GoaldType) (propertyType propertyType, multiple bool) {
+func detectPropertyType(field reflection.GoaldField, iBopropertyType, enumpropertyType reflection.GoaldType) (propertyType propertyType, multiple bool) {
 	// a business object's real property must be exported, and therefore PkgPath should be empty
 	// Cf. https://golang.org/pkg/reflect/#StructField
 	if fieldType := field.Type(); field.PkgPath() == "" {
@@ -238,7 +257,7 @@ func detectPropertyType(field utils.GoaldField, iBopropertyType, enumpropertyTyp
 		fieldKind := fieldType.Kind()
 
 		// handling the case where we have a slice in here
-		if fieldKind == utils.KindSLICE {
+		if fieldKind == reflection.KindSLICE {
 			// what's in there?
 			innerSliceType := fieldType.Elem()
 			innerSliceKind := innerSliceType.Kind()
@@ -249,12 +268,12 @@ func detectPropertyType(field utils.GoaldField, iBopropertyType, enumpropertyTyp
 			}
 
 			// detecting a polymorphic type, i.e. an interface; this should point to something implementing IBusinessObject
-			if innerSliceKind == utils.KindINTERFACE && innerSliceType.Implements(iBopropertyType) {
+			if innerSliceKind == reflection.KindINTERFACE && innerSliceType.Implements(iBopropertyType) {
 				return propertyTypeRELATIONSHIPxPOLYM, true
 			}
 
 			// detecting a single relationship to a business object
-			if innerSliceKind == utils.KindPTR && innerSliceType.Implements(iBopropertyType) {
+			if innerSliceKind == reflection.KindPTR && innerSliceType.Implements(iBopropertyType) {
 				return propertyTypeRELATIONSHIPxMONOM, true
 			}
 
@@ -272,32 +291,32 @@ func detectPropertyType(field utils.GoaldField, iBopropertyType, enumpropertyTyp
 
 			// detecting the basic types here
 			switch fieldKind {
-			case utils.KindBOOL:
+			case reflection.KindBOOL:
 				return propertyTypeBOOL, false
 
-			case utils.KindSTRING:
+			case reflection.KindSTRING:
 				return propertyTypeSTRING, false
 
-			case utils.KindINT:
+			case reflection.KindINT:
 				return propertyTypeINT, false
 
-			case utils.KindINT64:
+			case reflection.KindINT64:
 				return propertyTypeBIGINT, false
 
-			case utils.KindFLOAT32:
+			case reflection.KindFLOAT32:
 				return propertyTypeREAL, false
 
-			case utils.KindFLOAT64:
+			case reflection.KindFLOAT64:
 				return propertyTypeDOUBLE, false
 			}
 
 			// detecting a polymorphic type, i.e. an interface; this should point to something implementing IBusinessObject
-			if fieldKind == utils.KindINTERFACE && fieldType.Implements(iBopropertyType) {
+			if fieldKind == reflection.KindINTERFACE && fieldType.Implements(iBopropertyType) {
 				return propertyTypeRELATIONSHIPxPOLYM, false
 			}
 
 			// detecting a single relationship to a business object
-			if fieldKind == utils.KindPTR && fieldType.Implements(iBopropertyType) {
+			if fieldKind == reflection.KindPTR && fieldType.Implements(iBopropertyType) {
 				return propertyTypeRELATIONSHIPxMONOM, false
 			}
 		}
@@ -316,23 +335,29 @@ func detectPropertyType(field utils.GoaldField, iBopropertyType, enumpropertyTyp
 // ------------------------------------------------------------------------------------------------
 // Business object properties, whether fields or relationships
 // ------------------------------------------------------------------------------------------------
+
 type IBusinessObjectProperty interface {
-	ownerModel() IBusinessObjectModel
-	setOwner(IBusinessObjectModel)
-	GetName() string
-	getPropertyType() propertyType
-	IsMultiple() bool
-	getColumnName() string
-	isNotPersisted() bool
-	getStructField() *utils.GoaldField
-	getTag(tagName string) string
-	isMandatoryInput() bool
-	isPureOutput() bool
-	IsRequiredInDb() bool
-	SetRequiredInDb()
-	isUnique() bool
-	SetUnique()
-	getUniqueConstraintName() string
+	ownerModel() IBusinessObjectModel       // the property's owner model
+	setOwner(IBusinessObjectModel)          // to set the property's owner model
+	GetName() string                        // the property's name, as declared in the struct
+	getPropertyType() propertyType          // the property's type, as detected by the codegen phase
+	IsMultiple() bool                       // the property's multiplicity; false = 1, true = N
+	getColumnName() string                  // if this property - field or relationship - is persisted on the owner's table, then this is the name of the corresponding column
+	isNotPersisted() bool                   // if true, then this property does not have a corresponding column in the BO's table
+	getStructField() *reflection.GoaldField // the struct field corresponding to this property, as detected by the codegen phase
+	getTag(tagName string) string           // to get the value of a given tag on the struct field corresponding to this property
+	isMandatoryInput() bool                 // if true, then this property is a mandatory input for the associated endpoint
+	isPureOutput() bool                     // if true, then this property is a pure output for the associated endpoint
+	IsRequiredInDb() bool                   // if true, then this property is required in the database (NOT NULL)
+	SetRequiredInDb()                       // to set this property as required in the database (NOT NULL)
+	isUnique() bool                         // if true, then this property is unique in the database (UNIQUE)
+	SetUnique()                             // to set this property as unique in the database (UNIQUE)
+	getUniqueConstraintName() string        // to get the name of the unique constraint associated with this property, if any
+	SetSecret()                             // to set this property as secret
+	isSecret() bool                         // if true, then this property is secret
+	SetPersonal()                           // to set this property as personal
+	isPersonal() bool                       // if true, then this property is personal
+	getDeclaringBO() className              // the name of the business object that actually declares this property (instead of inheriting it from a super class)
 }
 
 type ioType string
@@ -342,15 +367,18 @@ const ioTypeINPUTxMANDATORY ioType = "i*"
 const ioTypePURExOUTPUT ioType = "o*"
 
 type businessObjectProperty struct {
-	owner        IBusinessObjectModel // the property's owner class
-	name         string               // the property's name, as declared in the struct
-	propType     propertyType         // the property's type, as detected by the codegen phase
-	multiple     bool                 // the property's multiplicity; false = 1, true = N
-	columnName   string               // if this property - field or relationship - is persisted on the owner's table
-	notPersisted bool                 // if true, then this property does not have a corresponding column in the BO's table
-	structField  *utils.GoaldField    // the struct field corresponding to this property, as detected by the codegen phase
-	requiredInDb bool                 // if true, then this property is required in the database (NOT NULL)
-	unique       bool                 // if true, then this property is unique in the database (UNIQUE)
+	owner        IBusinessObjectModel   // the property's owner class
+	declaringBO  className              // the name of the business object that actually declares this property (instead of inheriting it from a super class)
+	name         string                 // the property's name, as declared in the struct
+	propType     propertyType           // the property's type, as detected by the codegen phase
+	multiple     bool                   // the property's multiplicity; false = 1, true = N
+	columnName   string                 // if this property - field or relationship - is persisted on the owner's table
+	notPersisted bool                   // if true, then this property does not have a corresponding column in the BO's table
+	structField  *reflection.GoaldField // the struct field corresponding to this property, as detected by the codegen phase
+	requiredInDb bool                   // if true, then this property is required in the database (NOT NULL)
+	unique       bool                   // if true, then this property is unique in the database (UNIQUE)
+	secret       bool                   // if true, then this property is secret
+	personal     bool                   // if true, then this property is personal
 }
 
 func (prop *businessObjectProperty) ownerModel() IBusinessObjectModel {
@@ -388,7 +416,7 @@ func (prop *businessObjectProperty) isNotPersisted() bool {
 	return prop.notPersisted
 }
 
-func (prop *businessObjectProperty) getStructField() *utils.GoaldField {
+func (prop *businessObjectProperty) getStructField() *reflection.GoaldField {
 	if prop.structField == nil {
 		structField := prop.ownerModel().getType().FieldByName(prop.name)
 		prop.structField = &structField
@@ -426,4 +454,90 @@ func (prop *businessObjectProperty) SetUnique() {
 
 func (prop *businessObjectProperty) getUniqueConstraintName() string {
 	return prefixUK + prop.ownerModel().getTableName(false) + "__" + prop.getColumnName()
+}
+
+func (prop *businessObjectProperty) SetSecret() {
+	prop.secret = true
+}
+
+func (prop *businessObjectProperty) isSecret() bool {
+	return prop.secret
+}
+
+func (prop *businessObjectProperty) SetPersonal() {
+	prop.personal = true
+}
+
+func (prop *businessObjectProperty) isPersonal() bool {
+	return prop.personal
+}
+
+func (prop *businessObjectProperty) getDeclaringBO() className {
+	return prop.declaringBO
+}
+
+// ------------------------------------------------------------------------------------------------
+// Business Object Model resolution =
+// - allowing some kind of "inheritance" between models
+// ------------------------------------------------------------------------------------------------
+
+func (boModel *businessObjectModel) resolve() IBusinessObjectModel {
+	// if the model hasn't been resolved yet
+	if boModel == nil || !boModel.resolved {
+
+		// checking all the fields, and "importing" the configuration of the super classes, if any
+		for _, field := range boModel.base().fields {
+			if field.getDeclaringBO() != boModel.name {
+				// making sure the "parent" model is resolved first
+				if parentModel := modelForName(field.getDeclaringBO()); parentModel != nil {
+					// getting the field from the parent model
+					parentField := parentModel.resolve().base().fields[field.GetName()]
+
+					// importing the configuration of the super class property
+					boModel.importConfig(parentField, field)
+				}
+			}
+		}
+
+		// tagging this model as resolved
+		boModel.resolved = true
+	}
+
+	return boModel
+}
+
+func (boModel *businessObjectModel) importConfig(from, to IBusinessObjectProperty) {
+	// generic configuration
+	if from.IsRequiredInDb() {
+		to.SetRequiredInDb()
+	}
+	if from.isUnique() {
+		to.SetUnique()
+	}
+	if from.isSecret() {
+		to.SetSecret()
+	}
+	if from.isPersonal() {
+		to.SetPersonal()
+	}
+
+	// specific configuration for fields
+	switch field := to.(type) {
+	case *StringField:
+		if field.size == 0 {
+			field.size = from.(*StringField).size
+		}
+	case *DoubleField:
+		if field.totalDigits+field.decimals == 0 {
+			fromField := from.(*DoubleField)
+			field.totalDigits = fromField.totalDigits
+			field.decimals = fromField.decimals
+		}
+	case *RealField:
+		if field.totalDigits+field.decimals == 0 {
+			fromField := from.(*RealField)
+			field.totalDigits = fromField.totalDigits
+			field.decimals = fromField.decimals
+		}
+	}
 }

@@ -74,7 +74,7 @@ func (thisServer *server) migrateDBs() {
 			if model.getInDB() == nil {
 				core.PanicMsg("Model '%s' is persisted and yet it's not associated with a DB", model.base().name)
 			}
-			if model.getInDB().DB == nil {
+			if model.getInDB().do == nil {
 				core.PanicMsg("Model '%s' is persisted and yet it's DB '%s' is not initialized", model.base().name, model.getInDB().config.Name)
 			}
 
@@ -112,15 +112,15 @@ func (thisServer *server) migrateDBs() {
 	// granting rights to the users on the tables
 	for _, db := range allDBs {
 		if newTables[db.config.Name] {
-			db.MustExec(thisServer, db.get.GrantAllPrivilegesOnSchemaQuery(db.config.Name, db.config.User))
+			db.mustExec(thisServer, nil, db.get.GrantAllPrivilegesOnSchemaQuery(db.config.Name, db.config.User))
 		}
 
 		for otherUser, access := range db.config.Access {
 			switch access {
 			case dbconn.SchemaAccessWRITE:
-				db.MustExec(thisServer, db.get.GrantAllPrivilegesOnSchemaQuery(db.config.Name, otherUser))
+				db.mustExec(thisServer, nil, db.get.GrantAllPrivilegesOnSchemaQuery(db.config.Name, otherUser))
 			case dbconn.SchemaAccessREAD:
-				db.MustExec(thisServer, db.get.GrantReadOnSchemaQuery(db.config.Name, otherUser))
+				db.mustExec(thisServer, nil, db.get.GrantReadOnSchemaQuery(db.config.Name, otherUser))
 			default:
 				panic(fmt.Sprintf("Unknown access type '%s' for user '%s'", access, otherUser))
 			}
@@ -190,7 +190,7 @@ func (thisServer *server) createMissingTables(db *DB, modelsForThisDB map[classN
 
 // getTableNames fetches the table names from the APP DB
 func (thisServer *server) getTableNames(db *DB) []string {
-	return db.FetchStringColumn(thisServer, true, db.get.TablesQuery(), db.config.Name)
+	return db.FetchStringColumn(thisServer, true, nil, db.get.TablesQuery(), db.config.Name)
 }
 
 // createMissingTable creates the missing table corresponding to the given BO model
@@ -227,7 +227,7 @@ func (thisServer *server) createMissingTable(db *DB, model IBusinessObjectModel)
 	createQuery := fmt.Sprintf("CREATE TABLE %s ("+newline+"%s"+newline+")", model.getTableName(true), strings.Join(columnsSQL, ", "+newline))
 
 	// running the query
-	db.MustExec(thisServer, createQuery)
+	db.mustExec(thisServer, nil, createQuery)
 }
 
 // tableColumns retrieves all the columns from the DB, and order them by
@@ -236,7 +236,7 @@ func (thisServer *server) getTableColumns(db *DB) map[string]map[string]*tableCo
 	tableColumns := map[string]map[string]*tableColumnInfo{}
 
 	// querying the DB for the columns info
-	rows := db.MustQuery(thisServer, db.get.ColumnsQuery(), db.config.Name)
+	rows := db.mustQuery(thisServer, nil, db.get.ColumnsQuery(), db.config.Name)
 
 	// we should always be sure to close this when exiting this function
 	defer func() {
@@ -326,7 +326,7 @@ func (thisServer *server) createMissingColumns(db *DB, modelsForThisDB map[class
 					"ADD COLUMN " + property.getColumnName() + " " + sqlColumnDeclaration
 
 				// executing the query
-				db.MustExec(thisServer, alterQuery)
+				db.mustExec(thisServer, nil, alterQuery)
 
 				// handling the case of a polymorphic relationship, which requires an additional column for the target object type
 				if polymorphicRelationship != nil {
@@ -335,7 +335,7 @@ func (thisServer *server) createMissingColumns(db *DB, modelsForThisDB map[class
 						"ADD COLUMN " + polymorphicRelationship.getColumnNameForTargetClass() + " " + additionalColumnDeclaration
 
 					// executing the query
-					db.MustExec(thisServer, alterQuery)
+					db.mustExec(thisServer, nil, alterQuery)
 				}
 			}
 		}
@@ -354,7 +354,7 @@ func (thisServer *server) createMissingColumns(db *DB, modelsForThisDB map[class
 // createMissingForeignKeys create the missing foreign keys linking the tables to each other
 func (thisServer *server) createMissingForeignKeys(db *DB, modelsForThisDB map[className]IBusinessObjectModel) {
 	// first, we need to know which foreign keys already exist
-	foreignKeysInThisDB := db.FetchStringMap(thisServer, true, db.get.ForeignKeysQuery(prefixFK), db.config.Name)
+	foreignKeysInThisDB := db.FetchStringMap(thisServer, true, nil, db.get.ForeignKeysQuery(prefixFK), db.config.Name)
 
 	// listing all the needed foreign key names, to help us identify the dead ones
 	requiredForeignKeyNames := map[string]*Relationship{}
@@ -391,7 +391,7 @@ func (thisServer *server) createMissingForeignKeys(db *DB, modelsForThisDB map[c
 				alterQuery := db.get.DropTableFkQuery(tableName, existingForeignKeyName)
 
 				// executing the query
-				db.MustExec(thisServer, alterQuery)
+				db.mustExec(thisServer, nil, alterQuery)
 			}
 		}
 	}
@@ -410,7 +410,7 @@ func (thisServer *server) createMissingForeignKeys(db *DB, modelsForThisDB map[c
 				sourceTableName, requiredForeignKeyName, sourceColumnName, targetTableName)
 
 			// executing the query
-			db.MustExec(thisServer, alterQuery)
+			db.mustExec(thisServer, nil, alterQuery)
 		}
 	}
 }
@@ -418,8 +418,6 @@ func (thisServer *server) createMissingForeignKeys(db *DB, modelsForThisDB map[c
 // createMissingLinkTables is used to create the link tables that are missing
 // Foreign keys can be created only after all the tables have been created, else adding a foreign key can fail
 func (thisServer *server) createMissingLinkTables(db *DB, modelsForThisDB map[className]IBusinessObjectModel, tablesInThisDB []string) {
-	thisServer.Info("Scanning for missing LINK tables")
-
 	// listing all the needed link table names, to help us identify the dead tables
 	var requiredLinkTableNames []string
 
@@ -484,7 +482,7 @@ CREATE TABLE IF NOT EXISTS %[1]s.%[2]s (
 				}
 
 				// executing the query
-				db.MustExec(thisServer, createQuery)
+				db.mustExec(thisServer, nil, createQuery)
 			}
 		}
 	}
@@ -500,7 +498,7 @@ CREATE TABLE IF NOT EXISTS %[1]s.%[2]s (
 // createMissingSingleUniqueConstraints create the missing UNIQUE constraints
 func (thisServer *server) createMissingSingleUniqueConstraints(db *DB, modelsForThisDB map[className]IBusinessObjectModel) {
 	// getting the existing UNIQUE constraints
-	uniqueConstraintsInThisDB := db.FetchStringMap(thisServer, true, db.get.UniqueConstraintsQuery(prefixUK), db.config.Name)
+	uniqueConstraintsInThisDB := db.FetchStringMap(thisServer, true, nil, db.get.UniqueConstraintsQuery(prefixUK), db.config.Name)
 
 	// listing all the needed unique constraints, to help us identify the dead constraints
 	requiredUniqueConstraints := []string{}
@@ -524,7 +522,7 @@ func (thisServer *server) createMissingSingleUniqueConstraints(db *DB, modelsFor
 						model.getTableName(true), uniqueConstraintName, property.getColumnName())
 
 					// executing the query
-					db.MustExec(thisServer, alterQuery)
+					db.mustExec(thisServer, nil, alterQuery)
 				}
 			}
 		}
@@ -538,7 +536,7 @@ func (thisServer *server) createMissingSingleUniqueConstraints(db *DB, modelsFor
 			alterQuery := fmt.Sprintf("ALTER TABLE %s.%s DROP CONSTRAINT %s", db.config.Name, tableName, uniqueConstraintInThisDB)
 			//
 			// executing the query
-			db.MustExec(thisServer, alterQuery)
+			db.mustExec(thisServer, nil, alterQuery)
 		}
 	}
 }
@@ -546,7 +544,7 @@ func (thisServer *server) createMissingSingleUniqueConstraints(db *DB, modelsFor
 // createMissingCompositeUniqueConstraints create the missing UNIQUE constraints
 func (thisServer *server) createMissingCompositeUniqueConstraints(db *DB, modelsForThisDB map[className]IBusinessObjectModel) {
 	// getting the existing COMPOSITE UNIQUE constraints
-	compositeConstraintsInThisDB := db.FetchStringMap(thisServer, true, db.get.UniqueConstraintsQuery(prefixCK), db.config.Name) // note the different prefix here
+	compositeConstraintsInThisDB := db.FetchStringMap(thisServer, true, nil, db.get.UniqueConstraintsQuery(prefixCK), db.config.Name) // note the different prefix here
 
 	// listing all the needed composite constraints, to help us identify the dead constraints
 	requiredCompositeConstraints := []string{}
@@ -577,7 +575,7 @@ func (thisServer *server) createMissingCompositeUniqueConstraints(db *DB, models
 					model.getTableName(true), compositeConstraintName, columnNames)
 
 				// executing the query
-				db.MustExec(thisServer, alterQuery)
+				db.mustExec(thisServer, nil, alterQuery)
 			}
 		}
 	}
@@ -590,7 +588,7 @@ func (thisServer *server) createMissingCompositeUniqueConstraints(db *DB, models
 			alterQuery := fmt.Sprintf("ALTER TABLE %s.%s DROP CONSTRAINT %s", db.config.Name, tableName, compositeConstraintName)
 
 			// executing the query
-			db.MustExec(thisServer, alterQuery)
+			db.mustExec(thisServer, nil, alterQuery)
 		}
 	}
 }
@@ -630,7 +628,7 @@ func (thisServer *server) createMissingNotNullConstraints(db *DB, modelsForThisD
 
 				// executing the query if not empty
 				if alterQuery != "" {
-					db.MustExec(thisServer, alterQuery)
+					db.mustExec(thisServer, nil, alterQuery)
 				}
 			}
 		}
@@ -684,7 +682,7 @@ func (thisServer *server) extendsColumns(db *DB, modelsForThisDB map[className]I
 
 				// executing the query if not empty
 				if alterQuery != "" {
-					db.MustExec(thisServer, alterQuery)
+					db.mustExec(thisServer, nil, alterQuery)
 				}
 			}
 		}

@@ -28,8 +28,8 @@ var (
 // fully describing each of this class' properties & relationships
 func NewTranslationUrlParamsModel() *TranslationUrlParamsModel {
 	thisModel := &TranslationUrlParamsModel{IURLQueryParamsModel: g.NewURLQueryParamsModel()}
-	thisModel.namespace = g.NewStringField(thisModel, "Namespace", false)
-	thisModel.key = g.NewStringField(thisModel, "Key", false)
+	thisModel.namespace = g.AddStringField(thisModel, "TranslationUrlParams", "Namespace", false)
+	thisModel.key = g.AddStringField(thisModel, "TranslationUrlParams", "Key", false)
 
 	return thisModel
 }

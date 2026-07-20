@@ -13,7 +13,7 @@ import (
 	"time"
 
 	core "github.com/aldesgroup/corego"
-	"github.com/aldesgroup/goald/features/utils"
+	"github.com/aldesgroup/goald/features/reflection"
 	"github.com/getkin/kin-openapi/openapi3"
 	"go.yaml.in/yaml/v3"
 )
@@ -489,7 +489,7 @@ func schemaFromPrimitiveType(field IField, addDesc bool) *openapi3.SchemaRef {
 		enumOwner := getClass(field.ownerModel()).NewObject()
 
 		// this owner has a zero-value for this field, which is enough for us to do the rest
-		enumVal := utils.ValueOf(enumOwner).GetFieldValue(field.GetName())
+		enumVal := reflection.ValueOf(enumOwner).GetFieldValue(field.GetName())
 
 		// controlling we do have an enum
 		if enum, ok := enumVal.(IEnum); ok {
@@ -519,11 +519,8 @@ func schemaFromPrimitiveType(field IField, addDesc bool) *openapi3.SchemaRef {
 			return nil
 		}
 
-	// case "array":
-	// 	return &openapi3.SchemaRef{Value: &openapi3.Schema{
-	// 		Type:  &openapi3.Types{"array"},
-	// 		Items: schemaFromPrimitiveType(*t.ArrayItem),
-	// 	}}
+	case propertyTypeDATE:
+		return &openapi3.SchemaRef{Value: withDescription(openapi3.NewDateTimeSchema(), description)}
 
 	default:
 		panic("Unhandled type in Open API doc generation: " + field.getPropertyType().String())

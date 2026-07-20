@@ -21,8 +21,6 @@ import (
 
 // TODO handle patching BOs with safeguards, like authorizing a limited list of fields (on the class for instance)
 
-var reqCount int // to remove
-
 func (thisServer *server) ServeEndpoint(ep iEndpoint, w http.ResponseWriter, req *http.Request, params r.Params) {
 	var reqCtx *httpRequestContext
 
@@ -54,8 +52,13 @@ func (thisServer *server) ServeEndpoint(ep iEndpoint, w http.ResponseWriter, req
 	// TODO defer : requestHandler release
 
 	// TODO sync.Pool
+	reqNum := thisServer.reqCount.Add(1)
 	reqCtx = &httpRequestContext{
 		server: thisServer,
+		reqNum: reqNum,
+		ILogger: thisServer.ILogger.WithPrefix(
+			fmt.Sprintf("%s|%06d", thisServer.instance, reqNum),
+		),
 	}
 
 	reqCtx.serve(ep, w, req, params)
@@ -83,11 +86,8 @@ func errResp(_ int, _ string, _ ...any) *response {
 
 // main HTTP SERVING functiont.De
 func (thisReqCtx *httpRequestContext) serve(ep iEndpoint, w http.ResponseWriter, req *http.Request, params r.Params) {
-
-	// TODO remove
-	reqCount++
-	prefix := fmt.Sprintf("%06d|%s", reqCount, thisReqCtx.instance)                                   //
-	thisReqCtx.Info(fmt.Sprintf("[%s] Serving %s (%s)", prefix, ep.getPathAsString(), ep.getLabel())) // TODO change
+	// logging
+	thisReqCtx.Info(fmt.Sprintf("Serving %s (%s)", ep.getPathAsString(), ep.getLabel())) // TODO change
 
 	// initialising the web context that's going to be passed to the applicative handler
 	var targetRefOrID string
@@ -234,7 +234,7 @@ func retrieveInputData(request *http.Request, webContext *webContextImpl, ep iEn
 		}
 		bObj := bObjClass.NewObject()
 
-		if jsonErr := json.Unmarshal(inputBodyBytes, bObj); jsonErr != nil {
+		if jsonErr := unmarshalBObj(inputBodyBytes, ep.getInputOrParamsClass(), bObj); jsonErr != nil {
 			return nil, ErrorC(jsonErr, "Could not unmarshall the JSON object!")
 		}
 
@@ -245,10 +245,10 @@ func retrieveInputData(request *http.Request, webContext *webContextImpl, ep iEn
 // parsing the request's URL to build the expected URLQueryParams object
 func retrieveURLParams(request *http.Request, _ *webContextImpl, ep iEndpoint) (any, error) {
 	// getting the right class utils
-	classUtils := classRegistry.items[ep.getInputOrParamsClass()]
+	urlParamsClass := classRegistry.items[ep.getInputOrParamsClass()]
 
 	// new URLQueryParams object
-	urlParams := classUtils.NewObject().(IURLQueryParams)
+	urlParams := urlParamsClass.NewObject().(IURLQueryParams)
 
 	// transferring the URL param values from the URL to the object
 	for _, field := range modelForName(ep.getInputOrParamsClass()).base().fields {
@@ -256,7 +256,7 @@ func retrieveURLParams(request *http.Request, _ *webContextImpl, ep iEndpoint) (
 		if valueToSet == "" {
 			valueToSet = field.getDefaultValue()
 		}
-		classUtils.SetValueAsString(urlParams, field.GetName(), valueToSet)
+		urlParamsClass.SetValueAsString(urlParams, field.GetName(), valueToSet)
 	}
 
 	return urlParams, nil

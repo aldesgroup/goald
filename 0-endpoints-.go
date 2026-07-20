@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/aldesgroup/goald/features/hstatus"
-	"github.com/aldesgroup/goald/features/utils"
+	"github.com/aldesgroup/goald/features/reflection"
 )
 
 // ------------------------------------------------------------------------------------------------
@@ -205,10 +205,10 @@ func newEndpoint[InputOrParamsType, ResourceType IBusinessObject](
 	withURLParams bool,
 ) *endpoint[ResourceType] {
 
-	resourceClsName := className(utils.TypeNameOf((*new(ResourceType)), true))
+	resourceClsName := className(reflection.TypeNameOf((*new(ResourceType)), true))
 	var inputOrParamsClsName className
 	if bodyInputRequired || withURLParams {
-		inputOrParamsClsName = className(utils.TypeNameOf((*new(InputOrParamsType)), true))
+		inputOrParamsClsName = className(reflection.TypeNameOf((*new(InputOrParamsType)), true))
 	}
 
 	return &endpoint[ResourceType]{

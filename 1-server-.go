@@ -69,6 +69,11 @@ func NewServer() ServerContext {
 	}
 	server.Info("New server")
 
+	// resolving all the business object models
+	for _, boModel := range modelRegistry.items {
+		boModel.resolve()
+	}
+
 	// running the app in code generation mode, i.e. no server started here - should only be used by devs
 	if cgParams.codegen > 0 {
 		server.runCodeGen(cgParams)
@@ -192,4 +197,30 @@ func (thisServer *server) handleFor(ep iEndpoint) httprouter.Handle {
 	return func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 		thisServer.ServeEndpoint(ep, w, req, params)
 	}
+}
+
+// ------------------------------------------------------------------------------------------------
+// Making the server a Business Logic context
+// ------------------------------------------------------------------------------------------------
+
+var _ BloContext = (*server)(nil)
+
+// BeginTransaction implements [ServerContext].
+func (thisServer *server) BeginTransaction(*DB) (bool, error) {
+	panic("unimplemented")
+}
+
+// EndTransaction implements [ServerContext].
+func (thisServer *server) EndTransaction(err error) error {
+	panic("unimplemented")
+}
+
+// IsTransactionStarted implements [ServerContext].
+func (thisServer *server) IsTransactionStarted() bool {
+	panic("unimplemented")
+}
+
+// DaoFor implements [BloContext].
+func (thisServer *server) DaoFor(bObj IBusinessObject) IBusinessObjectDAO {
+	panic("unimplemented")
 }

@@ -38,6 +38,8 @@ type iDBAdapter interface {
 	DriverName() string                                                                     // the name of the driver to use for this DB type
 	ConnectionString(dbConfig *dbconn.DbConfig, user dbconn.DbUserName, pass string) string // building the connection string for a given DB config and user/pass
 
+	SupportsReturningID() bool // tells whether INSERT statements can use a 'RETURNING' clause to get the new row's ID
+
 	// DB server-related queries
 	SchemaExistsQuery() string                                  // checking if a given schema exists in the DB server
 	UserExistsQuery() string                                    // checking if a given user exists in the DB server
@@ -71,7 +73,8 @@ type iDBAdapter interface {
 
 // goald's own DB object
 type DB struct {
-	*sql.DB
+	name   dbconn.DbSchemaName
+	do     *sql.DB
 	get    iDBAdapter
 	config *dbconn.DbSchemaConfig
 }
@@ -85,35 +88,53 @@ func (thisDB *DB) GetConfig() *dbconn.DbSchemaConfig {
 // Low level DB operations
 // ------------------------------------------------------------------------------------------------
 
-func logSQL(logger logging.ILogger, db *DB, start time.Time, query string, args ...any) {
+// a mask, when not nil, allows to hide some of the arguments of a query from the logs - useful for sensitive data like passwords
+type mask []bool
+
+func logSQL(logger logging.ILogger, db *DB, start time.Time, m mask, query string, args ...any) {
 	if logger.IsVerbose() {
 		// TODO later: plug in a mechanism of gathering analytics here
-		logger.Debug(fmt.Sprintf("Run from '%s' in %s (with args: %+v): %s", db.config.Name, time.Since(start), args, strings.ReplaceAll(query, "\n", "\n-   ")))
+		var loggedArgs []any
+		for i, arg := range args {
+			if m != nil && i < len(m) && m[i] {
+				loggedArgs = append(loggedArgs, "*****")
+			} else {
+				loggedArgs = append(loggedArgs, arg)
+			}
+		}
+		logger.Debug(fmt.Sprintf("Run from '%s' in %s (with args: %+v): %s", db.config.Name,
+			time.Since(start), loggedArgs, strings.Join(strings.Fields(query), " ")))
 	}
 }
 
 // proxying this function so as to add functionality
-func (thisDB *DB) Query(logger logging.ILogger, query string, args ...any) (*sql.Rows, error) {
-	defer logSQL(logger, thisDB, time.Now(), query, args...)
-	return thisDB.DB.Query(query, args...)
+func (thisDB *DB) query(logger logging.ILogger, m mask, query string, args ...any) (*sql.Rows, error) {
+	defer logSQL(logger, thisDB, time.Now(), m, query, args...)
+	return thisDB.do.Query(query, args...)
 }
 
 // proxying this function so as to add functionality
-func (thisDB *DB) Exec(logger logging.ILogger, query string, args ...any) (sql.Result, error) {
-	defer logSQL(logger, thisDB, time.Now(), query, args...)
-	return thisDB.DB.Exec(query, args...)
+func (thisDB *DB) exec(logger logging.ILogger, m mask, query string, args ...any) (sql.Result, error) {
+	defer logSQL(logger, thisDB, time.Now(), m, query, args...)
+	return thisDB.do.Exec(query, args...)
+}
+
+// proxying this function so as to add functionality - used for the 'RETURNING id'-style insert queries
+func (thisDB *DB) queryRow(logger logging.ILogger, m mask, query string, args ...any) *sql.Row {
+	defer logSQL(logger, thisDB, time.Now(), m, query, args...)
+	return thisDB.do.QueryRow(query, args...)
 }
 
 // shortcut for executing a query and panicking if it fails
-func (thisDB *DB) MustQuery(logger logging.ILogger, query string, args ...any) *sql.Rows {
-	rows, err := thisDB.Query(logger, query, args...)
+func (thisDB *DB) mustQuery(logger logging.ILogger, m mask, query string, args ...any) *sql.Rows {
+	rows, err := thisDB.query(logger, m, query, args...)
 	core.PanicMsgIfErr(err, "Error executing SQL statement: '%s' with args: %+v", query, args)
 	return rows
 }
 
 // shortcut for executing a query and panicking if it fails
-func (thisDB *DB) MustExec(logger logging.ILogger, query string, args ...any) sql.Result {
-	result, err := thisDB.Exec(logger, query, args...)
+func (thisDB *DB) mustExec(logger logging.ILogger, m mask, query string, args ...any) sql.Result {
+	result, err := thisDB.exec(logger, m, query, args...)
 	core.PanicMsgIfErr(err, "Error executing SQL statement: '%s' with args: %+v", query, args)
 	return result
 }
@@ -143,10 +164,18 @@ func (thisServer *server) connectDbSchema(dbSchema *dbconn.DbSchemaConfig) {
 
 	// registration for later use
 	goaldDB := GetDB(dbSchema.Name)
+	goaldDB.do = db
 	goaldDB.get = adapter
 	goaldDB.config = dbSchema
-	goaldDB.DB = db
 
 	// bit of logging
 	thisServer.Info(fmt.Sprintf("Established connection to DB schema '%s' in %s", dbSchema.Name, time.Since(start)))
+}
+
+// ------------------------------------------------------------------------------------------------
+// Misc
+// ------------------------------------------------------------------------------------------------
+
+func DbFor(bObj IBusinessObject) *DB {
+	return modelForName(bObj.GetClassName(bObj)).getInDB()
 }

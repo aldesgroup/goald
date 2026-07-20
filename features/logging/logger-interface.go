@@ -13,6 +13,7 @@ type ILogger interface {
 	Warn(msg string, args ...any)
 	Error(isFatal bool, msg string, args ...any)
 	WithLevel(level slog.Level) ILogger
+	WithPrefix(prefix string) ILogger
 }
 
 type LoggingType string

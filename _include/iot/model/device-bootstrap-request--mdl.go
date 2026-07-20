@@ -29,9 +29,9 @@ var (
 // fully describing each of this class' properties & relationships
 func NewDeviceBootstrapRequestModel() *DeviceBootstrapRequestModel {
 	thisModel := &DeviceBootstrapRequestModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
-	thisModel.factoryCertPem = g.NewStringField(thisModel, "FactoryCertPEM", false)
-	thisModel.payloadB64 = g.NewStringField(thisModel, "PayloadB64", false)
-	thisModel.signatureB64 = g.NewStringField(thisModel, "SignatureB64", false)
+	thisModel.factoryCertPem = g.AddStringField(thisModel, "DeviceBootstrapRequest", "FactoryCertPEM", false)
+	thisModel.payloadB64 = g.AddStringField(thisModel, "DeviceBootstrapRequest", "PayloadB64", false)
+	thisModel.signatureB64 = g.AddStringField(thisModel, "DeviceBootstrapRequest", "SignatureB64", false)
 
 	return thisModel
 }

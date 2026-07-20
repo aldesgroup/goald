@@ -30,10 +30,10 @@ var (
 // fully describing each of this class' properties & relationships
 func NewDeviceBootstrapPayloadModel() *DeviceBootstrapPayloadModel {
 	thisModel := &DeviceBootstrapPayloadModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
-	thisModel.serial = g.NewStringField(thisModel, "Serial", false)
-	thisModel.model = g.NewStringField(thisModel, "Model", false)
-	thisModel.timestamp = g.NewBigIntField(thisModel, "Timestamp", false)
-	thisModel.nonce = g.NewStringField(thisModel, "Nonce", false)
+	thisModel.serial = g.AddStringField(thisModel, "DeviceBootstrapPayload", "Serial", false)
+	thisModel.model = g.AddStringField(thisModel, "DeviceBootstrapPayload", "Model", false)
+	thisModel.timestamp = g.AddBigIntField(thisModel, "DeviceBootstrapPayload", "Timestamp", false)
+	thisModel.nonce = g.AddStringField(thisModel, "DeviceBootstrapPayload", "Nonce", false)
 
 	return thisModel
 }

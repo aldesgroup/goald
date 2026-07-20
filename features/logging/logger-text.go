@@ -36,7 +36,6 @@ func (thisLogger *textLogger) Info(msg string, args ...any) {
 
 func (thisLogger *textLogger) Warn(msg string, args ...any) {
 	thisLogger.Logger.Warn(thisLogger.makePrefix()+msg, args...)
-	slog.Info("")
 }
 
 func (thisLogger *textLogger) Error(isFatal bool, msg string, args ...any) {
@@ -52,6 +51,18 @@ func (thisLogger *textLogger) WithLevel(level slog.Level) ILogger {
 	slog.SetLogLoggerLevel(level)
 
 	return thisLogger
+}
+
+func (thisLogger *textLogger) WithPrefix(prefix string) ILogger {
+	// the underlying *slog.Logger is just slog.Default() here, it doesn't depend on the prefix at all,
+	// so we can reuse it as-is and simply swap the prefix field - no need t@o rebuild anything,
+	// and no need to call WithLevel(), which would needlessly re-trigger the global slog.SetLogLoggerLevel()
+	return &textLogger{
+		Logger:        thisLogger.Logger,
+		prefix:        prefix,
+		level:         thisLogger.level,
+		withFuncNames: thisLogger.withFuncNames,
+	}
 }
 
 func (thisLogger *textLogger) makePrefix() string {

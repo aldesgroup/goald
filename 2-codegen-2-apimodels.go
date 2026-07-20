@@ -1,5 +1,5 @@
 // ------------------------------------------------------------------------------------------------
-// Here is the code used for generating the class files
+// Here is the code used for generating the model files
 // ------------------------------------------------------------------------------------------------
 package goald
 
@@ -11,7 +11,7 @@ import (
 	"time"
 
 	core "github.com/aldesgroup/corego"
-	"github.com/aldesgroup/goald/features/utils"
+	"github.com/aldesgroup/goald/features/reflection"
 )
 
 const modelTEMPLATE = `// Generated file, do not edit!
@@ -75,14 +75,14 @@ func (thisServer *server) generateAllObjectModels(srcdir string, regen bool) (co
 
 	// iterating over each package for which we've already got a registry
 	core.EnsureDir(srcdir, includePATH)
-	for _, modelDirEntry := range core.EnsureReadDir(srcdir, includePATH) {
+	for _, includeDirEntry := range core.EnsureReadDir(srcdir, includePATH) {
 		// if it's not a directory, we skip it
-		if !modelDirEntry.IsDir() || modelDirEntry.Name() == dbFOLDERNAME {
+		if !includeDirEntry.IsDir() || includeDirEntry.Name() == dbFOLDERNAME {
 			continue
 		}
 
 		// where the model files will be generated
-		modelDir := core.EnsureDir(srcdir, includePATH, modelDirEntry.Name(), modelFOLDERxNAME)
+		modelDir := core.EnsureDir(srcdir, includePATH, includeDirEntry.Name(), modelFOLDERxNAME)
 
 		// we'll gather all the existing class files
 		existingModelFiles := map[className]*modelFile{}
@@ -102,7 +102,7 @@ func (thisServer *server) generateAllObjectModels(srcdir string, regen bool) (co
 		for name, class := range classRegistry.items {
 			// considering only the business objects of THIS module
 			// and no interface (at least for now)
-			if class.getModule() == getCurrentModuleName() && class.getPackage() == modelDirEntry.Name() && !class.isInterface() {
+			if class.isFromDir(includeDirEntry.Name()) && !class.isInterface() {
 				// do we need to regen the class file?
 				if existingModel := existingModelFiles[name]; regen ||
 					existingModel == nil || existingModel.modTime.Before(class.getLastBOMod()) {
@@ -128,9 +128,11 @@ func (thisServer *server) generateAllObjectModels(srcdir string, regen bool) (co
 
 		// let's make the registry file import the model package, if it doesn't already
 		if codeChanged {
-			filename := path.Join(srcdir, includePATH, modelDirEntry.Name(), sourceREGISTRYxNAME)
-			modelsImportPath := "_ \"" + path.Join(getCurrentModule(), includePATH, modelDirEntry.Name(), modelFOLDERxNAME) + "\""
-			core.ReplaceInFile(filename, map[string]string{importPLACEHOLDER: modelsImportPath})
+			filename := path.Join(srcdir, includePATH, includeDirEntry.Name(), sourceREGISTRYxNAME)
+			modelsImportPath := "_ \"" + path.Join(getCurrentModule(), includePATH, includeDirEntry.Name(), modelFOLDERxNAME) + "\""
+			if _, line := core.FindLineInFile(filename, func(line string) bool { return strings.Contains(line, "/"+modelFOLDERxNAME) }, false); line == 0 {
+				core.ReplaceInFile(filename, map[string]string{goaldIMPORT: goaldIMPORT + newline + modelsImportPath})
+			}
 		}
 	}
 
@@ -138,7 +140,7 @@ func (thisServer *server) generateAllObjectModels(srcdir string, regen bool) (co
 }
 
 type modelGenerationContext struct {
-	superType     utils.GoaldType
+	superType     reflection.GoaldType
 	propertyNames []string
 	propertiesMap map[string]classGenPropertyInfo
 }
@@ -186,11 +188,11 @@ func (thisServer *server) generateOneModel(modelDir string, class IClass) {
 // this function helps declare 1 property (field or relationship) in the declaration of the model type
 func buildPropDecl(class IClass, context *modelGenerationContext, imports map[string]string) (result string) {
 	// getting the object's type
-	bObjType := utils.TypeOf(class.NewObject(), true)
+	bObjType := reflection.TypeOf(class.NewObject(), true)
 
 	// the very first property, field #0, MUST be the business object's super class
 	superClassField := bObjType.Field(0)
-	if !superClassField.IsAnonymous() || !utils.PointerTo(superClassField.Type()).Implements(typeIxBUSINESSxOBJECT) {
+	if !superClassField.IsAnonymous() || !reflection.PointerTo(superClassField.Type()).Implements(typeIxBUSINESSxOBJECT) {
 		core.PanicMsg("%s: this object's first property should be the BO it inherits from, i.e."+
 			"goald.BusinessObject, or one of its descendants", class.getClassName())
 	}
@@ -241,7 +243,7 @@ func buildPropDecl(class IClass, context *modelGenerationContext, imports map[st
 
 func getImportLineForClass(targetClass IClass) string {
 	targetObject := targetClass.NewObject()                                                                      // e.g. *Object (runtime instance)
-	targetObjType := utils.TypeOf(targetObject, true)                                                            // e.g. Object (runtime type)
+	targetObjType := reflection.TypeOf(targetObject, true)                                                       // e.g. Object (runtime type)
 	targetObjFullPkg := targetObjType.PkgPath()                                                                  // e.g. github.com/aldesgroup/project/group/packagename
 	targetObjGoModule := core.Before(targetObjFullPkg, targetClass.getSrcPath())                                 // e.g. github.com/aldesgroup/project/
 	return fmt.Sprintf("%[1]s_model \"%[2]s_include/%[1]s/model\"", targetClass.getPackage(), targetObjGoModule) // e.g. packagename_model "github.com/aldesgroup/project/_include/packagename"
@@ -302,18 +304,18 @@ func buildPropInit(class IClass, context *modelGenerationContext, imports map[st
 		}
 
 		if propInfo.propType == propertyTypeRELATIONSHIPxMONOM {
-			propLine += fmt.Sprintf("g.NewRelationship(%s, \"%s\", %s, \"%s\")",
-				"thisModel", propName, multiple, propInfo.targetType)
+			propLine += fmt.Sprintf("g.AddRelationship(%s, \"%s\", \"%s\", %s, \"%s\")",
+				"thisModel", clsName, propName, multiple, propInfo.targetType)
 		} else if propInfo.propType == propertyTypeRELATIONSHIPxPOLYM {
-			propLine += fmt.Sprintf("g.NewPolyRelationship(%s, \"%s\", %s)",
-				"thisModel", propName, multiple)
+			propLine += fmt.Sprintf("g.AddPolyRelationship(%s, \"%s\", \"%s\", %s)",
+				"thisModel", clsName, propName, multiple)
 		} else {
 			if propInfo.propType == propertyTypeENUM {
-				propLine += fmt.Sprintf("g.New%s(%s, \"%s\", %s, %s)",
-					getFieldForType(propInfo.propType), "thisModel", propName, multiple, "\""+propInfo.targetType+"\"")
+				propLine += fmt.Sprintf("g.Add%s(%s, \"%s\", \"%s\", %s, %s)",
+					getFieldForType(propInfo.propType), "thisModel", clsName, propName, multiple, "\""+propInfo.targetType+"\"")
 			} else {
-				propLine += fmt.Sprintf("g.New%s(%s, \"%s\", %s)",
-					getFieldForType(propInfo.propType), "thisModel", propName, multiple)
+				propLine += fmt.Sprintf("g.Add%s(%s, \"%s\", \"%s\", %s)",
+					getFieldForType(propInfo.propType), "thisModel", clsName, propName, multiple)
 			}
 		}
 

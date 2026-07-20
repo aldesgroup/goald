@@ -31,11 +31,11 @@ var (
 // fully describing each of this class' properties & relationships
 func NewDeviceBootstrapModel() *DeviceBootstrapModel {
 	thisModel := &DeviceBootstrapModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
-	thisModel.status = g.NewEnumField(thisModel, "Status", false, "iot.BootstrapStatus")
-	thisModel.iotCertPem = g.NewStringField(thisModel, "IotCertPEM", false)
-	thisModel.iotChainPem = g.NewStringField(thisModel, "IotChainPEM", false)
-	thisModel.deviceId = g.NewStringField(thisModel, "DeviceID", false)
-	thisModel.scopeId = g.NewStringField(thisModel, "ScopeID", false)
+	thisModel.status = g.AddEnumField(thisModel, "DeviceBootstrap", "Status", false, "iot.BootstrapStatus")
+	thisModel.iotCertPem = g.AddStringField(thisModel, "DeviceBootstrap", "IotCertPEM", false)
+	thisModel.iotChainPem = g.AddStringField(thisModel, "DeviceBootstrap", "IotChainPEM", false)
+	thisModel.deviceId = g.AddStringField(thisModel, "DeviceBootstrap", "DeviceID", false)
+	thisModel.scopeId = g.AddStringField(thisModel, "DeviceBootstrap", "ScopeID", false)
 
 	return thisModel
 }

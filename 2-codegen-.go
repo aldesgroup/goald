@@ -56,6 +56,8 @@ func (thisServer *server) runCodeGen(cgp *codegenParams) {
 
 		// now, using the models, we can generate useful utils
 		codeChanged := thisServer.generateAllObjectValueMappers(cgp.srcdir, ".", cgp.regen)
+		codeChanged = thisServer.generateAllObjectDAOs(cgp.srcdir, cgp.regen) || codeChanged
+		codeChanged = thisServer.generateAllObjectChecks(cgp.srcdir, ".", cgp.regen) || codeChanged
 
 		// saving the dirty state
 		core.WriteToFile(fmt.Sprintf("%t", codeChanged), cgp.bindir, dirtyFILENAME)

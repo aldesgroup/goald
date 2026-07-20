@@ -31,11 +31,11 @@ var (
 // fully describing each of this class' properties & relationships
 func NewDeviceModel() *DeviceModel {
 	thisModel := &DeviceModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
-	thisModel.status = g.NewEnumField(thisModel, "Status", false, "iot.DeviceStatus")
-	thisModel.statusString = g.NewStringField(thisModel, "StatusString", false)
-	thisModel.model = g.NewStringField(thisModel, "Model", false)
-	thisModel.serial = g.NewStringField(thisModel, "Serial", false)
-	thisModel.associatedUsers = g.NewPolyRelationship(thisModel, "AssociatedUsers", true)
+	thisModel.status = g.AddEnumField(thisModel, "Device", "Status", false, "iot.DeviceStatus")
+	thisModel.statusString = g.AddStringField(thisModel, "Device", "StatusString", false)
+	thisModel.model = g.AddStringField(thisModel, "Device", "Model", false)
+	thisModel.serial = g.AddStringField(thisModel, "Device", "Serial", false)
+	thisModel.associatedUsers = g.AddPolyRelationship(thisModel, "Device", "AssociatedUsers", true)
 
 	return thisModel
 }

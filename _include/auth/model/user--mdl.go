@@ -30,10 +30,10 @@ var (
 // fully describing each of this class' properties & relationships
 func NewUserModel() *UserModel {
 	thisModel := &UserModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
-	thisModel.email = g.NewStringField(thisModel, "Email", false)
-	thisModel.password = g.NewStringField(thisModel, "Password", false)
-	thisModel.firstName = g.NewStringField(thisModel, "FirstName", false)
-	thisModel.lastName = g.NewStringField(thisModel, "LastName", false)
+	thisModel.email = g.AddStringField(thisModel, "User", "Email", false)
+	thisModel.password = g.AddStringField(thisModel, "User", "Password", false)
+	thisModel.firstName = g.AddStringField(thisModel, "User", "FirstName", false)
+	thisModel.lastName = g.AddStringField(thisModel, "User", "LastName", false)
 
 	return thisModel
 }

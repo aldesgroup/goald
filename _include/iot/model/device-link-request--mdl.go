@@ -35,15 +35,15 @@ var (
 // fully describing each of this class' properties & relationships
 func NewDeviceLinkRequestModel() *DeviceLinkRequestModel {
 	thisModel := &DeviceLinkRequestModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
-	thisModel.model = g.NewStringField(thisModel, "Model", false)
-	thisModel.serial = g.NewStringField(thisModel, "Serial", false)
-	thisModel.verificationCode = g.NewStringField(thisModel, "VerificationCode", false)
-	thisModel.userId = g.NewIntField(thisModel, "UserID", false)
-	thisModel.userFullName = g.NewStringField(thisModel, "UserFullName", false)
-	thisModel.users = g.NewPolyRelationship(thisModel, "Users", true)
-	thisModel.mainContact = g.NewPolyRelationship(thisModel, "MainContact", false)
-	thisModel.forWho = g.NewPolyRelationship(thisModel, "ForWho", false)
-	thisModel.enTranslation = g.NewRelationship(thisModel, "ENTranslation", false, "Translation")
+	thisModel.model = g.AddStringField(thisModel, "DeviceLinkRequest", "Model", false)
+	thisModel.serial = g.AddStringField(thisModel, "DeviceLinkRequest", "Serial", false)
+	thisModel.verificationCode = g.AddStringField(thisModel, "DeviceLinkRequest", "VerificationCode", false)
+	thisModel.userId = g.AddIntField(thisModel, "DeviceLinkRequest", "UserID", false)
+	thisModel.userFullName = g.AddStringField(thisModel, "DeviceLinkRequest", "UserFullName", false)
+	thisModel.users = g.AddPolyRelationship(thisModel, "DeviceLinkRequest", "Users", true)
+	thisModel.mainContact = g.AddPolyRelationship(thisModel, "DeviceLinkRequest", "MainContact", false)
+	thisModel.forWho = g.AddPolyRelationship(thisModel, "DeviceLinkRequest", "ForWho", false)
+	thisModel.enTranslation = g.AddRelationship(thisModel, "DeviceLinkRequest", "ENTranslation", false, "Translation")
 
 	return thisModel
 }
