@@ -129,3 +129,94 @@ func (baseDAO *BusinessObjectDAO) ExecBatchInsert(ctx *BatchInsertContext) (map[
 
 	return rowToIDMap, nil
 }
+
+// ------------------------------------------------------------------------------------------------
+// Batch link insert - shared logic reused by every generated DAO's ExecInsertLinksQueries
+// ------------------------------------------------------------------------------------------------
+
+// LinkInsertContext gathers everything that's specific to one relationship's link table, so that all the
+// batching/query-building logic can be shared by every DAO's ExecInsertLinksQueries, instead of being
+// duplicated once per relationship, per model.
+//
+// One LinkInsertContext should be built, and ExecBatchLinkInsert called, for each relationship of the model
+// that's persisted through a link table (see IBusinessObjectModel.getRelationshipsWithLinkTable) - i.e. for
+// relationships owning the link, on the "source" side. E.g. UserGroup.Members is the back-reference of
+// User.MemberOf, so it's User.MemberOf (the source-to-target side) that owns the link table and generates
+// a LinkInsertContext, not UserGroup.Members.
+type LinkInsertContext struct {
+	Table    string                                               // the link table to insert into (including its schema), e.g. "mydb.link__purchase_order__watched_by"
+	Columns  string                                               // the comma-separated column list, as it should appear in the INSERT statement
+	NbCols   int                                                  // the number of columns per row (2, plus 1 more per polymorphic side)
+	BObjs    []IBusinessObject                                    // the (source) business objects being inserted
+	FillRows func(bObj IBusinessObject, addRow func(args ...any)) // called once per source object; should call addRow(...) once per target, with NbCols values
+}
+
+// ExecBatchLinkInsert performs a batched, multi-row insert of all the link rows described by the given
+// context, in batches of 1000 rows, for a single relationship's link table.
+func (baseDAO *BusinessObjectDAO) ExecBatchLinkInsert(ctx *LinkInsertContext) error {
+	// were going to do multiple inserts in batches of 1000, instead of doing one insert per statement
+	const batchSize = 1000
+
+	// gathering all the rows to insert first, since we can't know their number upfront - each source
+	// object may have any number of targets (including none) for this relationship
+	var rows [][]any
+	for _, bObj := range ctx.BObjs {
+		ctx.FillRows(bObj, func(args ...any) {
+			rows = append(rows, args)
+		})
+	}
+
+	// nothing to do if there are no links to persist
+	if len(rows) == 0 {
+		return nil
+	}
+
+	// reusable buffer, sized for the largest possible batch, and reset (not reallocated) at each iteration
+	args := make([]any, batchSize*ctx.NbCols)
+
+	// avoiding a simple string and += operation, which would have the GC work a lot harder
+	var queryBuilder strings.Builder
+
+	for start := 0; start < len(rows); start += batchSize {
+		end := min(start+batchSize, len(rows))
+		batch := rows[start:end]
+
+		// slicing (not reallocating) the reusable buffer down to this batch's exact size
+		batchArgs := args[:len(batch)*ctx.NbCols]
+		queryBuilder.Reset()
+
+		// actual insert query
+		queryBuilder.WriteString("INSERT INTO ")
+		queryBuilder.WriteString(ctx.Table)
+		queryBuilder.WriteString(" (")
+		queryBuilder.WriteString(ctx.Columns)
+		queryBuilder.WriteString(") VALUES ")
+
+		// adding the placeholders for each row, and copying the already-extracted values into the args slice
+		for i, row := range batch {
+			if i > 0 {
+				queryBuilder.WriteString(", ")
+			}
+
+			n := i * ctx.NbCols
+			queryBuilder.WriteByte('(')
+			for c := 1; c <= ctx.NbCols; c++ {
+				if c > 1 {
+					queryBuilder.WriteString(", ")
+				}
+				queryBuilder.WriteByte('$')
+				queryBuilder.WriteString(strconv.Itoa(n + c))
+			}
+			queryBuilder.WriteByte(')')
+
+			copy(batchArgs[n:n+ctx.NbCols], row)
+		}
+
+		// link tables don't have secret columns, so there's no need for a mask here
+		if _, err := baseDAO.Exec(nil, queryBuilder.String(), batchArgs...); err != nil {
+			return ErrorC(err, "Error while inserting link rows into '%s'", ctx.Table)
+		}
+	}
+
+	return nil
+}

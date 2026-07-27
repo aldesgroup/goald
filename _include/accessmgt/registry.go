@@ -9,6 +9,6 @@ import (
 
 func init() {
 	g.In("goald").
-		Register(accessmgt.ClassForUser("features/accessmgt", "2026-07-22T13:06:37+02:00")).
-		Register(accessmgt.ClassForUserGroup("features/accessmgt", "2026-07-22T14:13:39+02:00"))
+		Register(accessmgt.ClassForUser("features/accessmgt", "2026-07-27T13:17:06+02:00")).
+		Register(accessmgt.ClassForUserGroup("features/accessmgt", "2026-07-27T13:17:06+02:00"))
 }

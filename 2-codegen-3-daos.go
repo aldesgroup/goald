@@ -200,6 +200,8 @@ func (thisServer *server) generateOneDAO(srcdir string, dbType string, model IBu
 
 	// adding all the needed DAO methods
 	content += thisServer.generateExecInsertQuery(model)
+	content += "\n\n"
+	content += thisServer.generateExecInsertLinksQueries(model)
 
 	// writing to file
 	core.WriteToFile(content, daoDir, core.PascalToKebab(string(class.getClassName()))+daoFILExSUFFIX)
@@ -296,6 +298,126 @@ func (thisDAO *%[1]sDAO) ExecInsertQuery(bObjs ...goald.IBusinessObject) (map[in
 		argAssignments,               // 6
 		maskPattern,                  // 7
 		nbCols,                       // 8
+	)
+}
+
+// generateExecInsertLinksQueries builds the ExecInsertLinksQueries method for the given model: one
+// ExecBatchLinkInsert call for every relationship of this model that's persisted through a link table -
+// whether this model is on the "source" side (it owns the relationship, e.g. User.MemberOf) or on the
+// "target" side (it only has the back-reference, e.g. UserGroup.Members).
+//
+// Direction matters: the link table's actual column layout (source__..., target__...) is always defined
+// by the owning ("source") relationship. So when generating for the target side (e.g. UserGroup), we
+// still use the source relationship's table/column names, but flip which side supplies "this business
+// object" vs. "each element of the relationship's slice" when building the rows to insert.
+//
+// Every model gets its own ExecInsertLinksQueries, even if it ends up being just 'return nil' - this
+// method is never left to fall back on BusinessObjectDAO's default (which panics), matching how
+// ExecInsertQuery is always generated too.
+func (thisServer *server) generateExecInsertLinksQueries(model IBusinessObjectModel) string {
+	className := model.base().name
+	varName := core.PascalToCamel(string(className))
+	pkg := getClass(model).getPackage()
+
+	var blocks string
+	for _, relationship := range core.GetSortedValues(model.base().relationships) {
+		// the relationship that actually owns the link table, i.e. the "source" side; and whether we're
+		// looking at it from the "target" side (reversed) instead
+		linkRel := relationship
+		reversed := false
+
+		if !relationship.needsLinkTable() {
+			// not persisted at all through a link table, from this model's perspective - either it's a
+			// single-valued / column-based relationship, or it's a back-reference whose source side
+			// doesn't use a link table (e.g. a plain one-to-many via a foreign key)
+			if !relationship.multiple || relationship.backRef == nil || !relationship.backRef.needsLinkTable() {
+				continue
+			}
+
+			linkRel = relationship.backRef
+			reversed = true
+		}
+
+		sourceCol, sourceClsCol := linkRel.getLinkTableSourceColumn()
+		targetCol, targetClsCol := linkRel.getLinkTableTargetColumn()
+
+		// the columns are always given in the table's actual order: source(s) first, then target(s) -
+		// this never changes, regardless of which side we're generating for
+		columns := sourceCol
+		nbCols := 1
+		if sourceClsCol != "" {
+			columns += ", " + sourceClsCol
+			nbCols++
+		}
+		columns += ", " + targetCol
+		nbCols++
+		if targetClsCol != "" {
+			columns += ", " + targetClsCol
+			nbCols++
+		}
+
+		// "own" refers to the business object we're generating this method for; "other" refers to each
+		// element of its relationship slice. Depending on the direction, either one can be the link
+		// table's source or target
+		ownArgs := fmt.Sprintf("%s.GetID()", varName)
+		otherArgs := "target.GetID()"
+		if !reversed {
+			// this business object is the source, the slice elements are the targets
+			if sourceClsCol != "" {
+				ownArgs += fmt.Sprintf(", %[1]s.GetClassName(%[1]s)", varName)
+			}
+			if targetClsCol != "" {
+				otherArgs += ", target.GetClassName(target)"
+			}
+		} else {
+			// this business object is the target, the slice elements are the sources
+			if sourceClsCol != "" {
+				otherArgs += ", target.GetClassName(target)"
+			}
+			if targetClsCol != "" {
+				ownArgs += fmt.Sprintf(", %[1]s.GetClassName(%[1]s)", varName)
+			}
+		}
+
+		// building the addRow(...) call's arguments in the same source-then-target order as the columns
+		addRowArgs := ownArgs + ", " + otherArgs
+		if reversed {
+			addRowArgs = otherArgs + ", " + ownArgs
+		}
+
+		blocks += fmt.Sprintf(`
+	if err := thisDAO.ExecBatchLinkInsert(&goald.LinkInsertContext{
+		Table:   %[2]sDB + `+bq+`.%[5]s`+bq+`,
+		Columns: `+bq+`%[6]s`+bq+`,
+		NbCols:  %[7]d,
+		BObjs:   bObjs,
+		FillRows: func(bObj goald.IBusinessObject, addRow func(args ...any)) {
+			%[2]s := bObj.(*%[3]s.%[1]s)
+			for _, target := range %[2]s.%[4]s {
+				addRow(%[8]s)
+			}
+		},
+	}); err != nil {
+		return err
+	}
+`,
+			className,                  // 1
+			varName,                    // 2
+			pkg,                        // 3
+			relationship.GetName(),     // 4 - the field to iterate, on THIS model
+			linkRel.getLinkTableName(), // 5 - the actual link table, always defined by the source side
+			columns,                    // 6
+			nbCols,                     // 7
+			addRowArgs,                 // 8
+		)
+	}
+
+	return fmt.Sprintf(`// ExecInsertLinksQueries implements [goald.IBusinessObjectDAO].
+func (thisDAO *%[1]sDAO) ExecInsertLinksQueries(bObjs ...goald.IBusinessObject) error {%[2]s
+	return nil
+}`,
+		className, // 1
+		blocks,    // 2
 	)
 }
 

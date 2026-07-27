@@ -106,5 +106,5 @@ func (baseDAO *BusinessObjectDAO) ExecInsertQuery(bObjs ...IBusinessObject) (map
 
 // ExecInsertLinksQueries implements [IBusinessObjectDAO].
 func (baseDAO *BusinessObjectDAO) ExecInsertLinksQueries(bObjs ...IBusinessObject) error {
-	return nil
+	panic("unimplemented")
 }

@@ -29,16 +29,16 @@ func GenericHandleCreate[BOTYPE IBusinessObject](group *EndpointGroup) *oneForOn
 
 			// input is expected to be a pointer to a struct (e.g. *StaffMember)
 			inputVal := reflect.ValueOf(input).Elem()
-			nameField := inputVal.FieldByName("Email")
+			nameField := inputVal.FieldByName("Name")
 
 			for i := 0; i < duplicateCount; i++ {
 				// creating a fresh copy of the underlying struct
 				copyPtr := reflect.New(inputVal.Type())
 				copyPtr.Elem().Set(inputVal)
 
-				// if there's a settable string field called "Email", let's make it unique
+				// if there's a settable string field called "Name", let's make it unique
 				if nameField.IsValid() && nameField.Kind() == reflect.String {
-					copyPtr.Elem().FieldByName("Email").SetString(fmt.Sprintf("%s-%d", nameField.String(), i+1))
+					copyPtr.Elem().FieldByName("Name").SetString(fmt.Sprintf("%s-%d", nameField.String(), i+1))
 				}
 
 				copies[i] = copyPtr.Interface().(BOTYPE)
