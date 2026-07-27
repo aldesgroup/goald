@@ -74,6 +74,13 @@ func NewServer() ServerContext {
 		boModel.resolve()
 	}
 
+	// resolving all the DBs, i.e. knowing their type and configuration, which come from the config file
+	for _, dbConfig := range serverConfig.base().DBServers {
+		for _, dbSchema := range dbConfig.Schemas {
+			server.resolveDbSchema(dbSchema) // ==> no config for Goald !!!!
+		}
+	}
+
 	// running the app in code generation mode, i.e. no server started here - should only be used by devs
 	if cgParams.codegen > 0 {
 		server.runCodeGen(cgParams)
@@ -206,7 +213,7 @@ func (thisServer *server) handleFor(ep iEndpoint) httprouter.Handle {
 var _ BloContext = (*server)(nil)
 
 // BeginTransaction implements [ServerContext].
-func (thisServer *server) BeginTransaction(*DB) (bool, error) {
+func (thisServer *server) BeginTransaction(clsName className) (bool, error) {
 	panic("unimplemented")
 }
 
@@ -221,6 +228,6 @@ func (thisServer *server) IsTransactionStarted() bool {
 }
 
 // DaoFor implements [BloContext].
-func (thisServer *server) DaoFor(bObj IBusinessObject) IBusinessObjectDAO {
+func (thisServer *server) daoFor(clsName className) IBusinessObjectDAO {
 	panic("unimplemented")
 }

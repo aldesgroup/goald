@@ -241,11 +241,14 @@ func buildPropDecl(class IClass, context *modelGenerationContext, imports map[st
 	return
 }
 
-func getImportLineForClass(targetClass IClass) string {
-	targetObject := targetClass.NewObject()                                                                      // e.g. *Object (runtime instance)
-	targetObjType := reflection.TypeOf(targetObject, true)                                                       // e.g. Object (runtime type)
-	targetObjFullPkg := targetObjType.PkgPath()                                                                  // e.g. github.com/aldesgroup/project/group/packagename
-	targetObjGoModule := core.Before(targetObjFullPkg, targetClass.getSrcPath())                                 // e.g. github.com/aldesgroup/project/
+func getImportPackageLine(targetClass IClass) string {
+	targetObject := targetClass.NewObject()                // e.g. *Object (runtime instance)
+	targetObjType := reflection.TypeOf(targetObject, true) // e.g. Object (runtime type)
+	return targetObjType.PkgPath()                         // e.g. github.com/aldesgroup/project/group/packagename
+}
+
+func getImportModelLine(targetClass IClass) string {
+	targetObjGoModule := core.Before(getImportPackageLine(targetClass), targetClass.getSrcPath())                // e.g. github.com/aldesgroup/project/
 	return fmt.Sprintf("%[1]s_model \"%[2]s_include/%[1]s/model\"", targetClass.getPackage(), targetObjGoModule) // e.g. packagename_model "github.com/aldesgroup/project/_include/packagename"
 }
 
@@ -328,13 +331,13 @@ func buildPropInit(class IClass, context *modelGenerationContext, imports map[st
 
 func getImportPkg(imports map[string]string, fromClass IClass, forClsName string) string {
 	clsName := className(forClsName)
-	clsObject := classForName(clsName)
+	clsObject := classForName(clsName, true)
 	clsPkg := clsObject.getPackage()
 	clsMod := clsObject.getModule()
 	superImport := ""
 	if clsMod != getCurrentModuleName() || clsPkg != fromClass.getPackage() {
 		if imports[clsObject.getPackage()] == "" {
-			imports[clsObject.getPackage()] = getImportLineForClass(clsObject) // the needed import
+			imports[clsObject.getPackage()] = getImportModelLine(clsObject) // the needed import
 		}
 		superImport = clsPkg + "_model."
 	}

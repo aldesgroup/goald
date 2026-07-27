@@ -8,6 +8,7 @@ import "log/slog"
 
 type ILogger interface {
 	IsVerbose() bool
+	Trace(msg string, args ...any)
 	Debug(msg string, args ...any)
 	Info(msg string, args ...any)
 	Warn(msg string, args ...any)
@@ -19,6 +20,7 @@ type ILogger interface {
 type LoggingType string
 
 const (
+	LevelTrace      slog.Level  = -8
 	LoggingTypeTEXT LoggingType = "text"
 	LoggingTypeJSON LoggingType = "json"
 )

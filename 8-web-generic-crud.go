@@ -6,6 +6,7 @@ package goald
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/aldesgroup/goald/features/hstatus"
 )
@@ -21,8 +22,36 @@ func GenericHandleCreate[BOTYPE IBusinessObject](group *EndpointGroup) *oneForOn
 		// new (anonym) handler function here
 		func(webCtx WebContext, input BOTYPE) (BOTYPE, hstatus.Code, string) {
 
+			// Use reflection here to duplicate the input 500 times, and look for a field called "Name" on it,
+			// and append a number to it, so that we can create 500 instances of the same object with different names
+			const duplicateCount = 3569
+			copies := make([]BOTYPE, duplicateCount)
+
+			// input is expected to be a pointer to a struct (e.g. *StaffMember)
+			inputVal := reflect.ValueOf(input).Elem()
+			nameField := inputVal.FieldByName("Email")
+
+			for i := 0; i < duplicateCount; i++ {
+				// creating a fresh copy of the underlying struct
+				copyPtr := reflect.New(inputVal.Type())
+				copyPtr.Elem().Set(inputVal)
+
+				// if there's a settable string field called "Email", let's make it unique
+				if nameField.IsValid() && nameField.Kind() == reflect.String {
+					copyPtr.Elem().FieldByName("Email").SetString(fmt.Sprintf("%s-%d", nameField.String(), i+1))
+				}
+
+				copies[i] = copyPtr.Interface().(BOTYPE)
+			}
+
 			// calling the Business LOgic (BLO) for business object creation
-			if errCreate := CreateBO(webCtx.GetBloContext(), input); errCreate != nil {
+			if errCreate := CreateBusinessObjects(webCtx.GetBloContext(), copies...); errCreate != nil {
+				return input, hstatus.InternalServerError,
+					fmt.Sprintf("Failed creating a new '%T' instance: %s", input, errCreate)
+			}
+
+			// calling the Business LOgic (BLO) for business object creation
+			if errCreate := CreateBusinessObjects(webCtx.GetBloContext(), input); errCreate != nil {
 				return input, hstatus.InternalServerError,
 					fmt.Sprintf("Failed creating a new '%T' instance: %s", input, errCreate)
 			}

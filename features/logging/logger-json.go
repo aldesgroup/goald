@@ -1,6 +1,7 @@
 package logging
 
 import (
+	"context"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -23,7 +24,10 @@ var _ ILogger = (*jsonLogger)(nil)
 
 func (thisLogger *jsonLogger) IsVerbose() bool {
 	return thisLogger.level < slog.LevelInfo
+}
 
+func (thisLogger *jsonLogger) Trace(msg string, args ...any) {
+	thisLogger.Logger.Log(context.Background(), LevelTrace, msg, args...)
 }
 
 func (thisLogger *jsonLogger) Error(isFatal bool, msg string, args ...any) {

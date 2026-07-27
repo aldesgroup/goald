@@ -76,11 +76,11 @@ func (thisServer *server) generateOpenAPIDoc(srcdirs []string, docpath string, r
 func (thisServer *server) isWebModelsChanged(docModified time.Time) bool {
 	// going over all the endpoints
 	for _, ep := range restRegistry.endpoints {
-		if classRegistry.items[ep.getResourceClass()].getLastBOMod().After(docModified) {
+		if classForName(ep.getResourceClass(), true).getLastBOMod().After(docModified) {
 			thisServer.Info(fmt.Sprintf("Output model '%s' for endpoint '%s %s' has changed!", ep.getResourceClass(), ep.getMethod(), ep.getLabel()))
 			return true
 		}
-		if inputClass := ep.getInputOrParamsClass(); inputClass != "" && classRegistry.items[inputClass].getLastBOMod().After(docModified) {
+		if inputClass := ep.getInputOrParamsClass(); inputClass != "" && classForName(inputClass, true).getLastBOMod().After(docModified) {
 			thisServer.Info(fmt.Sprintf("Input model '%s' for endpoint '%s %s' has changed!", ep.getResourceClass(), ep.getMethod(), ep.getLabel()))
 			return true
 		}
@@ -309,6 +309,26 @@ func addEndpointToDoc(doc *openapi3.T, ep iEndpoint) error {
 // we'll put all the schemas here, and avoid repeating ourselves
 var schemaCache = map[className]*openapi3.SchemaRef{}
 
+// jsonNameFor returns the JSON property name to use for the given property, honoring an explicit
+// `json:"name"` struct tag if present (dropping any options like `,omitempty`), and falling back
+// to a camelCase conversion of the property's Go field name otherwise. ok is false when the
+// property is explicitly excluded from JSON via a `json:"-"` tag, in which case it should be
+// skipped entirely rather than falling back to a generated name.
+func jsonNameFor(prop IBusinessObjectProperty) (name string, ok bool) {
+	jsonTag := prop.getTag("json")
+	if jsonTag == "-" {
+		return "", false
+	}
+
+	if jsonTag != "" {
+		if tagName, _, _ := strings.Cut(jsonTag, ","); tagName != "" {
+			return tagName, true
+		}
+	}
+
+	return core.PascalToCamel(prop.GetName()), true
+}
+
 // getting a schema REF for a given class, initializing it if needed
 func getSchemaRef(doc *openapi3.T, clsName className) (*openapi3.SchemaRef, error) {
 	// fast returning if possible
@@ -339,7 +359,6 @@ func getSchemaRef(doc *openapi3.T, clsName className) (*openapi3.SchemaRef, erro
 
 // building a schema for the given business object model
 func schemaFromModel(doc *openapi3.T, model IBusinessObjectModel) *openapi3.Schema {
-
 	// new schema
 	schema := &openapi3.Schema{
 		Type:        &openapi3.Types{"object"},
@@ -349,7 +368,11 @@ func schemaFromModel(doc *openapi3.T, model IBusinessObjectModel) *openapi3.Sche
 
 	// going over the basic properties, i.e. the fields
 	for _, field := range core.GetSortedValues(model.base().fields) {
-		fieldJSONName := core.PascalToCamel(field.GetName())
+		fieldJSONName, ok := jsonNameFor(field)
+		if !ok {
+			// this field is explicitly excluded from JSON (json:"-"), so it has no place in the schema
+			continue
+		}
 
 		var prop *openapi3.SchemaRef = schemaFromPrimitiveType(field, true)
 
@@ -366,12 +389,16 @@ func schemaFromModel(doc *openapi3.T, model IBusinessObjectModel) *openapi3.Sche
 
 	// going over the relationships, i.e. the object-type properties
 	for _, relationship := range core.GetSortedValues(model.base().relationships) {
-		relationshipJSONName := core.PascalToCamel(relationship.GetName())
+		relationshipJSONName, ok := jsonNameFor(relationship)
+		if !ok {
+			// this relationship is explicitly excluded from JSON (json:"-"), so it has no place in the schema
+			continue
+		}
 
-		if !relationship.IsPolymorphic() || len(relationship.targetNames) == 1 {
+		if !relationship.IsPolymorphic() || len(relationship.getTargetClassNames()) == 1 {
 
 			// getting the schema REF for the relationship target
-			prop, errRef := getSchemaRef(doc, relationship.targetNames[0])
+			prop, errRef := getSchemaRef(doc, relationship.getUniqueTargetName())
 			core.PanicMsgIfErr(errRef, "Error while getting schema ref for relationship '%s#%s'",
 				model.base().name, relationship.GetName())
 
@@ -399,11 +426,11 @@ func schemaFromModel(doc *openapi3.T, model IBusinessObjectModel) *openapi3.Sche
 				},
 			}
 
-			if len(relationship.getTargetNames()) == 0 {
+			if len(relationship.getTargetClassNames()) == 0 {
 				core.PanicMsg("Polymorphic relationship '%s#%s' does not have any target model", model.base().name, relationship.GetName())
 			}
 
-			for _, targetName := range relationship.targetNames {
+			for _, targetName := range relationship.getTargetClassNames() {
 				prop, errRef := getSchemaRef(doc, targetName)
 				core.PanicMsgIfErr(errRef, "Error while getting schema ref for relationship '%s#%s'",
 					model.base().name, relationship.GetName())

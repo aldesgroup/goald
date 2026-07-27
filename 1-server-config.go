@@ -49,7 +49,7 @@ type serverConfig struct {
 		// tech props
 		resolvedLogLevel slog.Level
 	}
-	DBServers   map[string]*dbconn.DbConfig
+	DBServers   map[string]*dbconn.DbServerConfig
 	DataLoaders map[string]map[string]string
 	Version     string
 
@@ -98,6 +98,8 @@ func readAndCheckConfig(fromPath string) IServerConfig {
 	core.PanicMsgIf(config.Logging == nil, "No \"Logging\" section configured!")
 	config.Logging.resolvedLogLevel = slog.LevelInfo
 	switch strings.ToUpper(config.Logging.Level) {
+	case "TRACE":
+		config.Logging.resolvedLogLevel = logging.LevelTrace
 	case slog.LevelDebug.String():
 		config.Logging.resolvedLogLevel = slog.LevelDebug
 	case slog.LevelInfo.String():
@@ -116,25 +118,25 @@ func readAndCheckConfig(fromPath string) IServerConfig {
 	}
 
 	// controlling the DB servers
-	for dbID, dbConfig := range config.DBServers {
-		if dbConfig.Type == "" {
+	for dbID, dbServer := range config.DBServers {
+		if dbServer.Type == "" {
 			core.PanicMsg("DB server '%s' has no type defined", dbID)
 		}
-		if !core.InSlice(allDbTypes, dbConfig.Type) {
-			core.PanicMsg("DB server '%s' has an invalid type '%s'", dbID, dbConfig.Type)
+		if !core.InSlice(allDbTypes, dbServer.Type) {
+			core.PanicMsg("DB server '%s' has an invalid type '%s'", dbID, dbServer.Type)
 		}
-		if dbConfig.Host == "" {
+		if dbServer.Host == "" {
 			core.PanicMsg("DB server '%s' has no host defined", dbID)
 		}
-		if dbConfig.Port <= 0 {
+		if dbServer.Port <= 0 {
 			core.PanicMsg("DB server '%s' has no port defined", dbID)
 		}
-		if dbConfig.Database == "" {
+		if dbServer.Database == "" {
 			core.PanicMsg("DB server '%s' has no database name defined", dbID)
 		}
-		for schemaName, schemaConfig := range dbConfig.Schemas {
+		for schemaName, schemaConfig := range dbServer.Schemas {
 			schemaConfig.Name = schemaName
-			schemaConfig.DbConfig = dbConfig
+			schemaConfig.DbServer = dbServer
 		}
 	}
 

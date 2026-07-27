@@ -44,10 +44,7 @@ func unmarshalBObj(data []byte, clsName className, bObj any) error {
 		return err
 	}
 
-	class := classRegistry.items[clsName]
-	if class == nil {
-		return Error("No '%s' class has been registered!", clsName)
-	}
+	class := classForName(clsName, true)
 
 	for _, relationship := range model.base().relationships {
 		jsonName := core.PascalToCamel(relationship.GetName())
@@ -122,7 +119,7 @@ func unmarshalRelationshipTarget(relationship *Relationship, rawVal json.RawMess
 
 		targetClsName = className(discriminator.Class)
 	} else {
-		targetNames := relationship.getTargetNames()
+		targetNames := relationship.getTargetClassNames()
 		if len(targetNames) == 0 {
 			return nil, Error("Relationship '%s' has no target class", relationship.GetName())
 		}
@@ -130,10 +127,7 @@ func unmarshalRelationshipTarget(relationship *Relationship, rawVal json.RawMess
 		targetClsName = targetNames[0]
 	}
 
-	targetClass := classRegistry.items[targetClsName]
-	if targetClass == nil {
-		return nil, Error("No '%s' class has been registered!", targetClsName)
-	}
+	targetClass := classForName(targetClsName, true)
 
 	target := targetClass.NewObject()
 	if err := unmarshalBObj(rawVal, targetClsName, target); err != nil {

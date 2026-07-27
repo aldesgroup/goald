@@ -3,12 +3,12 @@ package class
 
 import (
 	"github.com/aldesgroup/goald"
-	"github.com/aldesgroup/goald/features/auth"
+	"github.com/aldesgroup/goald/features/accessmgt"
 )
 
 // checking a business object's general validity
 func (thisClass *UserClass) IsModelValid(bObj goald.IBusinessObject) error {
-	bo := bObj.(*auth.User)
+	bo := bObj.(*accessmgt.User)
 
 	if bo.Email == "" {
 		return goald.Error("'Email' is mandatory and must have a non-zero value")

@@ -8,7 +8,7 @@ import (
 	"github.com/aldesgroup/goald/features/dbconn"
 )
 
-func (thisServer *server) initDbServer(dbConfig *dbconn.DbConfig) {
+func (thisServer *server) initDbServer(dbConfig *dbconn.DbServerConfig) {
 	// getting the DB adapter for this DB type
 	adapter := getDbAdapter(dbConfig.Type)
 

@@ -71,17 +71,17 @@ func (thisServer *server) migrateDBs() {
 	// first, checking that all the models that should be persisted have their respective DB (schema) ready
 	for _, model := range modelRegistry.items {
 		if !model.base().abstract && !model.isNotPersisted() {
-			if model.getInDB() == nil {
+			if model.getDB() == nil {
 				core.PanicMsg("Model '%s' is persisted and yet it's not associated with a DB", model.base().name)
 			}
-			if model.getInDB().do == nil {
-				core.PanicMsg("Model '%s' is persisted and yet it's DB '%s' is not initialized", model.base().name, model.getInDB().config.Name)
+			if model.getDB().do == nil {
+				core.PanicMsg("Model '%s' is persisted and yet it's DB '%s' is not initialized", model.base().name, model.getDB().name)
 			}
 
-			if modelsInAnyDB[model.getInDB().config.Name] == nil {
-				modelsInAnyDB[model.getInDB().config.Name] = map[className]IBusinessObjectModel{}
+			if modelsInAnyDB[model.getDB().schema.Name] == nil {
+				modelsInAnyDB[model.getDB().schema.Name] = map[className]IBusinessObjectModel{}
 			}
-			modelsInAnyDB[model.getInDB().config.Name][model.base().name] = model
+			modelsInAnyDB[model.getDB().schema.Name][model.base().name] = model
 		}
 	}
 
@@ -91,36 +91,36 @@ func (thisServer *server) migrateDBs() {
 	tablesInAnyDB := map[dbconn.DbSchemaName][]string{}
 	columnsInAnyDB := map[dbconn.DbSchemaName]map[string]map[string]*tableColumnInfo{}
 	for _, db := range allDBs {
-		thisServer.Info(fmt.Sprintf("Auto-migrating the '%s' DB", db.config.Name))
+		thisServer.Info(fmt.Sprintf("Auto-migrating the '%s' DB", db.schema.Name))
 
 		// getting all the classes associated with the current DB
-		modelsForThisDB := modelsInAnyDB[db.config.Name]
+		modelsForThisDB := modelsInAnyDB[db.schema.Name]
 		thisServer.Debug(fmt.Sprintf("Existing classes: %+v\n", core.GetSortedKeys(modelsForThisDB)))
 
 		// getting the names of the tables existing in the current DB
 		tablesInThisDB := thisServer.getTableNames(db)
-		tablesInAnyDB[db.config.Name] = tablesInThisDB
+		tablesInAnyDB[db.schema.Name] = tablesInThisDB
 		thisServer.Debug(fmt.Sprintf("Existing tables: %+v\n", tablesInThisDB))
 
 		// creating the missing structures in the DB, without touching the data
-		newTables[db.config.Name] = thisServer.createMissingTables(db, modelsForThisDB, tablesInThisDB)
+		newTables[db.schema.Name] = thisServer.createMissingTables(db, modelsForThisDB, tablesInThisDB)
 		columnsInThisDB := thisServer.getTableColumns(db)
-		columnsInAnyDB[db.config.Name] = columnsInThisDB
+		columnsInAnyDB[db.schema.Name] = columnsInThisDB
 		thisServer.createMissingColumns(db, modelsForThisDB, columnsInThisDB)
 	}
 
 	// granting rights to the users on the tables
 	for _, db := range allDBs {
-		if newTables[db.config.Name] {
-			db.mustExec(thisServer, nil, db.get.GrantAllPrivilegesOnSchemaQuery(db.config.Name, db.config.User))
+		if newTables[db.schema.Name] {
+			db.mustExec(thisServer, nil, db.get.GrantAllPrivilegesOnSchemaQuery(db.schema.Name, db.schema.User))
 		}
 
-		for otherUser, access := range db.config.Access {
+		for otherUser, access := range db.schema.Access {
 			switch access {
 			case dbconn.SchemaAccessWRITE:
-				db.mustExec(thisServer, nil, db.get.GrantAllPrivilegesOnSchemaQuery(db.config.Name, otherUser))
+				db.mustExec(thisServer, nil, db.get.GrantAllPrivilegesOnSchemaQuery(db.schema.Name, otherUser))
 			case dbconn.SchemaAccessREAD:
-				db.mustExec(thisServer, nil, db.get.GrantReadOnSchemaQuery(db.config.Name, otherUser))
+				db.mustExec(thisServer, nil, db.get.GrantReadOnSchemaQuery(db.schema.Name, otherUser))
 			default:
 				panic(fmt.Sprintf("Unknown access type '%s' for user '%s'", access, otherUser))
 			}
@@ -129,9 +129,9 @@ func (thisServer *server) migrateDBs() {
 
 	// now, adding the missing features accross the DBs, that require the knowledge of all the DBs and their models
 	for _, db := range allDBs {
-		modelsForThisDB := modelsInAnyDB[db.config.Name]
-		tablesInThisDB := tablesInAnyDB[db.config.Name]
-		columnsInThisDB := columnsInAnyDB[db.config.Name]
+		modelsForThisDB := modelsInAnyDB[db.schema.Name]
+		tablesInThisDB := tablesInAnyDB[db.schema.Name]
+		columnsInThisDB := columnsInAnyDB[db.schema.Name]
 
 		// handling relationships
 		thisServer.createMissingForeignKeys(db, modelsForThisDB)
@@ -181,7 +181,7 @@ func (thisServer *server) createMissingTables(db *DB, modelsForThisDB map[classN
 		if !strings.HasPrefix(existingTable, prefixLINK) && !core.InSlice(requiredTables, existingTable) {
 			thisServer.Warn(fmt.Sprintf("Table '%[1]s.%[2]s' might not be used; "+
 				"you may consider running SQL command (ONLY IF NO ONE ELSE USES IT!): DROP TABLE %[1]s.%[2]s;",
-				db.config.Name, existingTable))
+				db.schema.Name, existingTable))
 		}
 	}
 
@@ -190,7 +190,7 @@ func (thisServer *server) createMissingTables(db *DB, modelsForThisDB map[classN
 
 // getTableNames fetches the table names from the APP DB
 func (thisServer *server) getTableNames(db *DB) []string {
-	return db.FetchStringColumn(thisServer, true, nil, db.get.TablesQuery(), db.config.Name)
+	return db.FetchStringColumn(thisServer, true, nil, db.get.TablesQuery(), db.schema.Name)
 }
 
 // createMissingTable creates the missing table corresponding to the given BO model
@@ -236,7 +236,7 @@ func (thisServer *server) getTableColumns(db *DB) map[string]map[string]*tableCo
 	tableColumns := map[string]map[string]*tableColumnInfo{}
 
 	// querying the DB for the columns info
-	rows := db.mustQuery(thisServer, nil, db.get.ColumnsQuery(), db.config.Name)
+	rows := db.mustQuery(thisServer, nil, db.get.ColumnsQuery(), db.schema.Name)
 
 	// we should always be sure to close this when exiting this function
 	defer func() {
@@ -345,7 +345,7 @@ func (thisServer *server) createMissingColumns(db *DB, modelsForThisDB map[class
 			// we consider removing columns that do not seem to be required
 			if !core.InSlice(requiredColumnNames, columnName) {
 				thisServer.Warn(fmt.Sprintf("Column '%s' might not be used anymore; you may consider running SQL command: ALTER TABLE %s.%s DROP COLUMN %s;",
-					columnName, db.config.Name, columnInfo.tableName, columnName))
+					columnName, db.schema.Name, columnInfo.tableName, columnName))
 			}
 		}
 	}
@@ -354,7 +354,7 @@ func (thisServer *server) createMissingColumns(db *DB, modelsForThisDB map[class
 // createMissingForeignKeys create the missing foreign keys linking the tables to each other
 func (thisServer *server) createMissingForeignKeys(db *DB, modelsForThisDB map[className]IBusinessObjectModel) {
 	// first, we need to know which foreign keys already exist
-	foreignKeysInThisDB := db.FetchStringMap(thisServer, true, nil, db.get.ForeignKeysQuery(prefixFK), db.config.Name)
+	foreignKeysInThisDB := db.FetchStringMap(thisServer, true, nil, db.get.ForeignKeysQuery(prefixFK), db.schema.Name)
 
 	// listing all the needed foreign key names, to help us identify the dead ones
 	requiredForeignKeyNames := map[string]*Relationship{}
@@ -421,6 +421,9 @@ func (thisServer *server) createMissingLinkTables(db *DB, modelsForThisDB map[cl
 	// listing all the needed link table names, to help us identify the dead tables
 	var requiredLinkTableNames []string
 
+	// listing the link tables already dealt with, to avoid creating them twice in case of a polymorphic relationship
+	createdLinkTables := map[string]bool{}
+
 	// iterating over all the BO models, and creating the missing link tables if needed
 	for _, model := range modelsForThisDB {
 
@@ -434,55 +437,60 @@ func (thisServer *server) createMissingLinkTables(db *DB, modelsForThisDB map[cl
 			requiredLinkTableNames = append(requiredLinkTableNames, linkTableName)
 
 			// checking the existence, and creating the table if needed
-			if !core.InSlice(tablesInThisDB, linkTableName) {
+			if !core.InSlice(tablesInThisDB, linkTableName) && !createdLinkTables[linkTableName] {
 				// getting the column names for the current link table
-				sourceColumnName := relationship.getLinkTableSourceColumn()
+				sourceColumnName, sourceClassColumnName := relationship.getLinkTableSourceColumn()
 				targetColumnName, targetClassColumnName := relationship.getLinkTableTargetColumn()
 
-				// the SQL request allowing to create the missing link table
-				var createQuery string
-				if !relationship.IsPolymorphic() {
-					createQuery = fmt.Sprintf(`
-CREATE TABLE IF NOT EXISTS %[1]s.%[2]s (
-	%[3]s BIGINT NOT NULL,
-	%[4]s BIGINT NOT NULL,
-	CONSTRAINT %[7]s%[2]s PRIMARY KEY (%[3]s, %[4]s),
-	CONSTRAINT %[8]s%[3]s FOREIGN KEY (%[3]s) REFERENCES %[5]s(id),
-	CONSTRAINT %[8]s%[4]s FOREIGN KEY (%[4]s) REFERENCES %[6]s(id)
-	)`,
-						db.config.Name,           // 1
-						linkTableName,            // 2
-						sourceColumnName,         // 3
-						targetColumnName,         // 4
-						model.getTableName(true), // 5
-						relationship.getUniqueTargetModel().getTableName(true), // 6
-						prefixPK, // 7
-						prefixFK, // 8
-					)
+				// do we need to handle polymorphism?
+				polymSource := relationship.backRef != nil && relationship.backRef.IsPolymorphic()
+				polymTarget := relationship.IsPolymorphic()
 
-					// things are a bit different with a polymorphic relationship
-				} else {
-					createQuery = fmt.Sprintf(`
-CREATE TABLE IF NOT EXISTS %[1]s.%[2]s (
-	%[3]s BIGINT NOT NULL,
-	%[4]s BIGINT NOT NULL,
-	%[6]s VARCHAR(48) NOT NULL,
-	CONSTRAINT %[7]s%[2]s PRIMARY KEY (%[3]s, %[4]s),
-	CONSTRAINT %[8]s%[3]s FOREIGN KEY (%[3]s) REFERENCES %[5]s(id)
-	)`,
-						db.config.Name,           // 1
-						linkTableName,            // 2
-						sourceColumnName,         // 3
-						targetColumnName,         // 4
-						model.getTableName(true), // 5
-						targetClassColumnName,    // 6
-						prefixPK,                 // 7
-						prefixFK,                 // 8
-					)
+				// the SQL request allowing to create the missing link table
+				createQuery := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s.%s (", db.schema.Name, linkTableName)
+
+				// the link table columns
+				createQuery += fmt.Sprintf("%s BIGINT NOT NULL", sourceColumnName)
+				if polymSource {
+					createQuery += fmt.Sprintf(", %s VARCHAR(48) NOT NULL", sourceClassColumnName)
 				}
+				createQuery += fmt.Sprintf(", %s BIGINT NOT NULL", targetColumnName)
+				if polymTarget {
+					createQuery += fmt.Sprintf(", %s VARCHAR(48) NOT NULL", targetClassColumnName)
+				}
+
+				// the PK elements
+				pkElements := []string{}
+				pkElements = append(pkElements, sourceColumnName)
+				if polymSource {
+					pkElements = append(pkElements, sourceClassColumnName)
+				}
+				pkElements = append(pkElements, targetColumnName)
+				if polymTarget {
+					pkElements = append(pkElements, targetClassColumnName)
+				}
+
+				// the primary key constraint
+				createQuery += fmt.Sprintf(", CONSTRAINT %s%s PRIMARY KEY (%s)", prefixPK, linkTableName, strings.Join(pkElements, ", "))
+
+				// the foreign key constraints - only in non-polymorphic cases, as we do not have 1 target table to point to in polymorphic cases
+				if !polymSource {
+					createQuery += fmt.Sprintf(", CONSTRAINT %s%s FOREIGN KEY (%s) REFERENCES %s(id)",
+						prefixFK, sourceColumnName, sourceColumnName, model.getTableName(true))
+				}
+				if !polymTarget {
+					createQuery += fmt.Sprintf(", CONSTRAINT %s%s FOREIGN KEY (%s) REFERENCES %s(id)",
+						prefixFK, targetColumnName, targetColumnName, relationship.getUniqueTargetModel().getTableName(true))
+				}
+
+				// closing the query
+				createQuery += ")"
 
 				// executing the query
 				db.mustExec(thisServer, nil, createQuery)
+
+				// marking this link table as created, to avoid creating it twice in case of a polymorphic relationship
+				createdLinkTables[linkTableName] = true
 			}
 		}
 	}
@@ -490,7 +498,7 @@ CREATE TABLE IF NOT EXISTS %[1]s.%[2]s (
 	// now, logging about the link tables that exist, but are not required, to help the dev do some cleaning
 	for _, tableInDB := range tablesInThisDB {
 		if strings.HasPrefix(tableInDB, prefixLINK) && !core.InSlice(requiredLinkTableNames, tableInDB) {
-			thisServer.Warn(fmt.Sprintf("Link table '%s' might not be used; you may consider running SQL command: 'DROP TABLE %s.%s;'", tableInDB, db.config.Name, tableInDB))
+			thisServer.Warn(fmt.Sprintf("Link table '%s' might not be used; you may consider running SQL command: 'DROP TABLE %s.%s;'", tableInDB, db.schema.Name, tableInDB))
 		}
 	}
 }
@@ -498,7 +506,7 @@ CREATE TABLE IF NOT EXISTS %[1]s.%[2]s (
 // createMissingSingleUniqueConstraints create the missing UNIQUE constraints
 func (thisServer *server) createMissingSingleUniqueConstraints(db *DB, modelsForThisDB map[className]IBusinessObjectModel) {
 	// getting the existing UNIQUE constraints
-	uniqueConstraintsInThisDB := db.FetchStringMap(thisServer, true, nil, db.get.UniqueConstraintsQuery(prefixUK), db.config.Name)
+	uniqueConstraintsInThisDB := db.FetchStringMap(thisServer, true, nil, db.get.UniqueConstraintsQuery(prefixUK), db.schema.Name)
 
 	// listing all the needed unique constraints, to help us identify the dead constraints
 	requiredUniqueConstraints := []string{}
@@ -533,7 +541,7 @@ func (thisServer *server) createMissingSingleUniqueConstraints(db *DB, modelsFor
 		// we consider removing unique constraints, and that do not seem to be required
 		if !core.InSlice(requiredUniqueConstraints, uniqueConstraintInThisDB) {
 			// the SQL request allowing to remove the missing UNIQUE constraints
-			alterQuery := fmt.Sprintf("ALTER TABLE %s.%s DROP CONSTRAINT %s", db.config.Name, tableName, uniqueConstraintInThisDB)
+			alterQuery := fmt.Sprintf("ALTER TABLE %s.%s DROP CONSTRAINT %s", db.schema.Name, tableName, uniqueConstraintInThisDB)
 			//
 			// executing the query
 			db.mustExec(thisServer, nil, alterQuery)
@@ -544,7 +552,7 @@ func (thisServer *server) createMissingSingleUniqueConstraints(db *DB, modelsFor
 // createMissingCompositeUniqueConstraints create the missing UNIQUE constraints
 func (thisServer *server) createMissingCompositeUniqueConstraints(db *DB, modelsForThisDB map[className]IBusinessObjectModel) {
 	// getting the existing COMPOSITE UNIQUE constraints
-	compositeConstraintsInThisDB := db.FetchStringMap(thisServer, true, nil, db.get.UniqueConstraintsQuery(prefixCK), db.config.Name) // note the different prefix here
+	compositeConstraintsInThisDB := db.FetchStringMap(thisServer, true, nil, db.get.UniqueConstraintsQuery(prefixCK), db.schema.Name) // note the different prefix here
 
 	// listing all the needed composite constraints, to help us identify the dead constraints
 	requiredCompositeConstraints := []string{}
@@ -585,7 +593,7 @@ func (thisServer *server) createMissingCompositeUniqueConstraints(db *DB, models
 		// we consider removing composite unique constraints, and that do not seem to be required
 		if !core.InSlice(requiredCompositeConstraints, compositeConstraintName) {
 			// the SQL request allowing to remove the missing UNIQUE constraints
-			alterQuery := fmt.Sprintf("ALTER TABLE %s.%s DROP CONSTRAINT %s", db.config.Name, tableName, compositeConstraintName)
+			alterQuery := fmt.Sprintf("ALTER TABLE %s.%s DROP CONSTRAINT %s", db.schema.Name, tableName, compositeConstraintName)
 
 			// executing the query
 			db.mustExec(thisServer, nil, alterQuery)

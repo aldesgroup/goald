@@ -174,8 +174,8 @@ func (m *moduleClassRegitry) Register(class IClass) *moduleClassRegitry {
 	return m
 }
 
-func classForName(clsName className) IClass {
-	if classRegistry.items[clsName] == nil {
+func classForName(clsName className, failIfNil bool) IClass {
+	if classRegistry.items[clsName] == nil && failIfNil {
 		panic(fmt.Sprintf("It looks like no class named '%s' has been registered, "+
 			"i.e. its package has probably not been 'included', i.e. imported in the start.go file,"+
 			" like this: import _ \"module_full_name/_include/package_name\"", clsName))
@@ -185,7 +185,7 @@ func classForName(clsName className) IClass {
 
 // 1 Class for 1 Business Object Model
 func getClass(model IBusinessObjectModel) IClass {
-	return classForName(model.base().name)
+	return classForName(model.base().name, true)
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -355,7 +355,7 @@ func RegisterDAO(clsName className, dao IBusinessObjectDAO) IBusinessObjectDAO {
 	return dao
 }
 
-func newDaoForClass(clsName className) IBusinessObjectDAO {
+func newDaoFor(clsName className) IBusinessObjectDAO {
 	daoRegistry.mx.Lock()
 	defer daoRegistry.mx.Unlock()
 
@@ -364,9 +364,6 @@ func newDaoForClass(clsName className) IBusinessObjectDAO {
 		panic(fmt.Sprintf("No DAO found for class '%s'", clsName))
 	}
 
+	// a DAO is somehow its own factory
 	return dao.NewDAO()
-}
-
-func newDaoFor(bObj IBusinessObject) IBusinessObjectDAO {
-	return newDaoForClass(bObj.GetClassName(bObj))
 }

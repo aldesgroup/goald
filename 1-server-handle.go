@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"runtime/debug"
+	"strconv"
+	"time"
 
 	core "github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald/features/hstatus"
@@ -22,6 +24,7 @@ import (
 // TODO handle patching BOs with safeguards, like authorizing a limited list of fields (on the class for instance)
 
 func (thisServer *server) ServeEndpoint(ep iEndpoint, w http.ResponseWriter, req *http.Request, params r.Params) {
+
 	var reqCtx *httpRequestContext
 
 	// Protecting against panics
@@ -59,10 +62,10 @@ func (thisServer *server) ServeEndpoint(ep iEndpoint, w http.ResponseWriter, req
 		ILogger: thisServer.ILogger.WithPrefix(
 			fmt.Sprintf("%s|%06d", thisServer.instance, reqNum),
 		),
+		start: time.Now(),
 	}
 
 	reqCtx.serve(ep, w, req, params)
-
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -159,6 +162,13 @@ func (thisReqCtx *httpRequestContext) serve(ep iEndpoint, w http.ResponseWriter,
 	}
 
 End:
+	// bit of logging
+	if resp.statusObj.Val() > hstatus.BadRequest.Val() {
+		webCtx.Error(false, strconv.Itoa(resp.statusObj.Val())+": "+resp.Message+", in "+time.Since(thisReqCtx.start).String())
+	} else {
+		webCtx.Info(strconv.Itoa(resp.statusObj.Val()) + ": " + resp.Message + ", in " + time.Since(thisReqCtx.start).String())
+	}
+
 	// writing out the response
 	thisReqCtx.write(resp, w)
 }
@@ -212,10 +222,7 @@ func retrieveInputData(request *http.Request, webContext *webContextImpl, ep iEn
 
 	if ep.isMultipleInput() {
 		// Handling array of bObj input: []*package.BObj
-		bObjClass := classRegistry.items[ep.getInputOrParamsClass()]
-		if bObjClass == nil {
-			return nil, Error("No '%s' class has been registered!", ep.getInputOrParamsClass())
-		}
+		bObjClass := classForName(ep.getInputOrParamsClass(), true)
 		bObjSlice := bObjClass.NewSlice()
 
 		// Unmarshaling *[]*package.BObj as an interface - which is expected by the Unmarshal function
@@ -228,10 +235,7 @@ func retrieveInputData(request *http.Request, webContext *webContextImpl, ep iEn
 
 	} else {
 		// Handling single bObj input: *package.BObj
-		bObjClass := classRegistry.items[ep.getInputOrParamsClass()]
-		if bObjClass == nil {
-			return nil, Error("No '%s' class has been registered!", ep.getInputOrParamsClass())
-		}
+		bObjClass := classForName(ep.getInputOrParamsClass(), true)
 		bObj := bObjClass.NewObject()
 
 		if jsonErr := unmarshalBObj(inputBodyBytes, ep.getInputOrParamsClass(), bObj); jsonErr != nil {
@@ -245,7 +249,7 @@ func retrieveInputData(request *http.Request, webContext *webContextImpl, ep iEn
 // parsing the request's URL to build the expected URLQueryParams object
 func retrieveURLParams(request *http.Request, _ *webContextImpl, ep iEndpoint) (any, error) {
 	// getting the right class utils
-	urlParamsClass := classRegistry.items[ep.getInputOrParamsClass()]
+	urlParamsClass := classForName(ep.getInputOrParamsClass(), true)
 
 	// new URLQueryParams object
 	urlParams := urlParamsClass.NewObject().(IURLQueryParams)

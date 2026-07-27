@@ -29,3 +29,30 @@ func (thisClass *TranslationUrlParamsClass) SetValueAsString(bo goald.IBusinessO
 
 	return goald.Error("Unknown property: %T.%s", bo, propertyName)
 }
+
+// setting a single-valued relationship's target, given the relationship's name, without using reflection
+func (thisClass *TranslationUrlParamsClass) SetRelationshipValue(bo goald.IBusinessObject, relationshipName string, value goald.IBusinessObject) error {
+	switch relationshipName {
+
+	}
+
+	return goald.Error("Unknown or non-single-valued relationship: %T.%s", bo, relationshipName)
+}
+
+// appending a target to a multi-valued relationship, given the relationship's name, without using reflection
+func (thisClass *TranslationUrlParamsClass) AddRelationshipValue(bo goald.IBusinessObject, relationshipName string, value goald.IBusinessObject) error {
+	switch relationshipName {
+
+	}
+
+	return goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+}
+
+// resetting a multi-valued relationship to an empty slice, given the relationship's name, without using reflection
+func (thisClass *TranslationUrlParamsClass) ClearRelationshipValue(bo goald.IBusinessObject, relationshipName string) error {
+	switch relationshipName {
+
+	}
+
+	return goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+}

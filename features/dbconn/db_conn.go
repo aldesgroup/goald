@@ -8,7 +8,7 @@ type DatabaseType string
 type DbSchemaName string
 type DbUserName string
 
-type DbConfig struct {
+type DbServerConfig struct {
 	Type     DatabaseType
 	Host     string
 	Port     int
@@ -29,9 +29,11 @@ const (
 )
 
 type DbSchemaConfig struct {
-	Name     DbSchemaName
-	User     DbUserName
-	Pass     string
-	Access   map[DbUserName]schemaAccessType // access to this schema for other users (user -> access type)
-	DbConfig *DbConfig                       // back reference to the parent DB config
+	Name    DbSchemaName
+	User    DbUserName
+	Pass    string
+	Access  map[DbUserName]schemaAccessType // access to this schema for other users (user -> access type)
+	Aliases []DbSchemaName                  // other names for this schema
+
+	DbServer *DbServerConfig // back reference to the parent DB config
 }

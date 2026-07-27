@@ -3,12 +3,12 @@ module github.com/aldesgroup/goald
 go 1.26.5
 
 require (
-	github.com/aldesgroup/corego v1.0.4
-	github.com/getkin/kin-openapi v0.142.0
+	github.com/aldesgroup/corego v1.0.7
+	github.com/getkin/kin-openapi v0.145.0
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/microsoft/go-mssqldb v1.10.0
-	go.yaml.in/yaml/v3 v3.0.4
+	go.yaml.in/yaml/v3 v3.0.5
 	sigs.k8s.io/yaml v1.6.0
 )
 
@@ -32,7 +32,7 @@ require (
 	golang.org/x/crypto v0.50.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/text v0.36.0 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 // replace github.com/aldesgroup/corego => ../../open/corego

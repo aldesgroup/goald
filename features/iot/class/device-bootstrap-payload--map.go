@@ -42,3 +42,30 @@ func (thisClass *DeviceBootstrapPayloadClass) SetValueAsString(bo goald.IBusines
 
 	return goald.Error("Unknown property: %T.%s", bo, propertyName)
 }
+
+// setting a single-valued relationship's target, given the relationship's name, without using reflection
+func (thisClass *DeviceBootstrapPayloadClass) SetRelationshipValue(bo goald.IBusinessObject, relationshipName string, value goald.IBusinessObject) error {
+	switch relationshipName {
+
+	}
+
+	return goald.Error("Unknown or non-single-valued relationship: %T.%s", bo, relationshipName)
+}
+
+// appending a target to a multi-valued relationship, given the relationship's name, without using reflection
+func (thisClass *DeviceBootstrapPayloadClass) AddRelationshipValue(bo goald.IBusinessObject, relationshipName string, value goald.IBusinessObject) error {
+	switch relationshipName {
+
+	}
+
+	return goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+}
+
+// resetting a multi-valued relationship to an empty slice, given the relationship's name, without using reflection
+func (thisClass *DeviceBootstrapPayloadClass) ClearRelationshipValue(bo goald.IBusinessObject, relationshipName string) error {
+	switch relationshipName {
+
+	}
+
+	return goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+}

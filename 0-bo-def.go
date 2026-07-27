@@ -19,6 +19,8 @@ type IBusinessObject interface {
 	getClass(thisBO IBusinessObject) IClass
 	GetID() BObjID
 	setID(BObjID)
+	GetPreID() int
+	setPreID(int)
 
 	// business logic
 	ChangeBeforeInsert(BloContext) error
@@ -37,6 +39,7 @@ type BusinessObject struct {
 	// properties common to all business objects
 	ID    BObjID    `json:"id,omitempty"    io:"o*" desc:"The unique identifier of this business object"`
 	Class className `json:"class,omitempty" io:"in" desc:"The name of the business object's class, sometimes used to resolve polymorphic relationships"`
+	preID int       `json:"-"               io:"o*" desc:"A temporary identifier in Business Objects lists"`
 
 	// technical stuff
 	className className
@@ -47,8 +50,10 @@ type BusinessObject struct {
 var _ IBusinessObject = (*BusinessObject)(nil)
 
 // Basic accessors
-func (thisBO *BusinessObject) GetID() BObjID   { return thisBO.ID }
-func (thisBO *BusinessObject) setID(id BObjID) { thisBO.ID = id }
+func (thisBO *BusinessObject) GetID() BObjID      { return thisBO.ID }
+func (thisBO *BusinessObject) setID(id BObjID)    { thisBO.ID = id }
+func (thisBO *BusinessObject) GetPreID() int      { return thisBO.preID }
+func (thisBO *BusinessObject) setPreID(preID int) { thisBO.preID = preID }
 
 // Triggers - default implems
 func (thisBO *BusinessObject) ChangeBeforeInsert(BloContext) error { return nil }
@@ -77,7 +82,7 @@ func (thisBO *BusinessObject) GetClassName(thisActualBO IBusinessObject) classNa
 }
 
 func (thisBO *BusinessObject) getClass(thisActualBO IBusinessObject) IClass {
-	return classForName(thisBO.GetClassName(thisActualBO))
+	return classForName(thisBO.GetClassName(thisActualBO), true)
 }
 
 // ------------------------------------------------------------------------------------------------

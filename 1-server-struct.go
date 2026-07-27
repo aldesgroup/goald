@@ -5,6 +5,7 @@ package goald
 
 import (
 	"sync/atomic"
+	"time"
 
 	core "github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald/features/logging"
@@ -45,8 +46,9 @@ func (thisServer *server) IsSandbox() bool {
 // an HTTP request context proxies the main server, but also contains the info
 // specific to the currently handled HTTP request
 type httpRequestContext struct {
-	*server                // proxying the server...
-	logging.ILogger        // ... but providing this context with it's own logger
-	inputBodyBytes  []byte // keeping track of the incoming request body
-	reqNum          int64  // the number of the request being handled by this context
+	*server                   // proxying the server...
+	logging.ILogger           // ... but providing this context with it's own logger
+	inputBodyBytes  []byte    // keeping track of the incoming request body
+	reqNum          int64     // the number of the request being handled by this context
+	start           time.Time // the time when the request handling started
 }

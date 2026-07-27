@@ -4,81 +4,114 @@
 // ------------------------------------------------------------------------------------------------
 package goald
 
-// CreateBO creates a new business object in the database, and all the other business objects
-// that are linked exclusively to it (children) if any, in a single transaction
-func CreateBO(bloCtx BloContext, bObj IBusinessObject) error {
+// CreateBusinessObjects creates a new business object in the database, and all the other business objects
+// that are linked exclusively to it (children) if any, in a single transaction/
+// WARNING: all the business objects must be of the same type (same model), this does not handle polymorphism
+func CreateBusinessObjects[BOTYPE IBusinessObject](bloCtx BloContext, bObjs ...BOTYPE) (createErr error) {
+	if len(bObjs) == 0 {
+		return nil
+	}
+
+	// we know the BOs here are all of the same class
+	clsName := bObjs[0].GetClassName(bObjs[0])
+
 	// let's start a transaction if none is already started
-	beginTransactionHere, errBegin := bloCtx.BeginTransaction(DbFor(bObj))
+	beginTransactionHere, errBegin := bloCtx.BeginTransaction(clsName)
 	if errBegin != nil {
 		return ErrorC(errBegin, "Could not create object since a transaction could not be started")
 	}
 
-	// let's try to create the given entity
-	createErr := doCreateBO(bloCtx, bObj)
-
-	// let's end the transaction
+	// let's make sure the transaction is always ended, even if a panic occurs below,
+	// so that we never leave a dangling transaction / corrupt the BloContext's tx state
 	if beginTransactionHere {
-		if errEnd := bloCtx.EndTransaction(createErr); errEnd != nil {
-			return ErrorC(errEnd, "Could not create object since the current transaction could not be terminated")
-		}
+		bloCtx.Trace("New transaction started here!")
+		defer func() {
+			if r := recover(); r != nil {
+				bloCtx.Trace("Recovered from panic while creating object(s): %v", r)
+				errEnd := bloCtx.EndTransaction(Error("Recovered from panic while creating object(s): %v", r))
+				panic(errEnd)
+			}
+
+			if errEnd := bloCtx.EndTransaction(createErr); errEnd != nil {
+				createErr = ErrorC(errEnd, "Could not create object since the current transaction could not be terminated")
+			} else {
+				bloCtx.Trace("Transaction ended here!")
+			}
+		}()
 	}
 
-	return createErr
+	// let's try to create the given entity
+	createErr = doCreateBusinessObjects(bloCtx, clsName, bObjs...)
+
+	return
 }
 
 // doCreateBO does the actual creation of a new business object in the database
-func doCreateBO(bloCtx BloContext, bObj IBusinessObject) error {
-	if bObj == nil {
+func doCreateBusinessObjects[BOTYPE IBusinessObject](bloCtx BloContext, clsName className, bObjs ...BOTYPE) error {
+	if len(bObjs) == 0 {
 		return nil
 	}
 
-	// the business object should not have an ID already
-	if bObj.GetID() != 0 {
-		return Error("Could not create object since it already has an ID (%d)", bObj.GetID())
+	// we need this type conversion later on, let's do it now since we're iterating over the given business objects anyway
+	iBObjs := make([]IBusinessObject, len(bObjs))
+
+	// performing some checks on the given business objects
+	for i, bObj := range bObjs {
+		// the business object should not have an ID already
+		if bObj.GetID() != 0 {
+			return Error("Could not create object since it already has an ID (%d)", bObj.GetID())
+		}
+
+		// do we have stuff to perform on the __BOBJ__ before inserting it ?
+		if err := bObj.ChangeBeforeInsert(bloCtx); err != nil {
+			return ErrorC(err, "Could not create object since the pre-insert got an error")
+		}
+
+		// check of the validity regarding the model constraints
+		if err := bObj.getClass(bObj).IsModelValid(bObj); err != nil {
+			return ErrorC(err, "Could not create object since it is not valid regarding its model constraints")
+		}
+
+		// check of "functional / business" validity
+		if err := bObj.IsValid(bloCtx); err != nil {
+			return ErrorC(err, "Could not create object since it is not valid")
+		}
+
+		// let's also keep track of the BO number in the given slice, so that we can use it later on for DB ID consolidation
+		bObj.setPreID(i + 1)
+
+		// adding the business object to the interface slice
+		iBObjs[i] = bObj
 	}
 
-	// do we have stuff to perform on the __BOBJ__ before inserting it ?
-	if err := bObj.ChangeBeforeInsert(bloCtx); err != nil {
-		return ErrorC(err, "Could not create object since the pre-insert got an error")
-	}
-
-	// check of the validity regarding the model constraints
-	if err := bObj.getClass(bObj).IsModelValid(bObj); err != nil {
-		return ErrorC(err, "Could not create object since it is not valid regarding its model constraints")
-	}
-
-	// check of "functional / business" validity
-	if err := bObj.IsValid(bloCtx); err != nil {
-		return ErrorC(err, "Could not create object since it is not valid")
-	}
-
-	// setting some tracking info
-	// bObj.SetCreatedByID(biContext.GetCurrentUser().GetID())
-	// bObj.SetCreatedBy(biContext.GetCurrentUser().GetLabel())
-	// bObj.SetCreation(core.Now())
-	// bObj.Set__BOBJ__Status(__BOBJ__StatusCREATED)
+	// // setting some tracking info
+	// // bObj.SetCreatedByID(biContext.GetCurrentUser().GetID())
+	// // bObj.SetCreatedBy(biContext.GetCurrentUser().GetLabel())
+	// // bObj.SetCreation(core.Now())
+	// // bObj.Set__BOBJ__Status(__BOBJ__StatusCREATED)
 
 	// pushing to the DB ! We're going to add a new line within the __BOBJ__'s table
-	if err := dbInsert(bloCtx.DaoFor(bObj), bObj); err != nil {
-		return ErrorC(err, "Could not create object because of a problem with the DB")
+	if err := dbInsert(bloCtx.daoFor(clsName), iBObjs...); err != nil {
+		return err
 	}
 
-	// TODO inserting all the links that waited for the current entity to be inserted in DB before getting inserted themselves
-	// if err := doCreateChildrenEntities(biContext, entity, ""); err != nil {
-	// 	if biContext.IsVerbose() {
-	// 		biContext.Log().Trace("Entity we tried to create in DB: (see below)\n%s", ToString(entity, 2, true))
-	// 	}
+	// // TODO inserting all the links that waited for the current entity to be inserted in DB before getting inserted themselves
+	// // if err := doCreateChildrenEntities(biContext, entity, ""); err != nil {
+	// // 	if biContext.IsVerbose() {
+	// // 		biContext.Log().Trace("Entity we tried to create in DB: (see below)\n%s", ToString(entity, 2, true))
+	// // 	}
 
-	// 	return NewErrC(err, "Could not completely create entity '%s' since inserting its children crashed", ToEntityFullReference(entity))
-	// }
+	// // 	return NewErrC(err, "Could not completely create entity '%s' since inserting its children crashed", ToEntityFullReference(entity))
+	// // }
 
 	// we have stuff to do after the insertion ? yeah ? really ? let's do it now !
-	if err := bObj.ChangeAfterInsert(bloCtx); err != nil {
-		return ErrorC(err, "Could not post-insert object since it got an error")
+	for _, bObj := range bObjs {
+		if err := bObj.ChangeAfterInsert(bloCtx); err != nil {
+			return ErrorC(err, "Could not post-insert object since it got an error")
+		}
 	}
 
-	// // 'guess everything is alrite here
-	// return nilreturn nil
+	// 'guess everything is alrite here
 	return nil
 }
 

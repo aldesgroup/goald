@@ -51,14 +51,7 @@ func (thisServer *server) generateAllObjectChecks(srcdir, currentPath string, re
 						srcdir, currentPath, entry.Name())
 				}
 
-				class := classRegistry.items[classCore.class]
-
-				if class == nil {
-					core.PanicMsg("It looks like class '%s' has never been imported and thus not initialized and registered. "+
-						"\nMake sure its module is imported in the main package: "+
-						"\nimport _ \"%s/_include/%s\"",
-						classCore.getClassName(), getCurrentModule(), currentPath)
-				}
+				class := classForName(classCore.class, true)
 
 				// the corresponding Check file, if it exists
 				checkFilepath := path.Join(srcdir, class.getSrcPath(), sourceCLASSxDIR,
@@ -181,7 +174,7 @@ func buildRequiredRelationshipCheck(relationship *Relationship, className classN
 	}
 
 	if relationship.IsPolymorphic() {
-		targetNames := relationship.getTargetNames()
+		targetNames := relationship.getTargetClassNames()
 		allowed := make([]string, len(targetNames))
 		for i, targetName := range targetNames {
 			allowed[i] = fmt.Sprintf("%q", string(targetName))

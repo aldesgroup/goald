@@ -19,11 +19,19 @@ var (
 // getPersistedProperties returns the sorted list of the properties persisted
 // within the BO model's table, i.e. the persisted single Relationships + the persisted fields
 func (model *businessObjectModel) getPersistedProperties() []IBusinessObjectProperty {
+	// initialising it, the first time we need it
 	if model.persistedProperties == nil {
 		// let's gather all the persisted properties - the fields first
 		for _, field := range model.fields {
-			if !field.isNotPersisted() {
-				model.persistedProperties = append(model.persistedProperties, field)
+			// special case of the rowID field, which is only needed when the associated DB handles the RETURNING clause
+			if field.GetName() == boFieldPreID {
+				if model.db.is.SupportsReturningID() {
+					model.persistedProperties = append(model.persistedProperties, field)
+				}
+			} else {
+				if !field.isNotPersisted() {
+					model.persistedProperties = append(model.persistedProperties, field)
+				}
 			}
 		}
 
@@ -35,12 +43,18 @@ func (model *businessObjectModel) getPersistedProperties() []IBusinessObjectProp
 		// now, let's sort them to have a nicely sorted list of columns for each table
 		// we make sure the ID column is always at 1st position
 		sort.SliceStable(model.persistedProperties, func(i, j int) bool {
-			property1Name := model.persistedProperties[i].getColumnName()
-			property2Name := model.persistedProperties[j].getColumnName()
-			if property1Name == "id" {
+			property1Name := model.persistedProperties[i].GetName()
+			property2Name := model.persistedProperties[j].GetName()
+			if property1Name == BoFieldID {
 				return true
 			}
-			if property2Name == "id" {
+			if property2Name == BoFieldID {
+				return false
+			}
+			if property1Name == boFieldPreID {
+				return true
+			}
+			if property2Name == boFieldPreID {
 				return false
 			}
 

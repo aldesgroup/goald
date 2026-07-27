@@ -3,7 +3,7 @@ package class
 
 import (
 	"github.com/aldesgroup/goald"
-"github.com/aldesgroup/goald/features/auth"
+"github.com/aldesgroup/goald/features/accessmgt"
 )
 
 type UserClass struct {
@@ -15,9 +15,9 @@ func ClassForUser(srcPath, lastMod string) goald.IClass {
 }
 
 func (thisClass *UserClass) NewObject() any {
-	return &auth.User{}
+	return &accessmgt.User{}
 }
 
 func (thisClass *UserClass) NewSlice() any {
-	return []*auth.User{}
+	return []*accessmgt.User{}
 }

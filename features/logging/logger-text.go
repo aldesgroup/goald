@@ -1,6 +1,7 @@
 package logging
 
 import (
+	"context"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -24,6 +25,10 @@ var _ ILogger = (*textLogger)(nil)
 
 func (thisLogger *textLogger) IsVerbose() bool {
 	return thisLogger.level < slog.LevelInfo
+}
+
+func (thisLogger *textLogger) Trace(msg string, args ...any) {
+	thisLogger.Logger.Log(context.Background(), LevelTrace, thisLogger.makePrefix()+msg, args...)
 }
 
 func (thisLogger *textLogger) Debug(msg string, args ...any) {

@@ -43,3 +43,38 @@ func (thisClass *DeviceClass) SetValueAsString(bo goald.IBusinessObject, propert
 
 	return goald.Error("Unknown property: %T.%s", bo, propertyName)
 }
+
+// setting a single-valued relationship's target, given the relationship's name, without using reflection
+func (thisClass *DeviceClass) SetRelationshipValue(bo goald.IBusinessObject, relationshipName string, value goald.IBusinessObject) error {
+	switch relationshipName {
+
+	}
+
+	return goald.Error("Unknown or non-single-valued relationship: %T.%s", bo, relationshipName)
+}
+
+// appending a target to a multi-valued relationship, given the relationship's name, without using reflection
+func (thisClass *DeviceClass) AddRelationshipValue(bo goald.IBusinessObject, relationshipName string, value goald.IBusinessObject) error {
+	switch relationshipName {
+	case "AssociatedUsers":
+		targetValue, ok := value.(goald.IUser)
+		if !ok {
+			return goald.Error("Expected a value of type 'goald.IUser' for 'Device.AssociatedUsers', got %T", value)
+		}
+		bo.(*iot.Device).AssociatedUsers = append(bo.(*iot.Device).AssociatedUsers, targetValue)
+		return nil
+	}
+
+	return goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+}
+
+// resetting a multi-valued relationship to an empty slice, given the relationship's name, without using reflection
+func (thisClass *DeviceClass) ClearRelationshipValue(bo goald.IBusinessObject, relationshipName string) error {
+	switch relationshipName {
+	case "AssociatedUsers":
+		bo.(*iot.Device).AssociatedUsers = []goald.IUser{}
+		return nil
+	}
+
+	return goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+}

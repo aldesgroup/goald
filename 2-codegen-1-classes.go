@@ -126,7 +126,7 @@ func (thisServer *server) writeRegistryFilesIfNeeded(srcdir string, allClassCore
 	for currentPackage, allClassCoresInPackage := range allClassCoresInCode {
 		// let's check the current class, the ones coded right now
 		for clsName, clsCoreInCode := range allClassCoresInPackage {
-			classInRegistry := classRegistry.items[clsName]
+			classInRegistry := classForName(clsName, false)
 			if classInRegistry == nil {
 				thisServer.Info(fmt.Sprintf("Business object '%s' has appeared since the last generation!", clsName))
 				needRegen = true

@@ -10,10 +10,10 @@ import (
 )
 
 type BloContext interface {
-	AppContext                                      // a particular AppContext dedicated to Business LOgic processing
-	BeginTransaction(*DB) (bool, error)             // starts a new transaction if none is already started; returns true if a new transaction was started, false if there was already one
-	EndTransaction(err error) error                 // ends the current transaction if it was started by this BloContext, and commits or rollbacks depending on the given error
-	DaoFor(bObj IBusinessObject) IBusinessObjectDAO // returns a new DAO from a given business object
+	AppContext                                // a particular AppContext dedicated to Business LOgic processing
+	BeginTransaction(className) (bool, error) // starts a new transaction if none is already started; returns true if a new transaction was started, false if there was already one
+	EndTransaction(err error) error           // ends the current transaction if it was started by this BloContext, and commits or rollbacks depending on the given error
+	daoFor(className) IBusinessObjectDAO      // returns a new DAO from a given business object
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -27,7 +27,7 @@ type baseBloContextImpl struct {
 }
 
 // BeginTransaction implements [BloContext].
-func (baseBloCtx *baseBloContextImpl) BeginTransaction(db *DB) (newTxStarted bool, err error) {
+func (baseBloCtx *baseBloContextImpl) BeginTransaction(clsName className) (newTxStarted bool, err error) {
 	// not messing around with concurrent routines
 	baseBloCtx.mx.Lock()
 	defer baseBloCtx.mx.Unlock()
@@ -38,7 +38,7 @@ func (baseBloCtx *baseBloContextImpl) BeginTransaction(db *DB) (newTxStarted boo
 	// we create a new transaction only if there is none yet
 	if baseBloCtx.currentTx == nil {
 		// let's start a transaction at the DB level
-		baseBloCtx.currentTx, err = db.do.Begin()
+		baseBloCtx.currentTx, err = dbFor(clsName).do.Begin()
 
 		// handling a potential error
 		if err != nil {
@@ -78,7 +78,8 @@ func (baseBloCtx *baseBloContextImpl) EndTransaction(previousErr error) error {
 	// if at least one of the operations that occurred during this transaction has failed, we have to rollback
 	if previousErr != nil {
 		if errRb := baseBloCtx.currentTx.Rollback(); errRb != nil {
-			return ErrorC(errRb, "Have to roll back current transaction, because one operation during it has failed, but rolling back the transaction has also failed")
+			return ErrorC(errRb, "Have to roll back current transaction, because one operation during it has failed (%s),"+
+				" but rolling back the transaction has also failed", previousErr)
 		}
 
 		return ErrorC(previousErr, "Have to roll back current transaction, because one operation during it has failed")
@@ -122,10 +123,12 @@ func newHttpBloContextFromWebCtx(thisWebCtx *webContextImpl) *httpBloContextImpl
 	}
 }
 
-// DaoFor implements [BloContext].
-func (httpBloCtx *httpBloContextImpl) DaoFor(bObj IBusinessObject) IBusinessObjectDAO {
-	newDAO := newDaoFor(bObj)
+// daoFor implements [BloContext].
+func (httpBloCtx *httpBloContextImpl) daoFor(clsName className) IBusinessObjectDAO {
+	newDAO := newDaoFor(clsName)
 	newDAO.setLogger(httpBloCtx)
-	newDAO.setDB(DbFor(bObj))
+	newDAO.setClassName(clsName)
+	newDAO.setDB(dbFor(clsName))
+	newDAO.setTx(httpBloCtx.currentTx)
 	return newDAO
 }

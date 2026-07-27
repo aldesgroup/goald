@@ -69,7 +69,7 @@ func (thisServer *server) checkModel(clsName className, model IBusinessObjectMod
 		// checks for the persistency requirements
 		if model.base().isPersisted() {
 			// checking there's an actual DB configured for this BO model
-			if model.getInDB() == nil {
+			if model.getDB() == nil {
 				core.PanicMsg("Model '%s' should be SetNotPersisted, SetAbstract, or associated with a DB", clsName)
 			}
 
@@ -129,12 +129,9 @@ func (thisServer *server) checkModel(clsName className, model IBusinessObjectMod
 	// TODO SOON: enum & listEnum auto-maxlength
 	// TODO SOON: query BObj : prevent some property types
 	// TODO
-	// TODO	LATER: no column name on not-persisted links
 	// TODO LATER: allow custom table name
 	// TODO LATER: allow custom column name
 	// TODO LATER: tracking policy
-	// TODO LATER: unique table name per DB
-	// TODO LATER: unique column name per property
 	// TODO LATER: personal info asserted - with suggestions! (lastname, firstName, mail, email, phone, etc.)
 	// TODO LATER: confidential info asserted - with suggestions! (password, pass, passwd)
 }
@@ -159,7 +156,7 @@ func (thisServer *server) genericPropertyCodeCheck(property IBusinessObjectPrope
 	// Valid I/O tag
 	ioTag := property.getTag("io")
 	if _, ok := ioTagsMap[ioTag]; !ok {
-		core.PanicMsg("Property '%s.%s' should have an 'io' tag equals to '%s' but should have one of these values: \n%s",
+		core.PanicMsg("Property '%s.%s' has an 'io' tag equals to '%s' but should have one of these values: \n%s",
 			property.ownerModel().base().name, property.GetName(), ioTag, ioTagsStr)
 	}
 

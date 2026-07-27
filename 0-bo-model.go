@@ -36,7 +36,7 @@ type IBusinessObjectModel interface {
 
 	// private methods
 	isNotPersisted() bool
-	getInDB() *DB
+	getDB() *DB
 	getTableName(withSchema bool) string
 	resolve() IBusinessObjectModel
 
@@ -53,13 +53,14 @@ type businessObjectModel struct {
 	description                string                               // the model description
 	fields                     map[string]IField                    // the objet's simple properties
 	relationships              map[string]*Relationship             // the relationships to other classes
-	inDB                       *DB                                  // the associated DB, if any
+	db                         *DB                                  // the associated DB, if any
 	inNoDB                     bool                                 // if true, then no associated DB
 	abstract                   bool                                 // if true, then is class is mainly used as a super class for others
 	tableName                  string                               // if persisted, the name of the corresponding DB table - should be the same as the class name most of the time
 	persistedProperties        []IBusinessObjectProperty            // all the properties - fields or relationships - persisted on this class
 	uniqueCombinations         map[string][]IBusinessObjectProperty // a combination of properties that must be unique in the DB
 	idField                    IField                               // accessor to the ID field
+	preIDField                 IField                               // accessor to the pre-ID field
 	usedInNativeApp            bool                                 // true if this class is used in the native app
 	usedInWebApp               bool                                 // true if this class is used in the web app
 	boType                     *reflection.GoaldType                // the Go type associated with this BO model
@@ -70,7 +71,8 @@ type businessObjectModel struct {
 	childToParentRelationship  *Relationship                        // if this class is a child in a parent-child relationship, then this is the relationship to the parent
 }
 
-const BoFieldID = "ID" // the name of the ID field, which is a special case in Goald
+const BoFieldID = "ID"       // the name of the ID field, which is a special case in Goald
+const boFieldPreID = "preID" // the name of the row ID field, which is a special case in Goald
 
 func NewBusinessObjectModel() IBusinessObjectModel {
 	model := &businessObjectModel{
@@ -80,18 +82,21 @@ func NewBusinessObjectModel() IBusinessObjectModel {
 
 	// adding the generic fields
 	model.idField = AddBigIntField(model, "BusinessObject", BoFieldID, false)
+	model.preIDField = AddIntField(model, "BusinessObject", boFieldPreID, false)
+
+	// some tweaking
+	model.preIDField.setTechnical()
 
 	return model
 }
 
 func (boModel *businessObjectModel) SetInDB(db *DB) {
 	boModel.inNoDB = false
-	boModel.inDB = db
+	boModel.db = db
 }
 
 func (boModel *businessObjectModel) SetInDbByName(dbName string) {
-	boModel.inNoDB = false
-	boModel.inDB = GetDB(dbconn.DbSchemaName(dbName))
+	boModel.SetInDB(GetDB(dbconn.DbSchemaName(dbName)))
 }
 
 func (boModel *businessObjectModel) SetDescription(description string) {
@@ -100,7 +105,7 @@ func (boModel *businessObjectModel) SetDescription(description string) {
 
 func (boModel *businessObjectModel) SetNotPersisted() {
 	boModel.inNoDB = true
-	boModel.inDB = nil
+	boModel.db = nil
 }
 
 func (boModel *businessObjectModel) SetAbstract() {
@@ -130,8 +135,8 @@ func (boModel *businessObjectModel) AddUniqueCombination(props ...IBusinessObjec
 	boModel.uniqueCombinations[constraintName] = props
 }
 
-func (boModel *businessObjectModel) getInDB() *DB {
-	return boModel.inDB
+func (boModel *businessObjectModel) getDB() *DB {
+	return boModel.db
 }
 
 func (boModel *businessObjectModel) isNotPersisted() bool {
@@ -140,6 +145,12 @@ func (boModel *businessObjectModel) isNotPersisted() bool {
 
 func (boModel *businessObjectModel) isPersisted() bool {
 	return !boModel.isNotPersisted()
+}
+
+func (boModel *businessObjectModel) isPersistedHere() bool {
+	// a BO model should trigger persistency-related resources only if it is persisted within this server,
+	// which is the case only if it has a configured DB associated with it
+	return boModel.isPersisted() && boModel.db.schema != nil
 }
 
 func (boModel *businessObjectModel) ID() IField {
@@ -152,7 +163,7 @@ func (boModel *businessObjectModel) getTableName(withSchema bool) string {
 	}
 
 	if withSchema {
-		return string(boModel.inDB.name) + "." + boModel.tableName
+		return string(boModel.db.name) + "." + boModel.tableName
 	}
 
 	return boModel.tableName
@@ -358,6 +369,7 @@ type IBusinessObjectProperty interface {
 	SetPersonal()                           // to set this property as personal
 	isPersonal() bool                       // if true, then this property is personal
 	getDeclaringBO() className              // the name of the business object that actually declares this property (instead of inheriting it from a super class)
+	setTechnical()                          // to set this property as technical
 }
 
 type ioType string
@@ -379,6 +391,7 @@ type businessObjectProperty struct {
 	unique       bool                   // if true, then this property is unique in the database (UNIQUE)
 	secret       bool                   // if true, then this property is secret
 	personal     bool                   // if true, then this property is personal
+	technical    bool                   // if true, then this property is purely technical
 }
 
 func (prop *businessObjectProperty) ownerModel() IBusinessObjectModel {
@@ -402,6 +415,9 @@ func (prop *businessObjectProperty) getColumnName() string {
 		prop.columnName = core.PascalToSnake(prop.name)
 		if prop.propType.IsRelationship() {
 			prop.columnName += suffixID
+		}
+		if prop.technical {
+			prop.columnName = "_" + prop.columnName
 		}
 	}
 
@@ -476,6 +492,10 @@ func (prop *businessObjectProperty) getDeclaringBO() className {
 	return prop.declaringBO
 }
 
+func (prop *businessObjectProperty) setTechnical() {
+	prop.technical = true
+}
+
 // ------------------------------------------------------------------------------------------------
 // Business Object Model resolution =
 // - allowing some kind of "inheritance" between models
@@ -498,6 +518,22 @@ func (boModel *businessObjectModel) resolve() IBusinessObjectModel {
 				}
 			}
 		}
+
+		// checking all the relationships, and "importing" the configuration of the super classes, if any
+		for _, rel := range boModel.base().relationships {
+			if rel.getDeclaringBO() != boModel.name {
+				// making sure the "parent" model is resolved first
+				if parentModel := modelForName(rel.getDeclaringBO()); parentModel != nil {
+					// getting the relationship from the parent model
+					parentRel := parentModel.resolve().base().relationships[rel.GetName()]
+
+					// importing the configuration of the super class property
+					boModel.importConfig(parentRel, rel)
+				}
+			}
+		}
+
+		// TODO check if we have to do something with the unique combinations here
 
 		// tagging this model as resolved
 		boModel.resolved = true
@@ -538,6 +574,16 @@ func (boModel *businessObjectModel) importConfig(from, to IBusinessObjectPropert
 			fromField := from.(*RealField)
 			field.totalDigits = fromField.totalDigits
 			field.decimals = fromField.decimals
+		}
+	}
+
+	// specific configuration for relationships
+	if relationship, ok := to.(*Relationship); ok {
+		if relationship.relationType == 0 {
+			relationship.relationType = from.(*Relationship).relationType
+		}
+		if relationship.backRef == nil {
+			relationship.backRef = from.(*Relationship).backRef
 		}
 	}
 }

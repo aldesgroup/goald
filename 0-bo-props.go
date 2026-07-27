@@ -415,13 +415,15 @@ const (
 
 type Relationship struct {
 	businessObjectProperty
-	targetNames              []className      // the names of BOs pointed by this relationship
+	// backRefs                 []*Relationship  // valued from the business object's init
+	mx                       sync.Mutex       // a mutex to avoid some race conditions
+	targetClassNames         []className      // the names of BOs pointed by this relationship
 	relationType             relationshipType // valued from the business object's init
-	backRefs                 []*Relationship  // valued from the business object's init
-	mx                       sync.Mutex       // a mutex for the operations on the slices in here
+	backRef                  *Relationship    // valued from the business object's init
 	columnNameForTarget      string           // the name of the target model, needed for persisted polymorphic relationships
 	linkTableName            string           // the name of the link table, if this relationship is persisted in a link table
 	linkTableSourceColumn    string           // the name of the column in the link table that holds the ID of the source entity
+	linkTableSourceClsColumn string           // the name of the column in the link table that holds the class name of the source entity, if the backref relationship is polymorphic
 	linkTableTargetColumn    string           // the name of the column in the link table that holds the ID of the target entity
 	linkTableTargetClsColumn string           // the name of the column in the link table that holds the class name of the target entity, if this relationship is polymorphic
 }
@@ -435,7 +437,7 @@ func NewRelationship(owner IBusinessObjectModel, name string, multiple bool, tar
 			multiple: multiple,
 			propType: propertyTypeRELATIONSHIPxMONOM,
 		},
-		targetNames: []className{targetName},
+		targetClassNames: []className{targetName},
 		// polymorphic: false,
 	}
 
@@ -471,7 +473,7 @@ func AddRelationship(owner IBusinessObjectModel, declaringBO className, name str
 			multiple:    multiple,
 			propType:    propertyTypeRELATIONSHIPxMONOM,
 		},
-		targetNames: []className{targetName},
+		targetClassNames: []className{targetName},
 	}
 
 	owner.base().relationships[name] = relationship
@@ -496,10 +498,10 @@ func AddPolyRelationship(owner IBusinessObjectModel, declaringBO className, name
 	return relationship
 }
 
-func (r *Relationship) addBackRef(backRef *Relationship) {
+func (r *Relationship) setBackRef(backRef *Relationship) {
 	r.mx.Lock()
-	if r.IsPolymorphic() || len(r.backRefs) == 0 {
-		r.backRefs = append(r.backRefs, backRef)
+	if r.backRef == nil {
+		r.backRef = backRef
 	}
 	r.mx.Unlock()
 }
@@ -513,11 +515,11 @@ func (r *Relationship) SetChildToParent(backRefRelation *Relationship) *Relation
 	r.owner.base().setChildToParentRelationship(r)
 
 	// taking the opportunity here to enrich the backref relationship...
-	r.addBackRef(backRefRelation)
+	r.setBackRef(backRefRelation)
 
 	// ... like automatically setting on the backref the inverse relation type and this relationship as the backref
 	backRefRelation.relationType = relationshipTypePARENTxTOxCHILDREN
-	backRefRelation.addBackRef(r)
+	backRefRelation.setBackRef(r)
 
 	return r
 }
@@ -527,11 +529,11 @@ func (r *Relationship) SetSourceToTarget(backRefRelation *Relationship) *Relatio
 	r.relationType = relationshipTypeSOURCExTOxTARGET
 
 	// taking the opportunity here to enrich the backref relationship...
-	r.addBackRef(backRefRelation)
+	r.setBackRef(backRefRelation)
 
 	// automatically setting on the backref the inverse relation type and this relationship as the backref
 	backRefRelation.relationType = relationshipTypeTARGETxTOxSOURCE
-	backRefRelation.addBackRef(r)
+	backRefRelation.setBackRef(r)
 
 	return r
 }
@@ -575,26 +577,26 @@ func (r *Relationship) IsPolymorphic() bool {
 }
 
 // returns the list of the names of the BOs pointed by this relationship, resolving it if needed
-func (r *Relationship) getTargetNames() []className {
+func (r *Relationship) getTargetClassNames() []className {
 	if !r.IsPolymorphic() {
-		return r.targetNames
+		return r.targetClassNames
 	}
 
-	if len(r.targetNames) == 0 {
-		r.targetNames = r.resolveTargetNames()
+	if len(r.targetClassNames) == 0 {
+		r.targetClassNames = r.resolveTargetNames()
 	}
 
-	return r.targetNames
+	return r.targetClassNames
 }
 
 // returns the name of the unique target BO pointed by this relationship, or an error message if there is no unique target
-func (r *Relationship) getUniqueTargetName() string {
-	targetNames := r.getTargetNames()
-	if len(targetNames) != 1 {
-		return "- no unique target for relationship " + r.name + " on " + string(r.owner.base().name) + "! -"
+func (r *Relationship) getUniqueTargetName() className {
+	targetClassNames := r.getTargetClassNames()
+	if len(targetClassNames) != 1 {
+		return className("- no unique target for relationship " + r.name + " on " + string(r.owner.base().name) + "! -")
 	}
 
-	return string(targetNames[0])
+	return targetClassNames[0]
 }
 
 // returns the model of the unique target BO pointed by this relationship, or nil if there is no unique target
@@ -608,7 +610,7 @@ var interfaceImplementations = map[className][]className{}
 func (r *Relationship) resolveTargetNames() []className {
 	// info about the owner of the relationship, or the source of the arrow representing it
 	srcClassName := r.owner.base().name                   // e.g. "SourceObj"
-	clsSourceObj := classForName(srcClassName)            // e.g. ClassForSourceObj
+	clsSourceObj := classForName(srcClassName, true)      // e.g. ClassForSourceObj
 	sourceObject := clsSourceObj.NewObject()              // e.g.: *SourceObj
 	sourceObjTyp := reflection.TypeOf(sourceObject, true) // e.g. Type SourceObj
 
@@ -625,7 +627,9 @@ func (r *Relationship) resolveTargetNames() []className {
 		for _, class := range core.GetSortedValues(classRegistry.items) {
 			if !class.isInterface() {
 				if boType := reflection.TypeOf(class.NewObject(), false); boType.Implements(targetFldTyp) {
-					interfaceImplementations[srcClassName] = append(interfaceImplementations[srcClassName], class.getClassName())
+					if !modelForName(class.getClassName()).base().abstract {
+						interfaceImplementations[srcClassName] = append(interfaceImplementations[srcClassName], class.getClassName())
+					}
 				}
 			}
 		}
@@ -642,19 +646,29 @@ func (r *Relationship) getForeignKeyName() string {
 // returns the name of the link table for this relationship, if it is persisted in the database
 func (r *Relationship) getLinkTableName() string {
 	if r.linkTableName == "" {
-		r.linkTableName = prefixLINK + r.owner.base().getTableName(false) + "__" + core.PascalToSnake(r.name)
+		if r.backRef != nil && r.backRef.IsPolymorphic() {
+			// if the backref is polymorphic, then we consider the business object declaring this relationship
+			r.linkTableName = prefixLINK + core.PascalToSnake(string(r.declaringBO)) + "__" + core.PascalToSnake(r.name)
+		} else {
+			r.linkTableName = prefixLINK + r.owner.base().getTableName(false) + "__" + core.PascalToSnake(r.name)
+		}
 	}
 
 	return r.linkTableName
 }
 
 // returns the name of the column in the link table that holds the ID of the source entity
-func (r *Relationship) getLinkTableSourceColumn() string {
+func (r *Relationship) getLinkTableSourceColumn() (string, string) {
 	if r.linkTableSourceColumn == "" {
-		r.linkTableSourceColumn = prefixSOURCE + r.owner.base().getTableName(false) + suffixID
+		if r.backRef != nil && r.backRef.IsPolymorphic() {
+			r.linkTableSourceColumn = prefixSOURCE + core.PascalToSnake(string(r.declaringBO)) + suffixID
+			r.linkTableSourceClsColumn = prefixSOURCE + core.PascalToSnake(string(r.declaringBO)) + suffixCLS
+		} else {
+			r.linkTableSourceColumn = prefixSOURCE + r.owner.base().getTableName(false) + suffixID
+		}
 	}
 
-	return r.linkTableSourceColumn
+	return r.linkTableSourceColumn, r.linkTableSourceClsColumn
 }
 
 // returns the name of the column in the link table that holds the ID of the target entity

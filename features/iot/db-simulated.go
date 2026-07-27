@@ -21,6 +21,11 @@ func (thisUser *User) GetUsername() string {
 	return thisUser.UserFullName
 }
 
+// GetMemberships implements [goald.IUser].
+func (thisUser *User) GetMemberships() []goald.IUserGroup {
+	panic("unimplemented")
+}
+
 var users = []goald.IUser{
 	newUser(125, "John Doe"),
 	newUser(233, "Jane Doe"),

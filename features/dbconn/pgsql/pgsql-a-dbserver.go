@@ -34,7 +34,7 @@ func (thisAdapter *dbAdapterPGSQL) SupportsReturningID() bool {
 }
 
 // ConnectionString implements [goald.iDBAdapter].
-func (thisAdapter *dbAdapterPGSQL) ConnectionString(dbConfig *dbconn.DbConfig, user dbconn.DbUserName, pass string) string {
+func (thisAdapter *dbAdapterPGSQL) ConnectionString(dbConfig *dbconn.DbServerConfig, user dbconn.DbUserName, pass string) string {
 	sslMode := dbConfig.SSLMode
 	if sslMode == "" {
 		sslMode = "prefer"

@@ -91,14 +91,7 @@ func (thisServer *server) generateAllObjectValueMappers(srcdir, currentPath stri
 						srcdir, currentPath, entry.Name())
 				}
 
-				class := classRegistry.items[classCore.class]
-
-				if class == nil {
-					core.PanicMsg("It looks like class '%s' has never been imported and thus not initialized and registered. "+
-						"\nMake sure its module is imported in the main package: "+
-						"\nimport _ \"%s/_include/%s\"",
-						classCore.getClassName(), getCurrentModule(), currentPath)
-				}
+				class := classForName(classCore.class, true)
 
 				// the corresponding Value Mapper file, if it exist
 				vmapFilepath := path.Join(srcdir, class.getSrcPath(), sourceCLASSxDIR,
@@ -163,7 +156,7 @@ func generateObjectValueMappersForBO(class IClass, filepath string) {
 		// adding to the context, and the class file content
 		if propertyType := field.getPropertyType(); propertyType != propertyTypeUNKNOWN && propertyType != propertyTypeRELATIONSHIPxMONOM {
 			// not handling multiple properties for now
-			if fieldName := field.GetName(); !field.IsMultiple() {
+			if fieldName := field.GetName(); !field.IsMultiple() && fieldName != boFieldPreID {
 				// is the field type a type alias, or a built-in type?
 				fieldTypeAlias := getNonBuiltInFieldType(bObjectType, fieldName, importsMap)
 
