@@ -220,11 +220,3 @@ func (thisServer *server) connectDbSchema(dbSchema *dbconn.DbSchemaConfig) {
 	// bit of logging
 	thisServer.Info(fmt.Sprintf("Established connection to DB schema '%s' in %s", dbSchema.Name, time.Since(start)))
 }
-
-// ------------------------------------------------------------------------------------------------
-// Misc
-// ------------------------------------------------------------------------------------------------
-
-func dbFor(clsName className) *DB {
-	return modelForName(clsName).getDB()
-}

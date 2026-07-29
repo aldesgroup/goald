@@ -8,6 +8,7 @@ import (
 
 	core "github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald/features/dbconn"
+	"github.com/aldesgroup/goald/features/utils"
 )
 
 // ----------------------------------------------------------------------------
@@ -66,7 +67,7 @@ func (thisServer *server) migrateDBs() {
 	start := time.Now()
 
 	// we'll gather some intel about the models and theirs DBs
-	modelsInAnyDB := map[dbconn.DbSchemaName]map[className]IBusinessObjectModel{}
+	modelsInAnyDB := map[dbconn.DbSchemaName]map[utils.ClassName]IBusinessObjectModel{}
 
 	// first, checking that all the models that should be persisted have their respective DB (schema) ready
 	for _, model := range modelRegistry.items {
@@ -79,7 +80,7 @@ func (thisServer *server) migrateDBs() {
 			}
 
 			if modelsInAnyDB[model.getDB().schema.Name] == nil {
-				modelsInAnyDB[model.getDB().schema.Name] = map[className]IBusinessObjectModel{}
+				modelsInAnyDB[model.getDB().schema.Name] = map[utils.ClassName]IBusinessObjectModel{}
 			}
 			modelsInAnyDB[model.getDB().schema.Name][model.base().name] = model
 		}
@@ -153,7 +154,7 @@ func (thisServer *server) migrateDBs() {
 
 // createMissingTables reads the tables contained in the DB, and browses all the persisted BO
 // classes, and create a table for each class that does not have one yet
-func (thisServer *server) createMissingTables(db *DB, modelsForThisDB map[className]IBusinessObjectModel, tablesInThisDB []string) bool {
+func (thisServer *server) createMissingTables(db *DB, modelsForThisDB map[utils.ClassName]IBusinessObjectModel, tablesInThisDB []string) bool {
 	thisServer.Debug("Scanning for missing TABLES, for all our resources")
 
 	// flag to indicate if new tables were created
@@ -289,7 +290,7 @@ func (thisServer *server) getTableColumns(db *DB) map[string]map[string]*tableCo
 }
 
 // createMissingColumns adds the columns that are required by the code, but do not exist yet in the DB
-func (thisServer *server) createMissingColumns(db *DB, modelsForThisDB map[className]IBusinessObjectModel, columnsInThisDB map[string]map[string]*tableColumnInfo) {
+func (thisServer *server) createMissingColumns(db *DB, modelsForThisDB map[utils.ClassName]IBusinessObjectModel, columnsInThisDB map[string]map[string]*tableColumnInfo) {
 	// iterating over all models associated with the given DB, and creating the missing columns if needed
 	for _, model := range modelsForThisDB {
 		// listing all the needed column names, to help us identify the unused ones
@@ -352,7 +353,7 @@ func (thisServer *server) createMissingColumns(db *DB, modelsForThisDB map[class
 }
 
 // createMissingForeignKeys create the missing foreign keys linking the tables to each other
-func (thisServer *server) createMissingForeignKeys(db *DB, modelsForThisDB map[className]IBusinessObjectModel) {
+func (thisServer *server) createMissingForeignKeys(db *DB, modelsForThisDB map[utils.ClassName]IBusinessObjectModel) {
 	// first, we need to know which foreign keys already exist
 	foreignKeysInThisDB := db.FetchStringMap(thisServer, true, nil, db.get.ForeignKeysQuery(prefixFK), db.schema.Name)
 
@@ -417,7 +418,7 @@ func (thisServer *server) createMissingForeignKeys(db *DB, modelsForThisDB map[c
 
 // createMissingLinkTables is used to create the link tables that are missing
 // Foreign keys can be created only after all the tables have been created, else adding a foreign key can fail
-func (thisServer *server) createMissingLinkTables(db *DB, modelsForThisDB map[className]IBusinessObjectModel, tablesInThisDB []string) {
+func (thisServer *server) createMissingLinkTables(db *DB, modelsForThisDB map[utils.ClassName]IBusinessObjectModel, tablesInThisDB []string) {
 	// listing all the needed link table names, to help us identify the dead tables
 	var requiredLinkTableNames []string
 
@@ -504,7 +505,7 @@ func (thisServer *server) createMissingLinkTables(db *DB, modelsForThisDB map[cl
 }
 
 // createMissingSingleUniqueConstraints create the missing UNIQUE constraints
-func (thisServer *server) createMissingSingleUniqueConstraints(db *DB, modelsForThisDB map[className]IBusinessObjectModel) {
+func (thisServer *server) createMissingSingleUniqueConstraints(db *DB, modelsForThisDB map[utils.ClassName]IBusinessObjectModel) {
 	// getting the existing UNIQUE constraints
 	uniqueConstraintsInThisDB := db.FetchStringMap(thisServer, true, nil, db.get.UniqueConstraintsQuery(prefixUK), db.schema.Name)
 
@@ -550,7 +551,7 @@ func (thisServer *server) createMissingSingleUniqueConstraints(db *DB, modelsFor
 }
 
 // createMissingCompositeUniqueConstraints create the missing UNIQUE constraints
-func (thisServer *server) createMissingCompositeUniqueConstraints(db *DB, modelsForThisDB map[className]IBusinessObjectModel) {
+func (thisServer *server) createMissingCompositeUniqueConstraints(db *DB, modelsForThisDB map[utils.ClassName]IBusinessObjectModel) {
 	// getting the existing COMPOSITE UNIQUE constraints
 	compositeConstraintsInThisDB := db.FetchStringMap(thisServer, true, nil, db.get.UniqueConstraintsQuery(prefixCK), db.schema.Name) // note the different prefix here
 
@@ -603,7 +604,7 @@ func (thisServer *server) createMissingCompositeUniqueConstraints(db *DB, models
 
 // createMissingNotNullConstraints create the missing NOT NULL constraints
 // But it also removes the NOT NULL constraints when the property is not required anymore
-func (thisServer *server) createMissingNotNullConstraints(db *DB, modelsForThisDB map[className]IBusinessObjectModel, columnsInThisDB map[string]map[string]*tableColumnInfo) {
+func (thisServer *server) createMissingNotNullConstraints(db *DB, modelsForThisDB map[utils.ClassName]IBusinessObjectModel, columnsInThisDB map[string]map[string]*tableColumnInfo) {
 	// iterating over all the BO models, and creating the missing NOT NULL constraints if needed
 	for _, model := range modelsForThisDB {
 		// getting the colums as found in the DB, for this model
@@ -645,7 +646,7 @@ func (thisServer *server) createMissingNotNullConstraints(db *DB, modelsForThisD
 
 // extendsColumns look for columns that have been a maxlength in DB smaller than required by the code.
 // NB: This function can only extend columns, never shrink them!
-func (thisServer *server) extendsColumns(db *DB, modelsForThisDB map[className]IBusinessObjectModel, columnsInThisDB map[string]map[string]*tableColumnInfo) {
+func (thisServer *server) extendsColumns(db *DB, modelsForThisDB map[utils.ClassName]IBusinessObjectModel, columnsInThisDB map[string]map[string]*tableColumnInfo) {
 	// iterating over all the BO models, and extending the columns if needed, based on the properties of the model
 	for _, model := range modelsForThisDB {
 		// getting the colums as found in the DB, for this model

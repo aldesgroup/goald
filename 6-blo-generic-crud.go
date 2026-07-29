@@ -4,6 +4,8 @@
 // ------------------------------------------------------------------------------------------------
 package goald
 
+import "github.com/aldesgroup/goald/features/utils"
+
 // CreateBusinessObjects creates a new business object in the database, and all the other business objects
 // that are linked exclusively to it (children) if any, in a single transaction/
 // WARNING: all the business objects must be of the same type (same model), this does not handle polymorphism
@@ -13,10 +15,10 @@ func CreateBusinessObjects[BOTYPE IBusinessObject](bloCtx BloContext, bObjs ...B
 	}
 
 	// we know the BOs here are all of the same class
-	clsName := bObjs[0].GetClassName(bObjs[0])
+	class := bObjs[0].getClass()
 
 	// let's start a transaction if none is already started
-	beginTransactionHere, errBegin := bloCtx.BeginTransaction(clsName)
+	beginTransactionHere, errBegin := bloCtx.BeginTransaction(class)
 	if errBegin != nil {
 		return ErrorC(errBegin, "Could not create object since a transaction could not be started")
 	}
@@ -41,13 +43,13 @@ func CreateBusinessObjects[BOTYPE IBusinessObject](bloCtx BloContext, bObjs ...B
 	}
 
 	// let's try to create the given entity
-	createErr = doCreateBusinessObjects(bloCtx, clsName, bObjs...)
+	createErr = doCreateBusinessObjects(bloCtx, class, bObjs...)
 
 	return
 }
 
 // doCreateBO does the actual creation of a new business object in the database
-func doCreateBusinessObjects[BOTYPE IBusinessObject](bloCtx BloContext, clsName className, bObjs ...BOTYPE) error {
+func doCreateBusinessObjects[BOTYPE IBusinessObject](bloCtx BloContext, class IClass, bObjs ...BOTYPE) error {
 	if len(bObjs) == 0 {
 		return nil
 	}
@@ -68,7 +70,7 @@ func doCreateBusinessObjects[BOTYPE IBusinessObject](bloCtx BloContext, clsName 
 		}
 
 		// check of the validity regarding the model constraints
-		if err := bObj.getClass(bObj).IsModelValid(bObj); err != nil {
+		if err := bObj.IsModelValid(); err != nil {
 			return ErrorC(err, "Could not create object since it is not valid regarding its model constraints")
 		}
 
@@ -91,18 +93,14 @@ func doCreateBusinessObjects[BOTYPE IBusinessObject](bloCtx BloContext, clsName 
 	// // bObj.Set__BOBJ__Status(__BOBJ__StatusCREATED)
 
 	// pushing to the DB ! We're going to add a new line within the __BOBJ__'s table
-	if err := dbInsert(bloCtx.daoFor(clsName), iBObjs...); err != nil {
+	if err := dbInsert(bloCtx.daoFor(class), iBObjs...); err != nil {
 		return err
 	}
 
-	// // TODO inserting all the links that waited for the current entity to be inserted in DB before getting inserted themselves
-	// // if err := doCreateChildrenEntities(biContext, entity, ""); err != nil {
-	// // 	if biContext.IsVerbose() {
-	// // 		biContext.Log().Trace("Entity we tried to create in DB: (see below)\n%s", ToString(entity, 2, true))
-	// // 	}
-
-	// // 	return NewErrC(err, "Could not completely create entity '%s' since inserting its children crashed", ToEntityFullReference(entity))
-	// // }
+	// TODO inserting all the links that waited for the current entity to be inserted in DB before getting inserted themselves
+	if err := doCreateDependentBusinessObjects(bloCtx, class, iBObjs...); err != nil {
+		return err
+	}
 
 	// we have stuff to do after the insertion ? yeah ? really ? let's do it now !
 	for _, bObj := range bObjs {
@@ -112,6 +110,37 @@ func doCreateBusinessObjects[BOTYPE IBusinessObject](bloCtx BloContext, clsName 
 	}
 
 	// 'guess everything is alrite here
+	return nil
+}
+
+// doCreateDependentBusinessObjects creates all the business objects that are linked exclusively to the given business objects (children) if any, in a single transaction
+func doCreateDependentBusinessObjects(bloCtx BloContext, class IClass, iBObjs ...IBusinessObject) error {
+	// handlng all the children relationships this class of business objects may have, if any
+	for _, relationship := range class.getModel().base().getRelationshipsWithRequiredBackref() {
+		// gathering all the children, by type - because we may have polymorphic children, and we want to create them in batches of the same type
+		childrenByType := make(map[utils.ClassName][]IBusinessObject)
+		for _, bObj := range iBObjs {
+			// getting the children of this business object for this relationship
+			children, errGet := bObj.GetMultipleRelationshipValue(relationship.name)
+			if errGet != nil {
+				return errGet
+			}
+
+			// grouping the children by type, so that we can create them in batches of the same type
+			for _, child := range children {
+				childrenByType[child.ClassName()] = append(childrenByType[child.ClassName()], child)
+			}
+		}
+
+		// creating the children, by type
+		for childType, children := range childrenByType {
+			childClass := classFor(childType, true)
+			if err := doCreateBusinessObjects(bloCtx, childClass, children...); err != nil {
+				return ErrorC(err, "Could not create child objects for relationship '%s.%s'", class.getClassName(), relationship.name)
+			}
+		}
+	}
+
 	return nil
 }
 

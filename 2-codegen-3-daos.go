@@ -11,6 +11,7 @@ import (
 
 	core "github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald/features/dbconn"
+	"github.com/aldesgroup/goald/features/utils"
 )
 
 const daoINITxTEMPLATE = `// Generated file, do not edit!
@@ -92,10 +93,10 @@ func (thisServer *server) generateAllObjectDAOs(srcdir string, regen bool) (code
 	daoFolders := map[string]map[dbconn.DatabaseType]bool{}
 
 	// we'll gather all the existing class files, per DB type
-	existingDAOFiles := map[dbconn.DatabaseType]map[className]*daoFile{}
+	existingDAOFiles := map[dbconn.DatabaseType]map[utils.ClassName]*daoFile{}
 	for dbType := range dbTypes {
 		// some init
-		existingDAOFiles[dbType] = map[className]*daoFile{}
+		existingDAOFiles[dbType] = map[utils.ClassName]*daoFile{}
 
 		// making sure the DAO folder exists for this DB type
 		daoDir := core.EnsureDir(srcdir, includePATH, dbFOLDERNAME, string(dbType))
@@ -104,7 +105,7 @@ func (thisServer *server) generateAllObjectDAOs(srcdir string, regen bool) (code
 		for _, daoEntry := range core.EnsureReadDir(daoDir) {
 			daoEntryInfo, errInfo := daoEntry.Info()
 			core.PanicMsgIfErr(errInfo, "Could not read info for file '%s'", daoEntry.Name())
-			daoClassName := className(core.KebabToPascal(daoEntry.Name()[:len(daoEntry.Name())-daoFILExSUFFIXxLEN]))
+			daoClassName := utils.ClassName(core.KebabToPascal(daoEntry.Name()[:len(daoEntry.Name())-daoFILExSUFFIXxLEN]))
 			existingDAOFiles[dbType][daoClassName] = &daoFile{
 				modTime:  daoEntryInfo.ModTime(),
 				filename: daoEntry.Name(),
@@ -117,13 +118,13 @@ func (thisServer *server) generateAllObjectDAOs(srcdir string, regen bool) (code
 		// we only consider the business objects
 		if !class.isInterface() {
 			// obviously we don't persist abstract business objects, so we skip them
-			if boModel := modelForName(name); !boModel.base().abstract && boModel.base().isPersistedHere() {
+			if boModel := class.getModel(); !boModel.base().abstract && boModel.base().isPersistedHere() {
 				// what's the DB type involved here?
 				dbType := boModel.base().db.schema.DbServer.Type
 
 				// do we meed to generate a DAO for this business object ?
 				if existingDAO := existingDAOFiles[dbType][name]; regen ||
-					existingDAO == nil || existingDAO.modTime.Before(getClass(boModel).getLastBOMod()) {
+					existingDAO == nil || existingDAO.modTime.Before(class.getLastBOMod()) {
 
 					// generating the missing or outdated class
 					thisServer.generateOneDAO(srcdir, string(dbType), boModel)
@@ -193,7 +194,7 @@ func (thisServer *server) generateOneDAO(srcdir string, dbType string, model IBu
 	daoDir := core.EnsureDir(srcdir, includePATH, dbFOLDERNAME, dbType)
 
 	// trivial filling of the template
-	class := getClass(model)
+	class := model.getClass()
 	classCamel := core.PascalToCamel(string(class.getClassName()))
 	importForClass := getImportPackageLine(class)
 	content := fmt.Sprintf(daoINITxTEMPLATE, dbType, importForClass, class.getClassName(), classCamel, model.base().db.name)
@@ -240,14 +241,33 @@ func (thisServer *server) getColumnsAndInsertData(model IBusinessObjectModel, sp
 		if relationship, ok := prop.(*Relationship); ok {
 			columns += relationship.getColumnName()
 			maskPattern += core.IfThenElse(relationship.isSecret(), "true", "false")
-			argAssignments += fmt.Sprintf("%sargs[base+%d] = %s.%s.GetID()\n", space, colIndex, varName, relationship.GetName())
+
+			// the relationship's Go field is either a concrete pointer (monomorphic) or an interface
+			// (polymorphic); either way, comparing the field itself to nil is always correct - no
+			// runtime reflection needed, since we know its exact static type here, at codegen time
+			fieldExpr := fmt.Sprintf("%s.%s", varName, relationship.GetName())
 
 			if relationship.IsPolymorphic() {
 				columns += ", " + relationship.getColumnNameForTargetClass()
 				maskPattern += ", " + core.IfThenElse(relationship.isSecret(), "true", "false")
 				polyIndex := nbCols
 				nbCols++
-				argAssignments += fmt.Sprintf("%[1]sargs[base+%[2]d] = %[3]s.%[4]s.GetClassName(%[3]s.%[4]s)\n", space, polyIndex, varName, relationship.GetName())
+				//
+				argAssignments += fmt.Sprintf("%[1]sif %[2]s != nil {\n"+
+					"%[1]s\targs[base+%[3]d] = %[2]s.GetID()\n"+
+					"%[1]s\targs[base+%[4]d] = %[2]s.GetClassName(%[2]s)\n"+
+					"%[1]s} else {\n"+
+					"%[1]s\targs[base+%[3]d] = nil\n"+
+					"%[1]s\targs[base+%[4]d] = nil\n"+
+					"%[1]s}\n",
+					space, fieldExpr, colIndex, polyIndex)
+			} else {
+				argAssignments += fmt.Sprintf("%[1]sif %[2]s != nil {\n"+
+					"%[1]s\targs[base+%[3]d] = %[2]s.GetID()\n"+
+					"%[1]s} else {\n"+
+					"%[1]s\targs[base+%[3]d] = nil\n"+
+					"%[1]s}\n",
+					space, fieldExpr, colIndex)
 			}
 		} else if prop.GetName() == boFieldPreID {
 			// the pre-ID field is unexported, so it can only be accessed through its exported getter,
@@ -290,14 +310,14 @@ func (thisDAO *%[1]sDAO) ExecInsertQuery(bObjs ...goald.IBusinessObject) (map[in
 %[6]s		},
 	})
 }`,
-		className,                    // 1
-		varName,                      // 2
-		getClass(model).getPackage(), // 3
-		model.getTableName(false),    // 4
-		columns,                      // 5
-		argAssignments,               // 6
-		maskPattern,                  // 7
-		nbCols,                       // 8
+		className,                     // 1
+		varName,                       // 2
+		model.getClass().getPackage(), // 3
+		model.getTableName(false),     // 4
+		columns,                       // 5
+		argAssignments,                // 6
+		maskPattern,                   // 7
+		nbCols,                        // 8
 	)
 }
 
@@ -317,7 +337,7 @@ func (thisDAO *%[1]sDAO) ExecInsertQuery(bObjs ...goald.IBusinessObject) (map[in
 func (thisServer *server) generateExecInsertLinksQueries(model IBusinessObjectModel) string {
 	className := model.base().name
 	varName := core.PascalToCamel(string(className))
-	pkg := getClass(model).getPackage()
+	pkg := model.getClass().getPackage()
 
 	var blocks string
 	for _, relationship := range core.GetSortedValues(model.base().relationships) {

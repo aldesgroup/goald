@@ -83,8 +83,13 @@ type response struct {
 	Version    string       `json:"version"`
 }
 
-func errResp(_ int, _ string, _ ...any) *response {
-	return &response{}
+func errResp(status hstatus.Code, msg string, args ...any) *response {
+	return &response{
+		statusObj:  status,
+		StatusCode: status.Val(),
+		Status:     status.String(),
+		Message:    fmt.Sprintf(msg, args...),
+	}
 }
 
 // main HTTP SERVING functiont.De
@@ -162,13 +167,6 @@ func (thisReqCtx *httpRequestContext) serve(ep iEndpoint, w http.ResponseWriter,
 	}
 
 End:
-	// bit of logging
-	if resp.statusObj.Val() > hstatus.BadRequest.Val() {
-		webCtx.Error(false, strconv.Itoa(resp.statusObj.Val())+": "+resp.Message+", in "+time.Since(thisReqCtx.start).String())
-	} else {
-		webCtx.Info(strconv.Itoa(resp.statusObj.Val()) + ": " + resp.Message + ", in " + time.Since(thisReqCtx.start).String())
-	}
-
 	// writing out the response
 	thisReqCtx.write(resp, w)
 }
@@ -190,8 +188,15 @@ func (thisReqCtx *httpRequestContext) write(resp *response, w http.ResponseWrite
 	// JSON-marshaling of the response
 	jsonBytes, errMrsh := json.MarshalIndent(resp, "", "\t")
 	if errMrsh != nil {
-		resp = errResp(http.StatusInternalServerError, "Could not unmarshal the response: %s", errMrsh)
+		resp = errResp(hstatus.InternalServerError, "Could not unmarshal the response: %s", errMrsh)
 		jsonBytes, _ = json.MarshalIndent(resp, "", "\t")
+	}
+
+	// bit of logging
+	if resp.statusObj.Val() > hstatus.BadRequest.Val() {
+		thisReqCtx.Error(false, strconv.Itoa(resp.statusObj.Val())+": "+resp.Message+", in "+time.Since(thisReqCtx.start).String())
+	} else {
+		thisReqCtx.Info(strconv.Itoa(resp.statusObj.Val()) + ": " + resp.Message + ", in " + time.Since(thisReqCtx.start).String())
 	}
 
 	// writing the header before the body to avoid default HTTP code
@@ -222,8 +227,7 @@ func retrieveInputData(request *http.Request, webContext *webContextImpl, ep iEn
 
 	if ep.isMultipleInput() {
 		// Handling array of bObj input: []*package.BObj
-		bObjClass := classForName(ep.getInputOrParamsClass(), true)
-		bObjSlice := bObjClass.NewSlice()
+		bObjSlice := ep.getInputOrParamsClass().NewSlice()
 
 		// Unmarshaling *[]*package.BObj as an interface - which is expected by the Unmarshal function
 		if jsonErr := json.Unmarshal(inputBodyBytes, &bObjSlice); jsonErr != nil {
@@ -235,10 +239,9 @@ func retrieveInputData(request *http.Request, webContext *webContextImpl, ep iEn
 
 	} else {
 		// Handling single bObj input: *package.BObj
-		bObjClass := classForName(ep.getInputOrParamsClass(), true)
-		bObj := bObjClass.NewObject()
+		bObj := ep.getInputOrParamsClass().NewObject()
 
-		if jsonErr := unmarshalBObj(inputBodyBytes, ep.getInputOrParamsClass(), bObj); jsonErr != nil {
+		if jsonErr := unmarshalBObj(inputBodyBytes, bObj); jsonErr != nil {
 			return nil, ErrorC(jsonErr, "Could not unmarshall the JSON object!")
 		}
 
@@ -248,19 +251,16 @@ func retrieveInputData(request *http.Request, webContext *webContextImpl, ep iEn
 
 // parsing the request's URL to build the expected URLQueryParams object
 func retrieveURLParams(request *http.Request, _ *webContextImpl, ep iEndpoint) (any, error) {
-	// getting the right class utils
-	urlParamsClass := classForName(ep.getInputOrParamsClass(), true)
-
 	// new URLQueryParams object
-	urlParams := urlParamsClass.NewObject().(IURLQueryParams)
+	urlParams := ep.getInputOrParamsClass().NewObject().(IURLQueryParams)
 
 	// transferring the URL param values from the URL to the object
-	for _, field := range modelForName(ep.getInputOrParamsClass()).base().fields {
+	for _, field := range urlParams.getModel().base().fields {
 		valueToSet := request.URL.Query().Get(field.GetName())
 		if valueToSet == "" {
 			valueToSet = field.getDefaultValue()
 		}
-		urlParamsClass.SetValueAsString(urlParams, field.GetName(), valueToSet)
+		urlParams.SetValueAsString(field.GetName(), valueToSet)
 	}
 
 	return urlParams, nil

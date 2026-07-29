@@ -18,13 +18,13 @@ func SetAutoCRUD[BOTYPE IBusinessObject](group *EndpointGroup) {
 
 // GenericHandleCreate creates a new endpoint for creating a new instance of the given business object type (BOTYPE).
 func GenericHandleCreate[BOTYPE IBusinessObject](group *EndpointGroup) *oneForOneEndpoint[BOTYPE, BOTYPE] {
-	ep := PostOneGetOne(
+	ep := PostOneGetOne( //
 		// new (anonym) handler function here
 		func(webCtx WebContext, input BOTYPE) (BOTYPE, hstatus.Code, string) {
 
 			// Use reflection here to duplicate the input 500 times, and look for a field called "Name" on it,
 			// and append a number to it, so that we can create 500 instances of the same object with different names
-			const duplicateCount = 3569
+			const duplicateCount = 50000
 			copies := make([]BOTYPE, duplicateCount)
 
 			// input is expected to be a pointer to a struct (e.g. *StaffMember)

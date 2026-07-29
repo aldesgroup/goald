@@ -3,15 +3,15 @@ package class
 
 import (
 	"github.com/aldesgroup/goald"
-"github.com/aldesgroup/goald/features/accessmgt"
+	"github.com/aldesgroup/goald/features/accessmgt"
 )
 
 type UserGroupClass struct {
-	goald.IClassCore
+	goald.IClass
 }
 
 func ClassForUserGroup(srcPath, lastMod string) goald.IClass {
-	return &UserGroupClass{IClassCore: goald.NewClassCore(srcPath, "UserGroup", lastMod)}
+	return &UserGroupClass{IClass: goald.NewClass(srcPath, "UserGroup", lastMod)}
 }
 
 func (thisClass *UserGroupClass) NewObject() any {

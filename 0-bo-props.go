@@ -12,6 +12,7 @@ import (
 
 	core "github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald/features/reflection"
+	"github.com/aldesgroup/goald/features/utils"
 )
 
 // ------------------------------------------------------------------------------------------------
@@ -42,7 +43,7 @@ type numericField struct {
 	maxSet bool
 }
 
-func newField(owner IBusinessObjectModel, declaringBO className, name string, multiple bool, propType propertyType) field {
+func newField(owner IBusinessObjectModel, declaringBO utils.ClassName, name string, multiple bool, propType propertyType) field {
 	return field{
 		businessObjectProperty: businessObjectProperty{
 			owner:       owner,
@@ -196,14 +197,19 @@ func (f *floatField) GetDecimals() int {
 // more than totalDigits significant digits in total, of which no more than decimals after the
 // decimal point - mirroring a SQL DECIMAL(totalDigits, decimals) column.
 // A totalDigits <= 0 means there's no format constraint to check.
-func CheckFloatFormat(value float64, totalDigits int, decimals int) error {
+// bitSize should be 32 if the value originally comes from a float32 field, and 64 for a float64 one -
+// this matters because a float32 value, once widened to float64, exposes binary rounding noise as a
+// long decimal tail (e.g. 8772.652 as float32 becomes 8772.65234375 as float64): passing the correct
+// bitSize tells strconv to compute the shortest decimal string that round-trips at that precision,
+// rather than at float64's much higher precision.
+func CheckFloatFormat(value float64, totalDigits int, decimals int, bitSize int) error {
 	if totalDigits <= 0 {
 		return nil
 	}
 
-	// reasoning on the shortest decimal string that round-trips back to this exact float64 value:
-	// cheaper than, and immune to the rounding noise of, redoing the math with Pow/Round
-	formatted := strings.TrimPrefix(strconv.FormatFloat(value, 'f', -1, 64), "-")
+	// reasoning on the shortest decimal string that round-trips back to this exact value at the
+	// given bit size: cheaper than, and immune to the rounding noise of, redoing the math with Pow/Round
+	formatted := strings.TrimPrefix(strconv.FormatFloat(value, 'f', -1, bitSize), "-")
 	intPart, decPart, hasDecimals := strings.Cut(formatted, ".")
 
 	if hasDecimals && len(decPart) > decimals {
@@ -339,49 +345,49 @@ func NewEnumField(owner IBusinessObjectModel, name string, multiple bool, enumNa
 	}).(*EnumField)
 }
 
-func AddBoolField(owner IBusinessObjectModel, declaringBO className, name string, multiple bool) *BoolField {
+func AddBoolField(owner IBusinessObjectModel, declaringBO utils.ClassName, name string, multiple bool) *BoolField {
 	return owner.addField(&BoolField{
 		field: newField(owner, declaringBO, name, multiple, propertyTypeBOOL),
 	}).(*BoolField)
 }
 
-func AddStringField(owner IBusinessObjectModel, declaringBO className, name string, multiple bool) *StringField {
+func AddStringField(owner IBusinessObjectModel, declaringBO utils.ClassName, name string, multiple bool) *StringField {
 	return owner.addField(&StringField{
 		field: newField(owner, declaringBO, name, multiple, propertyTypeSTRING),
 	}).(*StringField)
 }
 
-func AddIntField(owner IBusinessObjectModel, declaringBO className, name string, multiple bool) *IntField {
+func AddIntField(owner IBusinessObjectModel, declaringBO utils.ClassName, name string, multiple bool) *IntField {
 	return owner.addField(&IntField{numericField: numericField{
 		field: newField(owner, declaringBO, name, multiple, propertyTypeINT),
 	}}).(*IntField)
 }
 
-func AddBigIntField(owner IBusinessObjectModel, declaringBO className, name string, multiple bool) *BigIntField {
+func AddBigIntField(owner IBusinessObjectModel, declaringBO utils.ClassName, name string, multiple bool) *BigIntField {
 	return owner.addField(&BigIntField{numericField: numericField{
 		field: newField(owner, declaringBO, name, multiple, propertyTypeBIGINT),
 	}}).(*BigIntField)
 }
 
-func AddRealField(owner IBusinessObjectModel, declaringBO className, name string, multiple bool) *RealField {
+func AddRealField(owner IBusinessObjectModel, declaringBO utils.ClassName, name string, multiple bool) *RealField {
 	return owner.addField(&RealField{floatField: floatField{numericField: numericField{
 		field: newField(owner, declaringBO, name, multiple, propertyTypeREAL),
 	}}}).(*RealField)
 }
 
-func AddDoubleField(owner IBusinessObjectModel, declaringBO className, name string, multiple bool) *DoubleField {
+func AddDoubleField(owner IBusinessObjectModel, declaringBO utils.ClassName, name string, multiple bool) *DoubleField {
 	return owner.addField(&DoubleField{floatField: floatField{numericField: numericField{
 		field: newField(owner, declaringBO, name, multiple, propertyTypeDOUBLE),
 	}}}).(*DoubleField)
 }
 
-func AddDateField(owner IBusinessObjectModel, declaringBO className, name string, multiple bool) *DateField {
+func AddDateField(owner IBusinessObjectModel, declaringBO utils.ClassName, name string, multiple bool) *DateField {
 	return owner.addField(&DateField{
 		field: newField(owner, declaringBO, name, multiple, propertyTypeDATE),
 	}).(*DateField)
 }
 
-func AddEnumField(owner IBusinessObjectModel, declaringBO className, name string, multiple bool, enumName string) *EnumField {
+func AddEnumField(owner IBusinessObjectModel, declaringBO utils.ClassName, name string, multiple bool, enumName string) *EnumField {
 	return owner.addField(&EnumField{
 		field:    newField(owner, declaringBO, name, multiple, propertyTypeENUM),
 		enumName: enumName,
@@ -416,20 +422,20 @@ const (
 type Relationship struct {
 	businessObjectProperty
 	// backRefs                 []*Relationship  // valued from the business object's init
-	mx                       sync.Mutex       // a mutex to avoid some race conditions
-	targetClassNames         []className      // the names of BOs pointed by this relationship
-	relationType             relationshipType // valued from the business object's init
-	backRef                  *Relationship    // valued from the business object's init
-	columnNameForTarget      string           // the name of the target model, needed for persisted polymorphic relationships
-	linkTableName            string           // the name of the link table, if this relationship is persisted in a link table
-	linkTableSourceColumn    string           // the name of the column in the link table that holds the ID of the source entity
-	linkTableSourceClsColumn string           // the name of the column in the link table that holds the class name of the source entity, if the backref relationship is polymorphic
-	linkTableTargetColumn    string           // the name of the column in the link table that holds the ID of the target entity
-	linkTableTargetClsColumn string           // the name of the column in the link table that holds the class name of the target entity, if this relationship is polymorphic
+	mx                       sync.Mutex        // a mutex to avoid some race conditions
+	targetClassNames         []utils.ClassName // the names of BOs pointed by this relationship
+	relationType             relationshipType  // valued from the business object's init
+	backRef                  *Relationship     // valued from the business object's init
+	columnNameForTarget      string            // the name of the target model, needed for persisted polymorphic relationships
+	linkTableName            string            // the name of the link table, if this relationship is persisted in a link table
+	linkTableSourceColumn    string            // the name of the column in the link table that holds the ID of the source entity
+	linkTableSourceClsColumn string            // the name of the column in the link table that holds the class name of the source entity, if the backref relationship is polymorphic
+	linkTableTargetColumn    string            // the name of the column in the link table that holds the ID of the target entity
+	linkTableTargetClsColumn string            // the name of the column in the link table that holds the class name of the target entity, if this relationship is polymorphic
 }
 
 // TODO DEPRECATED: Allows to declare a new monomorphic relationship on a given class
-func NewRelationship(owner IBusinessObjectModel, name string, multiple bool, targetName className) *Relationship {
+func NewRelationship(owner IBusinessObjectModel, name string, multiple bool, targetName utils.ClassName) *Relationship {
 	relationship := &Relationship{
 		businessObjectProperty: businessObjectProperty{
 			owner:    owner,
@@ -437,7 +443,7 @@ func NewRelationship(owner IBusinessObjectModel, name string, multiple bool, tar
 			multiple: multiple,
 			propType: propertyTypeRELATIONSHIPxMONOM,
 		},
-		targetClassNames: []className{targetName},
+		targetClassNames: []utils.ClassName{targetName},
 		// polymorphic: false,
 	}
 
@@ -464,7 +470,7 @@ func NewPolyRelationship(owner IBusinessObjectModel, name string, multiple bool)
 }
 
 // Allows to declare a new monomorphic relationship on a given class
-func AddRelationship(owner IBusinessObjectModel, declaringBO className, name string, multiple bool, targetName className) *Relationship {
+func AddRelationship(owner IBusinessObjectModel, declaringBO utils.ClassName, name string, multiple bool, targetName utils.ClassName) *Relationship {
 	relationship := &Relationship{
 		businessObjectProperty: businessObjectProperty{
 			owner:       owner,
@@ -473,7 +479,7 @@ func AddRelationship(owner IBusinessObjectModel, declaringBO className, name str
 			multiple:    multiple,
 			propType:    propertyTypeRELATIONSHIPxMONOM,
 		},
-		targetClassNames: []className{targetName},
+		targetClassNames: []utils.ClassName{targetName},
 	}
 
 	owner.base().relationships[name] = relationship
@@ -482,7 +488,7 @@ func AddRelationship(owner IBusinessObjectModel, declaringBO className, name str
 }
 
 // Allows to declare a new polymorphic relationship on a given class
-func AddPolyRelationship(owner IBusinessObjectModel, declaringBO className, name string, multiple bool) *Relationship {
+func AddPolyRelationship(owner IBusinessObjectModel, declaringBO utils.ClassName, name string, multiple bool) *Relationship {
 	relationship := &Relationship{
 		businessObjectProperty: businessObjectProperty{
 			owner:       owner,
@@ -577,7 +583,7 @@ func (r *Relationship) IsPolymorphic() bool {
 }
 
 // returns the list of the names of the BOs pointed by this relationship, resolving it if needed
-func (r *Relationship) getTargetClassNames() []className {
+func (r *Relationship) getTargetClassNames() []utils.ClassName {
 	if !r.IsPolymorphic() {
 		return r.targetClassNames
 	}
@@ -590,10 +596,10 @@ func (r *Relationship) getTargetClassNames() []className {
 }
 
 // returns the name of the unique target BO pointed by this relationship, or an error message if there is no unique target
-func (r *Relationship) getUniqueTargetName() className {
+func (r *Relationship) getUniqueTargetName() utils.ClassName {
 	targetClassNames := r.getTargetClassNames()
 	if len(targetClassNames) != 1 {
-		return className("- no unique target for relationship " + r.name + " on " + string(r.owner.base().name) + "! -")
+		return utils.ClassName("- no unique target for relationship " + r.name + " on " + string(r.owner.base().name) + "! -")
 	}
 
 	return targetClassNames[0]
@@ -601,16 +607,16 @@ func (r *Relationship) getUniqueTargetName() className {
 
 // returns the model of the unique target BO pointed by this relationship, or nil if there is no unique target
 func (r *Relationship) getUniqueTargetModel() IBusinessObjectModel {
-	return modelForName(className(r.getUniqueTargetName()))
+	return modelFor(r.getUniqueTargetName())
 }
 
-var interfaceImplementations = map[className][]className{}
+var interfaceImplementations = map[utils.ClassName][]utils.ClassName{}
 
 // returns the list of the names of the BOs pointed by this relationship, or the list of the types implementing the interface, if it's a polymorphic relationship
-func (r *Relationship) resolveTargetNames() []className {
+func (r *Relationship) resolveTargetNames() []utils.ClassName {
 	// info about the owner of the relationship, or the source of the arrow representing it
 	srcClassName := r.owner.base().name                   // e.g. "SourceObj"
-	clsSourceObj := classForName(srcClassName, true)      // e.g. ClassForSourceObj
+	clsSourceObj := classFor(srcClassName, true)          // e.g. ClassForSourceObj
 	sourceObject := clsSourceObj.NewObject()              // e.g.: *SourceObj
 	sourceObjTyp := reflection.TypeOf(sourceObject, true) // e.g. Type SourceObj
 
@@ -627,7 +633,7 @@ func (r *Relationship) resolveTargetNames() []className {
 		for _, class := range core.GetSortedValues(classRegistry.items) {
 			if !class.isInterface() {
 				if boType := reflection.TypeOf(class.NewObject(), false); boType.Implements(targetFldTyp) {
-					if !modelForName(class.getClassName()).base().abstract {
+					if !class.getModel().base().abstract {
 						interfaceImplementations[srcClassName] = append(interfaceImplementations[srcClassName], class.getClassName())
 					}
 				}

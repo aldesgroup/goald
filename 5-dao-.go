@@ -14,8 +14,8 @@ type IBusinessObjectDAO interface {
 	// a DAO is a complete context that should allow to perform queries for a specific business object class
 	logging.ILogger                   // being able to log from the DAO
 	setLogger(logger logging.ILogger) // setting the logger to use for this DAO
-	getClassName() className          // the business object class name this DAO is for
-	setClassName(clsName className)   // setting the business object class name this DAO is for
+	getClass() IClass                 // the business object class name this DAO is for
+	setClass(clsName IClass)          // setting the business object class name this DAO is for
 	getDB() *DB                       // accessing the DB object associated with this DAO
 	setDB(db *DB)                     // setting the DB object associated with this DAO
 	getTx() *sql.Tx                   // accessing the current transaction associated with this DAO
@@ -38,9 +38,9 @@ type IBusinessObjectDAO interface {
 
 type BusinessObjectDAO struct {
 	logging.ILogger
-	clsName className
-	db      *DB
-	tx      *sql.Tx
+	class IClass
+	db    *DB
+	tx    *sql.Tx
 }
 
 // NewDAO implements [IBusinessObjectDAO].
@@ -52,12 +52,12 @@ func (baseDAO *BusinessObjectDAO) setLogger(logger logging.ILogger) {
 	baseDAO.ILogger = logger
 }
 
-func (baseDAO *BusinessObjectDAO) getClassName() className {
-	return baseDAO.clsName
+func (baseDAO *BusinessObjectDAO) getClass() IClass {
+	return baseDAO.class
 }
 
-func (baseDAO *BusinessObjectDAO) setClassName(clsName className) {
-	baseDAO.clsName = clsName
+func (baseDAO *BusinessObjectDAO) setClass(class IClass) {
+	baseDAO.class = class
 }
 
 func (baseDAO *BusinessObjectDAO) getDB() *DB {

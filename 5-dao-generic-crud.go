@@ -13,7 +13,7 @@ func dbInsert(dao IBusinessObjectDAO, bObjs ...IBusinessObject) error {
 	// controlling we're not trying to insert a business object that already got an ID
 	for _, bObj := range bObjs {
 		if bObj.GetID() > 0 {
-			return Error("Can not insert a business object '%s' that already has an ID", bObj.GetClassName(bObj))
+			return Error("Can not insert a business object '%s' that already has an ID", bObj.ClassName())
 		} //
 	}
 
@@ -21,7 +21,7 @@ func dbInsert(dao IBusinessObjectDAO, bObjs ...IBusinessObject) error {
 	rowToIDMap, errInsert := dao.ExecInsertQuery(bObjs...)
 	if errInsert != nil {
 		// TODO _JW$2:handle 1062 error (duplicate entry), 1048 (missing column value), 1054 (unknown column)
-		return ErrorC(errInsert, "Error while performing insert query for '%s'", dao.getClassName())
+		return ErrorC(errInsert, "Error while performing insert query for '%s'", dao.getClass().getClassName())
 	}
 
 	// consolidating the DB IDs back into the business objects
@@ -31,7 +31,7 @@ func dbInsert(dao IBusinessObjectDAO, bObjs ...IBusinessObject) error {
 
 	// so far, we've just handle the entities' properties and persisted single links; let's now handle the multiple links
 	if errLinks := dao.ExecInsertLinksQueries(bObjs...); errLinks != nil {
-		return ErrorC(errLinks, "Error while performing insert links for '%s'", dao.getClassName())
+		return ErrorC(errLinks, "Error while performing insert links for '%s'", dao.getClass().getClassName())
 	}
 
 	// yeah, we dit it!

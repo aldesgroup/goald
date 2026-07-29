@@ -16,6 +16,7 @@ import (
 	"time"
 
 	core "github.com/aldesgroup/corego"
+	"github.com/aldesgroup/goald/features/utils"
 )
 
 const includePATH = "_include"
@@ -29,9 +30,9 @@ const sourceCLASSxDIR = "class"
 // ------------------------------------------------------------------------------------------------
 
 func (thisServer *server) generateAllClasses(srcdir, currentPath string, _ bool,
-	allEntriesInCodeSoFar map[packageName]map[className]*classCore, regen bool) (codeChanged bool) {
+	allEntriesInCodeSoFar map[packageName]map[utils.ClassName]*baseClass, regen bool) (codeChanged bool) {
 	// we want all the entities we find in the code to build 1 global registry
-	allClassCoresInCode := allEntriesInCodeSoFar
+	allClassesInCode := allEntriesInCodeSoFar
 
 	// the path we're currently reading at e.g. go/pkg1/pkg2
 	readingPath := path.Join(srcdir, currentPath)
@@ -45,7 +46,7 @@ func (thisServer *server) generateAllClasses(srcdir, currentPath string, _ bool,
 			// not going into the vendor, nor the git folder obviously
 			if entry.Name() != "vendor" && entry.Name() != ".git" {
 				// found another directory, let's dive deeper!
-				codeChanged = thisServer.generateAllClasses(srcdir, path.Join(currentPath, entry.Name()), false, allClassCoresInCode, regen) || codeChanged
+				codeChanged = thisServer.generateAllClasses(srcdir, path.Join(currentPath, entry.Name()), false, allClassesInCode, regen) || codeChanged
 			}
 		} else {
 			// found a file... but we're only interested in files containing Business Objects, which must end with sourceFILExSUFFIX
@@ -57,32 +58,32 @@ func (thisServer *server) generateAllClasses(srcdir, currentPath string, _ bool,
 
 					// but at this point the package should not exist yet, or it means we have 2 packages with the same name
 					core.PanicMsgIf(allEntriesInCodeSoFar[currentPackage] != nil, "there are 2 packages named %s which is not allowed!", currentPackage)
-					allEntriesInCodeSoFar[currentPackage] = map[className]*classCore{}
+					allEntriesInCodeSoFar[currentPackage] = map[utils.ClassName]*baseClass{}
 					thisServer.Warn("Found new package " + string(currentPackage))
 				}
 
 				// getting the business object entry for the egustry, from the current file
-				if clsCore := getClassFromFile(srcdir, currentPath, entry.Name()); clsCore != nil {
+				if class := getClassFromFile(srcdir, currentPath, entry.Name()); class != nil {
 					// checking the biz obj / file naming
-					if expected := core.PascalToKebab(string(clsCore.class)) + sourceFILExSUFFIX; expected != entry.Name() {
+					if expected := core.PascalToKebab(string(class.class)) + sourceFILExSUFFIX; expected != entry.Name() {
 						core.PanicMsg("The business object's name should be the file name Pascal-cased, i.e. we should have: "+
 							"%s in file %s, "+
 							"or %s in file %s",
-							clsCore.class, expected,
+							class.class, expected,
 							core.KebabToPascal(strings.Replace(entry.Name(), sourceFILExSUFFIX, "", 1)), entry.Name(),
 						)
 					}
 
 					// checking the unicity of each biz obj name
-					if allClassCoresInCode[currentPackage][clsCore.class] != nil {
+					if allClassesInCode[currentPackage][class.class] != nil {
 						core.PanicMsg("We can't have 2 business objects with the same name '%s'."+
-							" This would lead to the same REST path. You have to rename one.", clsCore.class)
+							" This would lead to the same REST path. You have to rename one.", class.class)
 					} else {
 						// adding one more BO to our list
-						allClassCoresInCode[currentPackage][clsCore.class] = clsCore
+						allClassesInCode[currentPackage][class.class] = class
 
 						// generating the corresponding Class file, if it doesn't exist yet
-						codeChanged = thisServer.genClassFile(srcdir, clsCore, regen) || codeChanged
+						codeChanged = thisServer.genClassFile(srcdir, class, regen) || codeChanged
 					}
 				} else {
 					thisServer.Error(false, "No business object found in file "+entry.Name())
@@ -94,7 +95,7 @@ func (thisServer *server) generateAllClasses(srcdir, currentPath string, _ bool,
 	// if we're at root here, this means we've browsed through all the code already,
 	// and can now decide to (re-)generate the object registry - or not
 	if currentPath == "." {
-		codeChanged = thisServer.writeRegistryFilesIfNeeded(srcdir, allClassCoresInCode, regen) || codeChanged
+		codeChanged = thisServer.writeRegistryFilesIfNeeded(srcdir, allClassesInCode, regen) || codeChanged
 	}
 
 	return
@@ -118,21 +119,21 @@ func init() {
 }
 `
 
-func (thisServer *server) writeRegistryFilesIfNeeded(srcdir string, allClassCoresInCode map[packageName]map[className]*classCore, regen bool) (codeChanged bool) {
+func (thisServer *server) writeRegistryFilesIfNeeded(srcdir string, allClassesInCode map[packageName]map[utils.ClassName]*baseClass, regen bool) (codeChanged bool) {
 	// do we need to regenerate the object registry at the current path?
 	needRegen := regen
 
 	// iterating over all the packages we've found
-	for currentPackage, allClassCoresInPackage := range allClassCoresInCode {
+	for currentPackage, allClassesInPackage := range allClassesInCode {
 		// let's check the current class, the ones coded right now
-		for clsName, clsCoreInCode := range allClassCoresInPackage {
-			classInRegistry := classForName(clsName, false)
+		for clsName, classInCode := range allClassesInPackage {
+			classInRegistry := classFor(clsName, false)
 			if classInRegistry == nil {
 				thisServer.Info(fmt.Sprintf("Business object '%s' has appeared since the last generation!", clsName))
 				needRegen = true
 
 				break
-			} else if classInRegistry.getLastBOMod().Before(clsCoreInCode.getLastBOMod()) {
+			} else if classInRegistry.getLastBOMod().Before(classInCode.getLastBOMod()) {
 				thisServer.Info(fmt.Sprintf("Business object '%s' has changed since the last generation!", clsName))
 				needRegen = true
 
@@ -146,7 +147,7 @@ func (thisServer *server) writeRegistryFilesIfNeeded(srcdir string, allClassCore
 			for clsName, class := range classRegistry.items {
 				if class.getModule() == getCurrentModuleName() &&
 					class.getPackage() == string(currentPackage) &&
-					allClassCoresInPackage[clsName] == nil {
+					allClassesInPackage[clsName] == nil {
 
 					needRegen = true
 
@@ -158,7 +159,7 @@ func (thisServer *server) writeRegistryFilesIfNeeded(srcdir string, allClassCore
 		}
 
 		// now let's write the registry file, if needed, and if we're at root
-		if nbEntries := len(allClassCoresInPackage); nbEntries > 0 && needRegen {
+		if nbEntries := len(allClassesInPackage); nbEntries > 0 && needRegen {
 			// gathering the biz objs in order
 			registrationLines := []string{fmt.Sprintf("\tg.In(\"%s\")", getCurrentModuleName())}
 
@@ -167,18 +168,18 @@ func (thisServer *server) writeRegistryFilesIfNeeded(srcdir string, allClassCore
 			imported := map[string]bool{}
 
 			// going over all the class cores
-			for _, clsCore := range core.GetSortedValues(allClassCoresInPackage) {
+			for _, class := range core.GetSortedValues(allClassesInPackage) {
 				// adding 1 registration line per business object
-				boPath := path.Base(clsCore.srcPath)
+				boPath := path.Base(class.srcPath)
 				registrationLines = append(registrationLines,
-					fmt.Sprintf("%sRegister(%s.ClassFor%s(\"%s\", \"%s\"))", "\t\t", boPath, clsCore.class,
-						clsCore.srcPath, clsCore.getLastBOMod().Add(time.Second).Format(time.RFC3339)),
+					fmt.Sprintf("%sRegister(%s.ClassFor%s(\"%s\", \"%s\"))", "\t\t", boPath, class.class,
+						class.srcPath, class.getLastBOMod().Add(time.Second).Format(time.RFC3339)),
 				)
 
 				// adding the corresponding import
-				if !imported[clsCore.srcPath] {
-					imports = append(imports, boPath+" \""+path.Join(getCurrentModule(), clsCore.srcPath, sourceCLASSxDIR)+"\"")
-					imported[clsCore.srcPath] = true
+				if !imported[class.srcPath] {
+					imports = append(imports, boPath+" \""+path.Join(getCurrentModule(), includePATH, boPath, sourceCLASSxDIR)+"\"")
+					imported[class.srcPath] = true
 				}
 			}
 
@@ -206,7 +207,7 @@ func (thisServer *server) writeRegistryFilesIfNeeded(srcdir string, allClassCore
 // utility functions
 // ------------------------------------------------------------------------------------------------
 
-func getClassFromFile(srcdir, currentPath, boFileName string) (clsCore *classCore) {
+func getClassFromFile(srcdir, currentPath, boFileName string) (class *baseClass) {
 	// controlling the file
 	filename := path.Join(srcdir, currentPath, boFileName)
 	stat, errStat := os.Stat(filename)
@@ -229,10 +230,10 @@ func getClassFromFile(srcdir, currentPath, boFileName string) (clsCore *classCor
 					// more precisely, stopping for "struct" declarations
 					switch objType := typeSpec.Type.(type) {
 					case *ast.StructType, *ast.InterfaceType:
-						if clsCore == nil {
+						if class == nil {
 							_, isInterface := objType.(*ast.InterfaceType)
-							clsCore = &classCore{
-								class:     className(typeSpec.Name.Name),
+							class = &baseClass{
+								class:     utils.ClassName(typeSpec.Name.Name),
 								lastBOMod: stat.ModTime(),
 								srcPath:   currentPath,
 								intrface:  isInterface,
@@ -289,11 +290,11 @@ import (
 )
 
 type $$CLASSNAME$$Class struct {
-	goald.IClassCore
+	goald.IClass
 }
 
 func ClassFor$$CLASSNAME$$(srcPath, lastMod string) goald.IClass {
-	return &$$CLASSNAME$$Class{IClassCore: goald.NewClassCore(srcPath, "$$CLASSNAME$$", lastMod)%s}
+	return &$$CLASSNAME$$Class{IClass: goald.NewClass(srcPath, "$$CLASSNAME$$", lastMod)%s}
 }
 `
 
@@ -317,19 +318,20 @@ func (thisClass *$$CLASSNAME$$Class) NewSlice() any {
 }
 `
 
-func (thisServer *server) genClassFile(srcdir string, clsCore *classCore, regen bool) (codeChanged bool) {
-	// the class filename
-	classFilename := path.Join(srcdir, clsCore.srcPath, sourceCLASSxDIR,
-		core.PascalToKebab(string(clsCore.class))+sourceCLSxSUFFIX)
+func (thisServer *server) genClassFile(srcdir string, class *baseClass, regen bool) (codeChanged bool) {
+	// the class filename - the "class" folder lives as a sibling of the "model" folder,
+	// inside the feature package's folder in the "_include" directory
+	classFilename := path.Join(srcdir, includePATH, path.Base(class.srcPath), sourceCLASSxDIR,
+		core.PascalToKebab(string(class.class))+sourceCLSxSUFFIX)
 
 	// does it exist?
 	if !core.FileExists(classFilename) || regen {
 		thisServer.Info(fmt.Sprintf("Will generate class: %s", classFilename))
 		content := classFileTemplateBase
-		importPkg := path.Join(getCurrentModule(), clsCore.srcPath)
+		importPkg := path.Join(getCurrentModule(), class.srcPath)
 		toImport := ""
 		asInterface := ""
-		if clsCore.isInterface() {
+		if class.isInterface() {
 			content += classFileTemplateInterface
 			asInterface = ".AsInterface()"
 		} else {
@@ -337,7 +339,7 @@ func (thisServer *server) genClassFile(srcdir string, clsCore *classCore, regen 
 			toImport = fmt.Sprintf("\n\"%s\"", importPkg)
 		}
 		content = fmt.Sprintf(content, sourceCLASSxDIR, toImport, asInterface)
-		content = strings.ReplaceAll(content, "$$CLASSNAME$$", string(clsCore.class))
+		content = strings.ReplaceAll(content, "$$CLASSNAME$$", string(class.class))
 		content = strings.ReplaceAll(content, "$$PKG$$", path.Base(importPkg))
 		core.WriteToFile(content, classFilename)
 		return true

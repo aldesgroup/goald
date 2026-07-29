@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 
 	core "github.com/aldesgroup/corego"
+	"github.com/aldesgroup/goald/features/utils"
 )
 
 // the JSON property expected to carry the concrete class name for a polymorphic relationship
@@ -29,9 +30,9 @@ const polymorphicClassField = "class"
 
 // unmarshalling JSON data into a business object, resolving its relationships (if any) using the
 // business object's model, and assigning them via the class's generated, reflection-free setters
-func unmarshalBObj(data []byte, clsName className, bObj any) error {
+func unmarshalBObj(data []byte, bObj any) error {
 	ibObj, isBObj := bObj.(IBusinessObject)
-	model := modelForName(clsName)
+	model := ibObj.getModel()
 
 	// nothing to do here, this isn't a business object we know about: falling back to the standard unmarshalling
 	if !isBObj || model == nil || len(model.base().relationships) == 0 {
@@ -43,8 +44,6 @@ func unmarshalBObj(data []byte, clsName className, bObj any) error {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
-
-	class := classForName(clsName, true)
 
 	for _, relationship := range model.base().relationships {
 		jsonName := core.PascalToCamel(relationship.GetName())
@@ -65,7 +64,7 @@ func unmarshalBObj(data []byte, clsName className, bObj any) error {
 
 			// resetting the relationship first, so a provided (possibly empty) array always
 			// replaces whatever the target BO already had, rather than appending to it
-			if err := class.ClearRelationshipValue(ibObj, relationship.GetName()); err != nil {
+			if err := ibObj.ClearRelationshipValue(relationship.GetName()); err != nil {
 				return err
 			}
 
@@ -74,7 +73,7 @@ func unmarshalBObj(data []byte, clsName className, bObj any) error {
 				if errTarget != nil {
 					return errTarget
 				}
-				if err := class.AddRelationshipValue(ibObj, relationship.GetName(), target); err != nil {
+				if err := ibObj.AddRelationshipValue(relationship.GetName(), target); err != nil {
 					return err
 				}
 			}
@@ -83,7 +82,7 @@ func unmarshalBObj(data []byte, clsName className, bObj any) error {
 			if errTarget != nil {
 				return errTarget
 			}
-			if err := class.SetRelationshipValue(ibObj, relationship.GetName(), target); err != nil {
+			if err := ibObj.SetRelationshipValue(relationship.GetName(), target); err != nil {
 				return err
 			}
 		}
@@ -102,7 +101,7 @@ func unmarshalBObj(data []byte, clsName className, bObj any) error {
 // - for a polymorphic relationship, the concrete class is read from the "class" discriminator property
 // - for a monomorphic relationship, the concrete class is already known, from the model itself
 func unmarshalRelationshipTarget(relationship *Relationship, rawVal json.RawMessage) (IBusinessObject, error) {
-	var targetClsName className
+	var targetClsName utils.ClassName
 
 	if relationship.IsPolymorphic() {
 		var discriminator struct {
@@ -117,7 +116,7 @@ func unmarshalRelationshipTarget(relationship *Relationship, rawVal json.RawMess
 				polymorphicClassField, relationship.GetName())
 		}
 
-		targetClsName = className(discriminator.Class)
+		targetClsName = utils.ClassName(discriminator.Class)
 	} else {
 		targetNames := relationship.getTargetClassNames()
 		if len(targetNames) == 0 {
@@ -127,10 +126,10 @@ func unmarshalRelationshipTarget(relationship *Relationship, rawVal json.RawMess
 		targetClsName = targetNames[0]
 	}
 
-	targetClass := classForName(targetClsName, true)
+	targetClass := classFor(targetClsName, true)
 
 	target := targetClass.NewObject()
-	if err := unmarshalBObj(rawVal, targetClsName, target); err != nil {
+	if err := unmarshalBObj(rawVal, target); err != nil {
 		return nil, err
 	}
 

@@ -1,12 +1,14 @@
 // ------------------------------------------------------------------------------------------------
-// Some utilities to help build classes
+// Some utilities to help use classes
 // ------------------------------------------------------------------------------------------------
 package goald
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/aldesgroup/goald/features/reflection"
+	"github.com/aldesgroup/goald/features/utils"
 )
 
 var (
@@ -15,6 +17,27 @@ var (
 	typeIxBUSINESSxOBJECT = reflection.TypeOf((*IBusinessObject)(nil), true)
 	typeIxENUM            = reflection.TypeOf((*IEnum)(nil), true)
 )
+
+// ------------------------------------------------------------------------------------------------
+// Access to classes & models, given a class name
+// ------------------------------------------------------------------------------------------------
+
+func classFor(clsName utils.ClassName, failIfNil bool) IClass {
+	if classRegistry.items[clsName] == nil && failIfNil {
+		panic(fmt.Sprintf("It looks like no class named '%s' has been registered, "+
+			"i.e. its package has probably not been 'included', i.e. imported in the start.go file,"+
+			" like this: import _ \"module_full_name/_include/package_name\"", clsName))
+	}
+	return classRegistry.items[clsName]
+}
+
+func modelFor(clsName utils.ClassName) IBusinessObjectModel {
+	return classFor(clsName, true).getModel()
+}
+
+// ------------------------------------------------------------------------------------------------
+// Some "views" on a model's fields and properties
+// ------------------------------------------------------------------------------------------------
 
 // getPersistedProperties returns the sorted list of the properties persisted
 // within the BO model's table, i.e. the persisted single Relationships + the persisted fields
@@ -69,26 +92,17 @@ func (model *businessObjectModel) getPersistedProperties() []IBusinessObjectProp
 func (model *businessObjectModel) getRelationshipsWithColumn() []*Relationship {
 	// initialising it, the first time we need it
 	if model.relationshipsWithColumn == nil {
-		// first, we retrieve a list of IDs of the Relationships that are directly persisted
-		// i.e. through a column in this BO model's table, and not through a link table nor a foreign table
-		relationshipsWithColumnNames := []string{}
-
-		for relationshipName, relationship := range model.relationships {
+		// we retrieve a list of the Relationships that are directly persisted
+		for _, relationship := range model.relationships {
 			if relationship.needsColumn() {
-				relationshipsWithColumnNames = append(relationshipsWithColumnNames, string(relationshipName))
+				model.relationshipsWithColumn = append(model.relationshipsWithColumn, relationship)
 			}
 		}
 
-		// sorting that list
-		sort.Strings(relationshipsWithColumnNames)
-
-		// creating the list of persisted relationships
-		model.relationshipsWithColumn = make([]*Relationship, len(relationshipsWithColumnNames))
-
-		// using that list to build a sorted list of persisted relationships
-		for i := 0; i < len(relationshipsWithColumnNames); i++ {
-			model.relationshipsWithColumn[i] = model.relationships[relationshipsWithColumnNames[i]]
-		}
+		// then, sorting that list
+		sort.SliceStable(model.relationshipsWithColumn, func(i, j int) bool {
+			return model.relationshipsWithColumn[i].GetName() < model.relationshipsWithColumn[j].GetName()
+		})
 	}
 
 	return model.relationshipsWithColumn
@@ -98,27 +112,38 @@ func (model *businessObjectModel) getRelationshipsWithColumn() []*Relationship {
 func (model *businessObjectModel) getRelationshipsWithLinkTable() []*Relationship {
 	// initialising it, the first time we need it
 	if model.relationshipsWithLinkTable == nil {
-		// first, we retrieve a list of IDs of the Relationships that are directly persisted
-		// i.e. through a link table in this BO model's table, and not through a column nor a foreign table
-		relationshipsWithLinkTableNames := []string{}
-
-		for relationshipName, relationship := range model.relationships {
+		// first, we retrieve a list of the Relationships that are persisted through a link table
+		for _, relationship := range model.relationships {
 			if relationship.needsLinkTable() {
-				relationshipsWithLinkTableNames = append(relationshipsWithLinkTableNames, string(relationshipName))
+				model.relationshipsWithLinkTable = append(model.relationshipsWithLinkTable, relationship)
 			}
 		}
 
-		// sorting that list
-		sort.Strings(relationshipsWithLinkTableNames)
-
-		// creating the list of persisted relationships
-		model.relationshipsWithLinkTable = make([]*Relationship, len(relationshipsWithLinkTableNames))
-
-		// using that list to build a sorted list of persisted relationships
-		for i := 0; i < len(relationshipsWithLinkTableNames); i++ {
-			model.relationshipsWithLinkTable[i] = model.relationships[relationshipsWithLinkTableNames[i]]
-		}
+		// then, sorting that list
+		sort.SliceStable(model.relationshipsWithLinkTable, func(i, j int) bool {
+			return model.relationshipsWithLinkTable[i].GetName() < model.relationshipsWithLinkTable[j].GetName()
+		})
 	}
 
 	return model.relationshipsWithLinkTable
+}
+
+func (model *businessObjectModel) getRelationshipsWithRequiredBackref() []*Relationship {
+	// initialising it, the first time we need it
+	if model.relationshipsWithRequiredBackref == nil {
+		// first, we retrieve a list of the relationships that have a required back reference
+		for _, relationship := range model.relationships {
+			if relationship.backRef != nil && relationship.backRef.IsRequiredInDb() {
+				model.relationshipsWithRequiredBackref = append(model.relationshipsWithRequiredBackref, relationship)
+			}
+		}
+
+		// then, sorting that list
+		sort.SliceStable(model.relationshipsWithRequiredBackref, func(i, j int) bool {
+			return model.relationshipsWithRequiredBackref[i].GetName() < model.relationshipsWithRequiredBackref[j].GetName()
+		})
+
+	}
+
+	return model.relationshipsWithRequiredBackref
 }

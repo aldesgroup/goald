@@ -12,6 +12,7 @@ import (
 
 	core "github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald/features/reflection"
+	"github.com/aldesgroup/goald/features/utils"
 )
 
 const modelTEMPLATE = `// Generated file, do not edit!
@@ -85,13 +86,13 @@ func (thisServer *server) generateAllObjectModels(srcdir string, regen bool) (co
 		modelDir := core.EnsureDir(srcdir, includePATH, includeDirEntry.Name(), modelFOLDERxNAME)
 
 		// we'll gather all the existing class files
-		existingModelFiles := map[className]*modelFile{}
+		existingModelFiles := map[utils.ClassName]*modelFile{}
 
 		// so, let's read the model folders
 		for _, modelEntry := range core.EnsureReadDir(modelDir) {
 			modelEntryInfo, errInfo := modelEntry.Info()
 			core.PanicMsgIfErr(errInfo, "Could not read info for file '%s'", modelEntry.Name())
-			modelClassName := className(core.KebabToPascal(modelEntry.Name()[:len(modelEntry.Name())-modelFILExSUFFIXxLEN]))
+			modelClassName := utils.ClassName(core.KebabToPascal(modelEntry.Name()[:len(modelEntry.Name())-modelFILExSUFFIXxLEN]))
 			existingModelFiles[modelClassName] = &modelFile{
 				modTime:  modelEntryInfo.ModTime(),
 				filename: modelEntry.Name(),
@@ -330,8 +331,8 @@ func buildPropInit(class IClass, context *modelGenerationContext, imports map[st
 }
 
 func getImportPkg(imports map[string]string, fromClass IClass, forClsName string) string {
-	clsName := className(forClsName)
-	clsObject := classForName(clsName, true)
+	clsName := utils.ClassName(forClsName)
+	clsObject := classFor(clsName, true)
 	clsPkg := clsObject.getPackage()
 	clsMod := clsObject.getModule()
 	superImport := ""

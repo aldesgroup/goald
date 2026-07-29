@@ -18,8 +18,8 @@ type webContextImpl struct {
 	ep                  iEndpoint
 	resource            IBusinessObjectModel
 	bloContext          BloContext
-	targetClass         className // the class of the resource being requested
-	targetRefOrID       string    // the ID or ref, or whatever property value used to clearly identify a resource
+	targetClass         IClass // the class of the resource being requested
+	targetRefOrID       string // the ID or ref, or whatever property value used to clearly identify a resource
 }
 
 // type check
@@ -45,13 +45,13 @@ func (thisWebCtx *webContextImpl) GetBloContext() BloContext {
 
 func (thisWebCtx *webContextImpl) GetResource() IBusinessObjectModel {
 	if thisWebCtx.resource == nil {
-		thisWebCtx.resource = modelRegistry.items[thisWebCtx.ep.getResourceClass()]
+		thisWebCtx.resource = thisWebCtx.ep.getResourceClass().getModel()
 	}
 
 	return thisWebCtx.resource
 }
 
-func (thisWebCtx *webContextImpl) getTargetResourceClass() className {
+func (thisWebCtx *webContextImpl) getTargetResourceClass() IClass {
 	return thisWebCtx.targetClass
 }
 

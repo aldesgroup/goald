@@ -1,163 +1,18 @@
-// ------------------------------------------------------------------------------------------------
-// Here is the code used for generating the CHK (checks) files
-// ------------------------------------------------------------------------------------------------
 package goald
 
 import (
 	"fmt"
-	"path"
 	"strings"
 
-	core "github.com/aldesgroup/corego"
+	"github.com/aldesgroup/goald/features/reflection"
+	"github.com/aldesgroup/goald/features/utils"
 )
-
-const checkFileTEMPLATE = `// Generated file, do not edit!
-package $$package$$
-
-import (
-	$$otherimports$$
-)
-
-// checking a business object's general validity
-func (thisClass *$$Upper$$Class) IsModelValid(bObj goald.IBusinessObject) error {
-$$checks$$
-	return nil
-}
-`
-
-const checkFILExSUFFIX = "--chk.go"
-
-func (thisServer *server) generateAllObjectChecks(srcdir, currentPath string, regen bool) (codeChanged bool) {
-	// the path we're currently reading at e.g. go/pkg1/pkg2
-	readingPath := path.Join(srcdir, currentPath)
-
-	// going through the resources found withing the current directory
-	// we got the BO & class registries, but we still need to browse the filesystem since we're updating it with files
-	for _, entry := range core.EnsureReadDir(readingPath) {
-		if entry.IsDir() {
-			// not going into the vendor
-			if entry.Name() != "vendor" && entry.Name() != ".git" {
-				// found another directory, let's dive deeper!
-				codeChanged = thisServer.generateAllObjectChecks(srcdir, path.Join(currentPath, entry.Name()), regen) || codeChanged
-			}
-		} else {
-			// found a file... but we're only interested in files containing Business Objects, which must end with sourceFILExSUFFIX
-			if strings.HasSuffix(entry.Name(), sourceFILExSUFFIX) {
-				// getting the business object entry within this file, then the registred entry in the code
-				classCore := getClassFromFile(srcdir, currentPath, entry.Name())
-
-				if classCore == nil {
-					core.PanicMsg("It looks like there's no BusinessObject-derived struct in '%s/%s/%s'",
-						srcdir, currentPath, entry.Name())
-				}
-
-				class := classForName(classCore.class, true)
-
-				// the corresponding Check file, if it exists
-				checkFilepath := path.Join(srcdir, class.getSrcPath(), sourceCLASSxDIR,
-					strings.Replace(entry.Name(), sourceFILExSUFFIX, checkFILExSUFFIX, 1))
-
-				// no check file for interfaces
-				if !class.isInterface() {
-
-					// generating the Check file, if not existing yet, or too old
-					if regen || !core.FileExists(checkFilepath) || core.EnsureModTime(checkFilepath).Before(class.getLastBOMod()) {
-						generateObjectChecksForBO(class, checkFilepath)
-						codeChanged = true
-					}
-				}
-			}
-		}
-	}
-
-	return
-}
-
-func generateObjectChecksForBO(class IClass, filepath string) {
-	// the corresponding class
-	className := class.getClassName()
-	model := modelForName(className)
-
-	// checking the BO code makes use of its class
-	if model == nil {
-		core.PanicMsg("It looks like class '%s' has never been imported and thus not initialized and registered. \n"+
-			"Add this - and complete as necessary - to your business object definition code: \n\n"+
-			"import (class \"%s/_include/%s/model\") \n"+
-			"func init() { \n"+
-			"	model.%s().SetNotPersisted() \n"+
-			"}",
-			className, getCurrentModule(), class.getPackage(), className)
-	}
-
-	// the corresponding package
-	classPkg := path.Join(getCurrentModule(), class.getSrcPath())
-	shortPkg := path.Base(classPkg)
-
-	// starting the content
-	content := strings.ReplaceAll(checkFileTEMPLATE, "$$package$$", sourceCLASSxDIR)
-	content = strings.ReplaceAll(content, "$$Upper$$", string(class.getClassName()))
-
-	// need for some imports - just goald for now; the BO's own package is only added if actually needed below
-	var importsMap = map[string]bool{
-		"github.com/aldesgroup/goald": true,
-	}
-
-	// checking that every required relationship is properly set on the BO
-	checks := []string{}
-	for _, relationship := range core.GetSortedValues(model.base().relationships) {
-		checks = append(checks, buildRequiredRelationshipCheck(relationship, className)...)
-
-		// core.InSlice is used for polymorphic relationships' target class check
-		if relationship.IsRequiredInDb() && relationship.IsPolymorphic() {
-			importsMap["github.com/aldesgroup/corego"] = true
-		}
-	}
-
-	// going through the entity's fields once, letting each per-field check builder chime in;
-	// the mandatory-input check always comes first, before the other, more specific checks
-	for _, field := range core.GetSortedValues(model.base().fields) {
-		if check := buildMandatoryInputCheck(field); check != "" {
-			checks = append(checks, check)
-		}
-		if check := buildFloatFormatCheck(field); check != "" {
-			checks = append(checks, check)
-		}
-		if check := buildStringSizeCheck(field); check != "" {
-			checks = append(checks, check)
-		}
-		if check := buildIntRangeCheck(field); check != "" {
-			checks = append(checks, check)
-		}
-		if check := buildFloatRangeCheck(field); check != "" {
-			checks = append(checks, check)
-		}
-	}
-
-	checksBody := ""
-	if len(checks) > 0 {
-		// we only need to cast to the concrete BO type, and import its package, if we actually have checks to run
-		importsMap[classPkg] = true
-
-		checksBody = fmt.Sprintf("\tbo := bObj.(*%s.%s)\n\n", shortPkg, className) +
-			strings.Join(checks, newline) + newline
-	}
-	content = strings.ReplaceAll(content, "$$checks$$", checksBody)
-
-	imports := ""
-	if len(importsMap) > 0 {
-		imports = "\"" + strings.Join(core.GetSortedKeys(importsMap), "\""+newline+"\t"+"\"") + "\""
-	}
-	content = strings.Replace(content, "$$otherimports$$", imports, 1)
-
-	// write out the file
-	core.WriteToFile(content, filepath)
-}
 
 // building the checks ensuring that a required relationship (SetRequiredInDb) is properly set on
 // the BO: its target must be non-nil, reference an already-persisted BO (ID > 0), and - if this
 // is a polymorphic relationship - the target's concrete class must be one of the allowed ones
 // (getTargetNames()); returns nil if this relationship isn't required
-func buildRequiredRelationshipCheck(relationship *Relationship, className className) []string {
+func buildRequiredRelationshipCheck(relationship *Relationship, className utils.ClassName) []string {
 	if !relationship.IsRequiredInDb() {
 		return nil
 	}
@@ -239,13 +94,15 @@ func buildFloatFormatCheck(field IField) string {
 
 	fieldName := field.GetName()
 	valueExpr := fmt.Sprintf("bo.%s", fieldName)
+	bitSize := 64
 	if propertyType == propertyTypeREAL {
 		valueExpr = fmt.Sprintf("float64(%s)", valueExpr)
+		bitSize = 32
 	}
 
 	return fmt.Sprintf(
-		"\tif err := goald.CheckFloatFormat(%s, %d, %d); err != nil {\n\t\treturn goald.ErrorC(err, \"Invalid value for '%s'\")\n\t}",
-		valueExpr, floatFmt.GetTotalDigits(), floatFmt.GetDecimals(), fieldName)
+		"\tif err := goald.CheckFloatFormat(%s, %d, %d, %d); err != nil {\n\t\treturn goald.ErrorC(err, \"Invalid value for '%s'\")\n\t}",
+		valueExpr, floatFmt.GetTotalDigits(), floatFmt.GetDecimals(), bitSize, fieldName)
 }
 
 // implemented by *RealField and *DoubleField (via the embedded floatField), letting us read the
@@ -344,4 +201,65 @@ func buildFloatRangeCheck(field IField) string {
 	return fmt.Sprintf(
 		"\tif err := goald.CheckFloatRange(float64(bo.%s), %v, %t, %v, %t); err != nil {\n\t\treturn goald.ErrorC(err, \"Invalid value for '%s'\")\n\t}",
 		fieldName, min, minSet, max, maxSet, fieldName)
+}
+
+// removing this package's own qualification from a generated type expression (e.g. turning
+// "accessmgt.Employee" into "Employee"), since the xtd file lives directly within that same
+// package, and thus must never reference its own types through a package prefix
+func stripSelfPackage(typeExpr, shortPkg string) string {
+	if typeExpr == "" || shortPkg == "" {
+		return typeExpr
+	}
+
+	return strings.ReplaceAll(typeExpr, shortPkg+".", "")
+}
+
+func getBits(fieldTypeAlias, getBit string) (string, string, string) {
+	if fieldTypeAlias != "" {
+		return getBit + "(", fieldTypeAlias + "(", ")"
+	}
+
+	return "", "", ""
+}
+
+func getNonBuiltInFieldType(bOjbType reflection.GoaldType, fieldName string, toBeImported map[string]bool) string {
+	fieldType := bOjbType.FieldByName(fieldName).Type()
+	fieldPkg := fieldType.PkgPath()
+
+	// this is a built-in field type
+	if fieldPkg == "" {
+		return ""
+	}
+
+	// the field type comes from another package, that we have to import
+	if toBeImported != nil {
+		toBeImported[fieldPkg] = true
+	}
+
+	return fieldType.String() // e.g.: thatpackage.MyEnumType
+}
+
+// returns the Go type to use to type-assert a relationship's incoming value against, e.g.
+// "domain.IContact" for a polymorphic relationship, or "*domain.Employee" for a monomorphic one -
+// also registering the corresponding package for import, if needed
+func getRelationshipFieldType(bOjbType reflection.GoaldType, fieldName string, toBeImported map[string]bool) string {
+	fieldType := bOjbType.FieldByName(fieldName).Type()
+
+	// for a multi-valued relationship, the Go field is a slice: we need its element type
+	elemType := fieldType
+	if fieldType.Kind() == reflection.KindSLICE {
+		elemType = fieldType.Elem()
+	}
+
+	// the package to import is the one declaring the pointed-to type, whether we have a pointer or an interface
+	pkgSource := elemType
+	if elemType.Kind() == reflection.KindPTR {
+		pkgSource = elemType.Elem()
+	}
+
+	if pkgPath := pkgSource.PkgPath(); pkgPath != "" && toBeImported != nil {
+		toBeImported[pkgPath] = true
+	}
+
+	return elemType.String()
 }

@@ -213,7 +213,7 @@ func (thisServer *server) handleFor(ep iEndpoint) httprouter.Handle {
 var _ BloContext = (*server)(nil)
 
 // BeginTransaction implements [ServerContext].
-func (thisServer *server) BeginTransaction(clsName className) (bool, error) {
+func (thisServer *server) BeginTransaction(class IClass) (bool, error) {
 	panic("unimplemented")
 }
 
@@ -228,6 +228,6 @@ func (thisServer *server) IsTransactionStarted() bool {
 }
 
 // DaoFor implements [BloContext].
-func (thisServer *server) daoFor(clsName className) IBusinessObjectDAO {
+func (thisServer *server) daoFor(class IClass) IBusinessObjectDAO {
 	panic("unimplemented")
 }

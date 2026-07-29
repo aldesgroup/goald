@@ -21,7 +21,7 @@ import (
 
 var (
 	modelsDIRPATH  = path.Join("src", "components", "models")
-	handledClasses = map[className]bool{}
+	handledClasses = map[IClass]bool{}
 )
 
 const (
@@ -31,7 +31,7 @@ const (
 
 // TODO maybe do not collocate everything on the server... let's change the receiver here
 
-func (thisServer *server) generateAllClientAppModels(destdir string, regen bool, isWebapp bool) {
+func (thisServer *server) generateAllExternalModels(destdir string, regen bool, isWebapp bool) {
 	// the enum files to generate
 	enums := map[string]IEnum{}
 
@@ -39,11 +39,11 @@ func (thisServer *server) generateAllClientAppModels(destdir string, regen bool,
 	for _, ep := range restRegistry.endpoints {
 		if (isWebapp && ep.isCalledFromWebApp()) || (!isWebapp && ep.isCalledFromNativeApp()) {
 			// generating the model for the endpoint resource
-			thisServer.generateClientAppModel(destdir, ep, false, enums, regen, isWebapp)
+			thisServer.generateExternalModel(destdir, ep, false, enums, regen, isWebapp)
 
 			// if the endpoint admits a BO as an input (body or URL params), then we also need the model in the webapp
-			if ep.getInputOrParamsClass() != "" {
-				thisServer.generateClientAppModel(destdir, ep, true, enums, regen, isWebapp)
+			if ep.getInputOrParamsClass() != nil {
+				thisServer.generateExternalModel(destdir, ep, true, enums, regen, isWebapp)
 			}
 		}
 	}
@@ -65,26 +65,25 @@ func (ctx *codeContext) getEnumType(field IField) string {
 	return ctx.bObjType.FieldByName(field.GetName()).Type().Name()
 }
 
-func (thisServer *server) generateClientAppModel(destdir string, ep iEndpoint, useInputClass bool,
+func (thisServer *server) generateExternalModel(destdir string, ep iEndpoint, useInputClass bool,
 	enums map[string]IEnum, regen bool, isWebapp bool) {
 	// which model to generate?
-	clsName := core.IfThenElse(useInputClass, ep.getInputOrParamsClass(), ep.getResourceClass())
+	boClass := core.IfThenElse(useInputClass, ep.getInputOrParamsClass(), ep.getResourceClass())
 
 	// already done this?
-	if handledClasses[clsName] {
+	if handledClasses[boClass] {
 		return
 	}
 
 	// but we're doing this now
-	handledClasses[clsName] = true
+	handledClasses[boClass] = true
 
 	// the business object we're dealing with
-	boModel := modelForName(clsName)
-	boClass := getClass(boModel)
+	boModel := boClass.getModel()
 	boFields := core.GetSortedValues(boModel.base().fields)
 
 	// the file we're dealing with
-	modelName := core.PascalToCamel(string(clsName))
+	modelName := core.PascalToCamel(string(boModel.base().name))
 	filename := modelName + ".ts"
 	filepath := path.Join(destdir, modelsDIRPATH, filename)
 

@@ -9,6 +9,7 @@ import (
 
 	"github.com/aldesgroup/goald/features/hstatus"
 	"github.com/aldesgroup/goald/features/reflection"
+	"github.com/aldesgroup/goald/features/utils"
 )
 
 // ------------------------------------------------------------------------------------------------
@@ -42,7 +43,7 @@ func NewEndpointGroup(name string, description string) *EndpointGroup {
 
 type iEndpoint interface {
 	getMethod() string
-	getResourceClass() className
+	getResourceClass() IClass
 	getIDProp() IField
 	getOperationPath(includeIdOrRefName bool) string // e.g. /rest/document/reduce/:id if includeIdOrRefName = true, /rest/document/reduce otherwise
 	getPathAsString() string                         // e.g. GET /rest/document/reduce/:id
@@ -53,7 +54,7 @@ type iEndpoint interface {
 	hasBodyOrParamsInput() bool
 	isBodyInputRequired() bool
 	isMultipleInput() bool
-	getInputOrParamsClass() className
+	getInputOrParamsClass() IClass
 	isCalledFromWebApp() bool
 	isCalledFromNativeApp() bool
 	trimBodyLoggingTo() int
@@ -69,29 +70,34 @@ type iEndpoint interface {
 // an endpoint object is parametrized by the potential objects of type I,
 // and the output objects of type O, i.e. the resource type
 type endpoint[ResourceType IBusinessObject] struct {
-	method              string         // get, post, put...
-	resourceClass       className      // the class of the objects reached through this endpoint
-	basePath            string         // the endpoint's base path, which is the lower-cased resource type name
-	actionPath          string         // do we need an additional path for a non-CRUD action, like "reduce" in: "GET /document/reduce/:id"
-	idProp              IField         // if a specific BO is targeted, this has to be through one of its properties
-	label               string         // short label to describe the endpoint
-	description         string         // a bit longer text to describe the endpoint
-	multipleOutput      bool           // if true, then the endpoint delivers arrays of BOs, rather than a single one
-	loadingType         LoadingType    // how the returned resource(s) are loaded
-	bodyInputRequired   bool           // if true, then we expect something in the request body
-	multipleInput       bool           // if true, then we expect an array of BOs in the body, rather than a single one
-	inputOrParamsClass  className      // if bodyInputRequired = true, then this is the type of the input
-	calledFromWebApp    bool           // if true then this endpoint can be called from the webapp, so the BOs involved might be synced through codegen
-	calledFromNativeApp bool           // if true then this endpoint can be called from the native app, so the BOs involved might be synced through codegen
-	logBodyFirstCharsNb int            // if > 0, we're logging only the n-th first chars of the body, not it's entirety
-	group               *EndpointGroup // if not empty, this is the name of the group this endpoint belongs to, which can be used for documentation or other purposes
+	method               string          // get, post, put...
+	resourceClsName      utils.ClassName // the class of the objects reached through this endpoint
+	resourceClass        IClass          // the class of the objects reached through this endpoint
+	basePath             string          // the endpoint's base path, which is the lower-cased resource type name
+	actionPath           string          // do we need an additional path for a non-CRUD action, like "reduce" in: "GET /document/reduce/:id"
+	idProp               IField          // if a specific BO is targeted, this has to be through one of its properties
+	label                string          // short label to describe the endpoint
+	description          string          // a bit longer text to describe the endpoint
+	multipleOutput       bool            // if true, then the endpoint delivers arrays of BOs, rather than a single one
+	loadingType          LoadingType     // how the returned resource(s) are loaded
+	bodyInputRequired    bool            // if true, then we expect something in the request body
+	multipleInput        bool            // if true, then we expect an array of BOs in the body, rather than a single one
+	inputOrParamsClsName utils.ClassName // if bodyInputRequired = true, then this is the type of the input
+	inputOrParamsClass   IClass          // if bodyInputRequired = true, then this is the type of the input
+	calledFromWebApp     bool            // if true then this endpoint can be called from the webapp, so the BOs involved might be synced through codegen
+	calledFromNativeApp  bool            // if true then this endpoint can be called from the native app, so the BOs involved might be synced through codegen
+	logBodyFirstCharsNb  int             // if > 0, we're logging only the n-th first chars of the body, not it's entirety
+	group                *EndpointGroup  // if not empty, this is the name of the group this endpoint belongs to, which can be used for documentation or other purposes
 }
 
 func (ep *endpoint[ResourceType]) getMethod() string {
 	return ep.method
 }
 
-func (ep *endpoint[ResourceType]) getResourceClass() className {
+func (ep *endpoint[ResourceType]) getResourceClass() IClass {
+	if ep.resourceClsName != "" && ep.resourceClass == nil {
+		ep.resourceClass = classFor(ep.resourceClsName, true)
+	}
 	return ep.resourceClass
 }
 
@@ -136,7 +142,7 @@ func (ep *endpoint[ResourceType]) isMultipleOutput() bool {
 }
 
 func (ep *endpoint[ResourceType]) hasBodyOrParamsInput() bool {
-	return ep.inputOrParamsClass != ""
+	return ep.inputOrParamsClsName != ""
 }
 
 func (ep *endpoint[ResourceType]) isBodyInputRequired() bool {
@@ -147,7 +153,10 @@ func (ep *endpoint[ResourceType]) isMultipleInput() bool {
 	return ep.multipleInput
 }
 
-func (ep *endpoint[ResourceType]) getInputOrParamsClass() className {
+func (ep *endpoint[ResourceType]) getInputOrParamsClass() IClass {
+	if ep.inputOrParamsClsName != "" && ep.inputOrParamsClass == nil {
+		ep.inputOrParamsClass = classFor(ep.inputOrParamsClsName, true)
+	}
 	return ep.inputOrParamsClass
 }
 
@@ -205,21 +214,21 @@ func newEndpoint[InputOrParamsType, ResourceType IBusinessObject](
 	withURLParams bool,
 ) *endpoint[ResourceType] {
 
-	resourceClsName := className(reflection.TypeNameOf((*new(ResourceType)), true))
-	var inputOrParamsClsName className
+	resourceClsName := utils.ClassName(reflection.TypeNameOf((*new(ResourceType)), true))
+	var inputOrParamsClsName utils.ClassName
 	if bodyInputRequired || withURLParams {
-		inputOrParamsClsName = className(reflection.TypeNameOf((*new(InputOrParamsType)), true))
+		inputOrParamsClsName = utils.ClassName(reflection.TypeNameOf((*new(InputOrParamsType)), true))
 	}
 
 	return &endpoint[ResourceType]{
-		method:             method,
-		resourceClass:      resourceClsName,
-		basePath:           strings.ToLower(string(resourceClsName)),
-		multipleOutput:     multipleOutput,
-		loadingType:        loadingType,
-		bodyInputRequired:  bodyInputRequired,
-		multipleInput:      multipleInput,
-		inputOrParamsClass: inputOrParamsClsName,
+		method:               method,
+		resourceClsName:      resourceClsName,
+		basePath:             strings.ToLower(string(resourceClsName)),
+		multipleOutput:       multipleOutput,
+		loadingType:          loadingType,
+		bodyInputRequired:    bodyInputRequired,
+		multipleInput:        multipleInput,
+		inputOrParamsClsName: inputOrParamsClsName,
 	}
 }
 
@@ -257,9 +266,9 @@ func (thisEndpoint *endpoint[ResourceType]) SetCalledFromWebApp() *endpoint[Reso
 	thisEndpoint.calledFromWebApp = true
 
 	// taking the opportunity to enrich the model that are impacted here
-	modelForName(thisEndpoint.resourceClass).base().usedInWebApp = true
-	if thisEndpoint.inputOrParamsClass != "" {
-		modelForName(thisEndpoint.inputOrParamsClass).base().usedInWebApp = true
+	modelFor(thisEndpoint.resourceClsName).base().usedInWebApp = true
+	if thisEndpoint.inputOrParamsClsName != "" {
+		modelFor(thisEndpoint.inputOrParamsClsName).base().usedInWebApp = true
 	}
 
 	return thisEndpoint
@@ -271,9 +280,9 @@ func (thisEndpoint *endpoint[ResourceType]) SetCalledFromNativeApp() *endpoint[R
 	thisEndpoint.calledFromNativeApp = true
 
 	// taking the opportunity to enrich the model that are impacted here
-	modelForName(thisEndpoint.resourceClass).base().usedInNativeApp = true
-	if thisEndpoint.inputOrParamsClass != "" {
-		modelForName(thisEndpoint.inputOrParamsClass).base().usedInNativeApp = true
+	modelFor(thisEndpoint.resourceClsName).base().usedInNativeApp = true
+	if thisEndpoint.inputOrParamsClsName != "" {
+		modelFor(thisEndpoint.inputOrParamsClsName).base().usedInNativeApp = true
 	}
 
 	return thisEndpoint

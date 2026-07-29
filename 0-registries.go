@@ -5,150 +5,28 @@ package goald
 
 import (
 	"fmt"
-	"path"
 	"sort"
 	"strings"
 	"sync"
-	"time"
 
 	core "github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald/features/dbconn"
 	"github.com/aldesgroup/goald/features/reflection"
+	"github.com/aldesgroup/goald/features/utils"
 )
-
-// ------------------------------------------------------------------------------------------------
-// Generic definition for the class core
-// ------------------------------------------------------------------------------------------------
-
-// A Class Core is a set of information fields that are common to all the Class objects.
-type IClassCore interface {
-	getClassName() className                                                              // class of the associated Business Object
-	getLastBOMod() time.Time                                                              // last modification of the associated Business Object
-	getModule() moduleName                                                                // the application or library in which the associated BO is developed
-	setModule(module moduleName)                                                          // setting the module
-	getSrcPath() string                                                                   // source path of the associated Business Object
-	getPackage() string                                                                   // the name of the package the class is from
-	isInterface() bool                                                                    // tells if the class is a concrete one, or an interface
-	isFromDir(dirName string) bool                                                        // tells if the class is from the given package
-	AsInterface() IClassCore                                                              // sets the class as an interface
-	GetValueAsString(IBusinessObject, string) string                                      // returning a BO's field's value, given the field's name
-	SetValueAsString(IBusinessObject, string, string) error                               // setting a BO's field's value, given the field's name
-	SetRelationshipValue(bo IBusinessObject, relName string, value IBusinessObject) error // setting a single-valued relationship's target, given the relationship's name - without using reflection
-	AddRelationshipValue(bo IBusinessObject, relName string, value IBusinessObject) error // appending a target to a multi-valued relationship, given the relationship's name - without using reflection
-	ClearRelationshipValue(bo IBusinessObject, relName string) error                      // resetting a multi-valued relationship to an empty slice, given the relationship's name - without using reflection
-	IsModelValid(bObj IBusinessObject) error                                              // checking a business object's general validity - without using reflection
-
-}
-
-// An internal struct that should implement IClassCore
-type classCore struct {
-	class     className
-	lastBOMod time.Time
-	module    moduleName
-	srcPath   string
-	intrface  bool
-}
-
-func NewClassCore(srcPath, class, lastModification string) IClassCore {
-	date, errParse := time.Parse(time.RFC3339, lastModification)
-	core.PanicMsgIfErr(errParse, "'%s' has an invalid date format (which is: 2006-01-02 15:04:05)", lastModification)
-
-	return &classCore{
-		class:     className(class),
-		lastBOMod: date,
-		srcPath:   srcPath,
-	}
-}
-
-func (thisCore *classCore) getClassName() className {
-	return thisCore.class
-}
-
-func (thisCore *classCore) getLastBOMod() time.Time {
-	return thisCore.lastBOMod
-}
-
-func (thisCore *classCore) setModule(module moduleName) {
-	thisCore.module = module
-}
-
-func (thisCore *classCore) getModule() moduleName {
-	return thisCore.module
-}
-
-func (thisCore *classCore) getSrcPath() string {
-	return thisCore.srcPath
-}
-
-func (thisCore *classCore) getPackage() string {
-	return path.Base(thisCore.srcPath)
-}
-
-func (thisCore *classCore) isInterface() bool {
-	return thisCore.intrface
-}
-
-func (thisCore *classCore) isFromDir(dirName string) bool {
-	return thisCore.getModule() == getCurrentModuleName() && thisCore.getPackage() == dirName
-}
-
-func (thisCore *classCore) AsInterface() IClassCore {
-	thisCore.intrface = true
-	return thisCore
-}
-
-func (thisCore *classCore) GetValueAsString(IBusinessObject, string) string {
-	panic("GetValueAsString has to be implemented by a concrete Class__UTILS__ object")
-}
-
-func (thisCore *classCore) SetValueAsString(IBusinessObject, string, string) error {
-	panic("SetValueAsString has to be implemented by a concrete Class__UTILS__ object")
-}
-
-func (thisCore *classCore) SetRelationshipValue(IBusinessObject, string, IBusinessObject) error {
-	panic("SetRelationshipValue has to be implemented by a concrete Class__UTILS__ object")
-}
-
-func (thisCore *classCore) AddRelationshipValue(IBusinessObject, string, IBusinessObject) error {
-	panic("AddRelationshipValue has to be implemented by a concrete Class__UTILS__ object")
-}
-
-func (thisCore *classCore) ClearRelationshipValue(IBusinessObject, string) error {
-	panic("ClearRelationshipValue has to be implemented by a concrete Class__UTILS__ object")
-}
-
-func (thisCore *classCore) IsModelValid(IBusinessObject) error {
-	panic("IsModelValid has to be implemented by a concrete Class__CHK__ object")
-}
 
 // ------------------------------------------------------------------------------------------------
 // Defining and registering classes
 // ------------------------------------------------------------------------------------------------
 
-// A Class is an object associated with a specific Business Object type that
-// provides automatically STATIC, generated utility methods to:
-// - instantiate 1 or a slice of this BO type
-// - help serializing / deserializing instances of this BO type
-// - quickly perform ORM operations such as Insert(), Select(), Update(), Delete(), etc...
-// - ...by containing methods such as GetSelectAllQuery(), GetInsertQuery(), etc
-//
-// Each Class is loosely coupled to the corresponding BO type through a registry, using
-// the BO class as key.
-type IClass interface {
-	IClassCore
-
-	NewObject() any // a function to instantiate 1 BO corresponding to this entry
-	NewSlice() any  // a function to instantiate an empty slice of BOs corresponding to this entry
-}
-
 // The registry for all the app's business objects.
 // This helps registering 1 instance of each business object type, which is then used
 // by code generation mechanisms to generate the business object classes, using reflection
 var classRegistry = &struct {
-	items map[className]IClass // all the business objects! mapped by the name
+	items map[utils.ClassName]IClass // all the business objects! mapped by the name
 	mx    sync.Mutex
 }{
-	items: map[className]IClass{},
+	items: map[utils.ClassName]IClass{},
 }
 
 type moduleName string
@@ -174,32 +52,18 @@ func (m *moduleClassRegitry) Register(class IClass) *moduleClassRegitry {
 	return m
 }
 
-func classForName(clsName className, failIfNil bool) IClass {
-	if classRegistry.items[clsName] == nil && failIfNil {
-		panic(fmt.Sprintf("It looks like no class named '%s' has been registered, "+
-			"i.e. its package has probably not been 'included', i.e. imported in the start.go file,"+
-			" like this: import _ \"module_full_name/_include/package_name\"", clsName))
-	}
-	return classRegistry.items[clsName]
-}
-
-// 1 Class for 1 Business Object Model
-func getClass(model IBusinessObjectModel) IClass {
-	return classForName(model.base().name, true)
-}
-
 // ------------------------------------------------------------------------------------------------
 // The registry for all the app's business object models
 // ------------------------------------------------------------------------------------------------
 
 var modelRegistry = struct {
-	items map[className]IBusinessObjectModel
+	items map[utils.ClassName]IBusinessObjectModel
 	mx    sync.Mutex
 }{
-	items: map[className]IBusinessObjectModel{},
+	items: map[utils.ClassName]IBusinessObjectModel{},
 }
 
-func RegisterModel(name className, model IBusinessObjectModel) {
+func RegisterModel(name utils.ClassName, model IBusinessObjectModel) {
 	modelRegistry.mx.Lock()
 
 	// setting the class name
@@ -208,11 +72,6 @@ func RegisterModel(name className, model IBusinessObjectModel) {
 	// actual registration
 	modelRegistry.items[name] = model
 	modelRegistry.mx.Unlock()
-}
-
-func modelForName(clsName className) IBusinessObjectModel {
-	// not using the MX for now, but will have to do if there's any possibility for race condition
-	return modelRegistry.items[clsName]
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -339,13 +198,13 @@ func RegisterDataLoader(fn dataLoader, migrationPhase bool) {
 // ------------------------------------------------------------------------------------------------
 
 var daoRegistry = &struct {
-	daos map[className]IBusinessObjectDAO
+	daos map[utils.ClassName]IBusinessObjectDAO
 	mx   sync.Mutex
 }{
-	daos: map[className]IBusinessObjectDAO{},
+	daos: map[utils.ClassName]IBusinessObjectDAO{},
 }
 
-func RegisterDAO(clsName className, dao IBusinessObjectDAO) IBusinessObjectDAO {
+func RegisterDAO(clsName utils.ClassName, dao IBusinessObjectDAO) IBusinessObjectDAO {
 	daoRegistry.mx.Lock()
 	if daoRegistry.daos[clsName] != nil {
 		panic(fmt.Sprintf("There's already a DAO registered for class '%s'", clsName))
@@ -355,13 +214,13 @@ func RegisterDAO(clsName className, dao IBusinessObjectDAO) IBusinessObjectDAO {
 	return dao
 }
 
-func newDaoFor(clsName className) IBusinessObjectDAO {
+func newDaoFor(class IClass) IBusinessObjectDAO {
 	daoRegistry.mx.Lock()
 	defer daoRegistry.mx.Unlock()
 
-	dao := daoRegistry.daos[clsName]
+	dao := daoRegistry.daos[class.getClassName()]
 	if dao == nil {
-		panic(fmt.Sprintf("No DAO found for class '%s'", clsName))
+		panic(fmt.Sprintf("No DAO found for class '%s'", class.getClassName()))
 	}
 
 	// a DAO is somehow its own factory

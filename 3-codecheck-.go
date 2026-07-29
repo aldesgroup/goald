@@ -10,6 +10,7 @@ import (
 	"time"
 
 	core "github.com/aldesgroup/corego"
+	"github.com/aldesgroup/goald/features/utils"
 )
 
 // ------------------------------------------------------------------------------------------------
@@ -36,7 +37,7 @@ func (thisServer *server) runCodeChecks() {
 // BO model checking
 // ------------------------------------------------------------------------------------------------
 
-func (thisServer *server) checkModel(clsName className, model IBusinessObjectModel) {
+func (thisServer *server) checkModel(clsName utils.ClassName, model IBusinessObjectModel) {
 	nbChildToParentRelationships := 0
 
 	// class-level controls

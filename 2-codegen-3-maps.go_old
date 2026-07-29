@@ -63,6 +63,15 @@ $$clearrelcases$$
 
 	return goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
 }
+
+// getting a multi-valued relationship's targets, given the relationship's name, without using reflection
+func (thisClass *$$Upper$$Class) GetMultipleRelationshipValue(bo goald.IBusinessObject, relationshipName string) ([]goald.IBusinessObject, error) {
+	switch relationshipName {
+$$getmultiplerelcases$$
+	}
+
+	return nil, goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+}
 `
 
 const valueMapperFILExSUFFIX = "--map.go"
@@ -226,6 +235,7 @@ func generateObjectValueMappersForBO(class IClass, filepath string) {
 	setRelCases := []string{}
 	addRelCases := []string{}
 	clearRelCases := []string{}
+	getMultiRelCases := []string{}
 
 	// browsing the entity's relationships to fill the set / add cases for the relationship setters
 	for _, relationship := range core.GetSortedValues(model.base().relationships) {
@@ -251,6 +261,22 @@ func generateObjectValueMappersForBO(class IClass, filepath string) {
 			clearCase += newline + fmt.Sprintf("\t\tbo.%s = []%s{}", fieldID, targetType)
 			clearCase += newline + "\t\treturn nil"
 			clearRelCases = append(clearRelCases, clearCase)
+
+			// building the corresponding GetMultipleRelationshipValue case; if there's a backref relationship
+			// on the target side that's single-valued (i.e. each target uniquely points back to us), we
+			// also make sure it's (re)set, since it might not have been loaded/set that way already
+			resultVar := core.PascalToCamel(relName)
+			getMultiCase := fmt.Sprintf("\tcase \"%s\":", relName)
+			getMultiCase += newline + fmt.Sprintf("\t\t%s := make([]goald.IBusinessObject, len(bo.%s))", resultVar, fieldID)
+			getMultiCase += newline + fmt.Sprintf("\t\tfor i, target := range bo.%s {", fieldID)
+			if relationship.backRef != nil && !relationship.backRef.IsMultiple() {
+				getMultiCase += newline + fmt.Sprintf("\t\t\ttarget.%s = bo.(*%s.%s) // ensuring the unique backref is set",
+					relationship.backRef.GetName(), shortPkg, className)
+			}
+			getMultiCase += newline + fmt.Sprintf("\t\t\t%s[i] = target", resultVar)
+			getMultiCase += newline + "\t\t}"
+			getMultiCase += newline + fmt.Sprintf("\t\treturn %s, nil", resultVar)
+			getMultiRelCases = append(getMultiRelCases, getMultiCase)
 		} else {
 			relCase += newline + fmt.Sprintf("\t\tbo.%s = targetValue", fieldID)
 			relCase += newline + "\t\treturn nil"
@@ -264,6 +290,7 @@ func generateObjectValueMappersForBO(class IClass, filepath string) {
 	content = strings.ReplaceAll(content, "$$setrelcases$$", strings.Join(setRelCases, newline))
 	content = strings.ReplaceAll(content, "$$addrelcases$$", strings.Join(addRelCases, newline))
 	content = strings.ReplaceAll(content, "$$clearrelcases$$", strings.Join(clearRelCases, newline))
+	content = strings.ReplaceAll(content, "$$getmultiplerelcases$$", strings.Join(getMultiRelCases, newline))
 
 	if importUtils {
 		importsMap["github.com/aldesgroup/corego"] = true

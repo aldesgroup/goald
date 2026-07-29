@@ -3,15 +3,15 @@ package class
 
 import (
 	"github.com/aldesgroup/goald"
-"github.com/aldesgroup/goald/features/iot"
+	"github.com/aldesgroup/goald/features/iot"
 )
 
 type DeviceBootstrapClass struct {
-	goald.IClassCore
+	goald.IClass
 }
 
 func ClassForDeviceBootstrap(srcPath, lastMod string) goald.IClass {
-	return &DeviceBootstrapClass{IClassCore: goald.NewClassCore(srcPath, "DeviceBootstrap", lastMod)}
+	return &DeviceBootstrapClass{IClass: goald.NewClass(srcPath, "DeviceBootstrap", lastMod)}
 }
 
 func (thisClass *DeviceBootstrapClass) NewObject() any {

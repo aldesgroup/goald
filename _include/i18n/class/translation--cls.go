@@ -3,15 +3,15 @@ package class
 
 import (
 	"github.com/aldesgroup/goald"
-"github.com/aldesgroup/goald/features/i18n"
+	"github.com/aldesgroup/goald/features/i18n"
 )
 
 type TranslationClass struct {
-	goald.IClassCore
+	goald.IClass
 }
 
 func ClassForTranslation(srcPath, lastMod string) goald.IClass {
-	return &TranslationClass{IClassCore: goald.NewClassCore(srcPath, "Translation", lastMod)}
+	return &TranslationClass{IClass: goald.NewClass(srcPath, "Translation", lastMod)}
 }
 
 func (thisClass *TranslationClass) NewObject() any {

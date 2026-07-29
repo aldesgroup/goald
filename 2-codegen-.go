@@ -9,6 +9,7 @@ import (
 	"time"
 
 	core "github.com/aldesgroup/corego"
+	"github.com/aldesgroup/goald/features/utils"
 )
 
 type codeGenLevel int
@@ -33,7 +34,7 @@ func (thisServer *server) runCodeGen(cgp *codegenParams) {
 		thisServer.generateDatabasesList(cgp.srcdir)
 
 		// generating the classes and the packages that register them, and make the corresponding business objects "importable"
-		codeChanged := thisServer.generateAllClasses(cgp.srcdir, ".", false, map[packageName]map[className]*classCore{}, cgp.regen)
+		codeChanged := thisServer.generateAllClasses(cgp.srcdir, ".", false, map[packageName]map[utils.ClassName]*baseClass{}, cgp.regen)
 
 		// saving the dirty state
 		core.WriteToFile(fmt.Sprintf("%t", codeChanged), cgp.bindir, dirtyFILENAME)
@@ -55,16 +56,17 @@ func (thisServer *server) runCodeGen(cgp *codegenParams) {
 		start := time.Now()
 
 		// now, using the models, we can generate useful utils
-		codeChanged := thisServer.generateAllObjectValueMappers(cgp.srcdir, ".", cgp.regen)
+		// codeChanged := thisServer.generateAllObjectValueMappers(cgp.srcdir, ".", cgp.regen)
+		// codeChanged = thisServer.generateAllObjectChecks(cgp.srcdir, ".", cgp.regen) || codeChanged
+		codeChanged := thisServer.generateAllObjectUtils(cgp.srcdir, ".", cgp.regen)
 		codeChanged = thisServer.generateAllObjectDAOs(cgp.srcdir, cgp.regen) || codeChanged
-		codeChanged = thisServer.generateAllObjectChecks(cgp.srcdir, ".", cgp.regen) || codeChanged
 
 		// saving the dirty state
 		core.WriteToFile(fmt.Sprintf("%t", codeChanged), cgp.bindir, dirtyFILENAME)
 
 		// codegen in the webapp! and / or the native app
-		thisServer.generateAllClientAppModels(cgp.webdir, cgp.regen, true)
-		thisServer.generateAllClientAppModels(cgp.nativedir, cgp.regen, false)
+		thisServer.generateAllExternalModels(cgp.webdir, cgp.regen, true)
+		thisServer.generateAllExternalModels(cgp.nativedir, cgp.regen, false)
 
 		// generating the doc for the API
 		if cgp.docpath != "" {

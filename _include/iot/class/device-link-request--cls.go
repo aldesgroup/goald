@@ -3,15 +3,15 @@ package class
 
 import (
 	"github.com/aldesgroup/goald"
-"github.com/aldesgroup/goald/features/iot"
+	"github.com/aldesgroup/goald/features/iot"
 )
 
 type DeviceLinkRequestClass struct {
-	goald.IClassCore
+	goald.IClass
 }
 
 func ClassForDeviceLinkRequest(srcPath, lastMod string) goald.IClass {
-	return &DeviceLinkRequestClass{IClassCore: goald.NewClassCore(srcPath, "DeviceLinkRequest", lastMod)}
+	return &DeviceLinkRequestClass{IClass: goald.NewClass(srcPath, "DeviceLinkRequest", lastMod)}
 }
 
 func (thisClass *DeviceLinkRequestClass) NewObject() any {

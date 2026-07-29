@@ -7,7 +7,9 @@
 // ------------------------------------------------------------------------------------------------
 package goald
 
-import "github.com/aldesgroup/goald/features/logging"
+import (
+	"github.com/aldesgroup/goald/features/logging"
+)
 
 // ------------------------------------------------------------------------------------------------
 // AppContext contains the minimal info set that should be accessible in all the layers of the app
@@ -23,7 +25,7 @@ type AppContext interface {
 
 type restContext interface { // TODO keep ?
 	AppContext
-	getTargetResourceClass() className // the class of the resource being requested
+	getTargetResourceClass() IClass // the class of the resource being requested
 }
 
 // ------------------------------------------------------------------------------------------------

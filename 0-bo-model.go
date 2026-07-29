@@ -13,6 +13,7 @@ import (
 	core "github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald/features/dbconn"
 	"github.com/aldesgroup/goald/features/reflection"
+	"github.com/aldesgroup/goald/features/utils"
 )
 
 // TODO pagination all the way
@@ -42,33 +43,35 @@ type IBusinessObjectModel interface {
 
 	// access to the base implementation
 	base() *businessObjectModel
+	setClass(class IClass)
+	getClass() IClass
 	addField(field IField) IField
 	getType() *reflection.GoaldType
 }
 
-type className string
-
 type businessObjectModel struct {
-	name                       className                            // the corresponding class name
-	description                string                               // the model description
-	fields                     map[string]IField                    // the objet's simple properties
-	relationships              map[string]*Relationship             // the relationships to other classes
-	db                         *DB                                  // the associated DB, if any
-	inNoDB                     bool                                 // if true, then no associated DB
-	abstract                   bool                                 // if true, then is class is mainly used as a super class for others
-	tableName                  string                               // if persisted, the name of the corresponding DB table - should be the same as the class name most of the time
-	persistedProperties        []IBusinessObjectProperty            // all the properties - fields or relationships - persisted on this class
-	uniqueCombinations         map[string][]IBusinessObjectProperty // a combination of properties that must be unique in the DB
-	idField                    IField                               // accessor to the ID field
-	preIDField                 IField                               // accessor to the pre-ID field
-	usedInNativeApp            bool                                 // true if this class is used in the native app
-	usedInWebApp               bool                                 // true if this class is used in the web app
-	boType                     *reflection.GoaldType                // the Go type associated with this BO model
-	relationshipsWithColumn    []*Relationship                      // all the relationships for which this class has a column in its table
-	relationshipsWithLinkTable []*Relationship                      // all the relationships for which this class has a column in its table
-	resolved                   bool                                 // if true, then this model has been resolved, i.e. all its properties have been detected and registered
-	autoCRUD                   bool                                 // if true, then the generic CRUD endpoints will be automatically started for this business object model
-	childToParentRelationship  *Relationship                        // if this class is a child in a parent-child relationship, then this is the relationship to the parent
+	name                             utils.ClassName                      // the corresponding class name
+	class                            IClass                               // the corresponding class object
+	description                      string                               // the model description
+	fields                           map[string]IField                    // the objet's simple properties
+	relationships                    map[string]*Relationship             // the relationships to other classes
+	db                               *DB                                  // the associated DB, if any
+	inNoDB                           bool                                 // if true, then no associated DB
+	abstract                         bool                                 // if true, then is class is mainly used as a super class for others
+	tableName                        string                               // if persisted, the name of the corresponding DB table - should be the same as the class name most of the time
+	persistedProperties              []IBusinessObjectProperty            // all the properties - fields or relationships - persisted on this class
+	uniqueCombinations               map[string][]IBusinessObjectProperty // a combination of properties that must be unique in the DB
+	idField                          IField                               // accessor to the ID field
+	preIDField                       IField                               // accessor to the pre-ID field
+	usedInNativeApp                  bool                                 // true if this class is used in the native app
+	usedInWebApp                     bool                                 // true if this class is used in the web app
+	boType                           *reflection.GoaldType                // the Go type associated with this BO model
+	relationshipsWithColumn          []*Relationship                      // all the relationships for which this class has a column in its table
+	relationshipsWithLinkTable       []*Relationship                      // all the relationships for which this class has a column in its table
+	resolved                         bool                                 // if true, then this model has been resolved, i.e. all its properties have been detected and registered
+	autoCRUD                         bool                                 // if true, then the generic CRUD endpoints will be automatically started for this business object model
+	childToParentRelationship        *Relationship                        // if this class is a child in a parent-child relationship, then this is the relationship to the parent
+	relationshipsWithRequiredBackref []*Relationship                      // all the relationships through which the target BOs cannot be persisted without a backref to this BO
 }
 
 const BoFieldID = "ID"       // the name of the ID field, which is a special case in Goald
@@ -173,6 +176,14 @@ func (boModel *businessObjectModel) base() *businessObjectModel {
 	return boModel
 }
 
+func (boModel *businessObjectModel) setClass(class IClass) {
+	boModel.class = class
+}
+
+func (boModel *businessObjectModel) getClass() IClass {
+	return boModel.class
+}
+
 func (boModel *businessObjectModel) addField(field IField) IField {
 	boModel.fields[field.GetName()] = field
 
@@ -181,7 +192,7 @@ func (boModel *businessObjectModel) addField(field IField) IField {
 
 func (boModel *businessObjectModel) getType() *reflection.GoaldType {
 	if boModel.boType == nil {
-		boType := reflection.TypeOf(getClass(boModel).NewObject(), true)
+		boType := reflection.TypeOf(boModel.getClass().NewObject(), true)
 		boModel.boType = &boType
 	}
 
@@ -368,7 +379,7 @@ type IBusinessObjectProperty interface {
 	isSecret() bool                         // if true, then this property is secret
 	SetPersonal()                           // to set this property as personal
 	isPersonal() bool                       // if true, then this property is personal
-	getDeclaringBO() className              // the name of the business object that actually declares this property (instead of inheriting it from a super class)
+	getDeclaringBO() utils.ClassName        // the name of the business object that actually declares this property (instead of inheriting it from a super class)
 	setTechnical()                          // to set this property as technical
 }
 
@@ -380,7 +391,7 @@ const ioTypePURExOUTPUT ioType = "o*"
 
 type businessObjectProperty struct {
 	owner        IBusinessObjectModel   // the property's owner class
-	declaringBO  className              // the name of the business object that actually declares this property (instead of inheriting it from a super class)
+	declaringBO  utils.ClassName        // the name of the business object that actually declares this property (instead of inheriting it from a super class)
 	name         string                 // the property's name, as declared in the struct
 	propType     propertyType           // the property's type, as detected by the codegen phase
 	multiple     bool                   // the property's multiplicity; false = 1, true = N
@@ -488,7 +499,7 @@ func (prop *businessObjectProperty) isPersonal() bool {
 	return prop.personal
 }
 
-func (prop *businessObjectProperty) getDeclaringBO() className {
+func (prop *businessObjectProperty) getDeclaringBO() utils.ClassName {
 	return prop.declaringBO
 }
 
@@ -509,7 +520,7 @@ func (boModel *businessObjectModel) resolve() IBusinessObjectModel {
 		for _, field := range boModel.base().fields {
 			if field.getDeclaringBO() != boModel.name {
 				// making sure the "parent" model is resolved first
-				if parentModel := modelForName(field.getDeclaringBO()); parentModel != nil {
+				if parentModel := modelFor(field.getDeclaringBO()); parentModel != nil {
 					// getting the field from the parent model
 					parentField := parentModel.resolve().base().fields[field.GetName()]
 
@@ -523,7 +534,7 @@ func (boModel *businessObjectModel) resolve() IBusinessObjectModel {
 		for _, rel := range boModel.base().relationships {
 			if rel.getDeclaringBO() != boModel.name {
 				// making sure the "parent" model is resolved first
-				if parentModel := modelForName(rel.getDeclaringBO()); parentModel != nil {
+				if parentModel := modelFor(rel.getDeclaringBO()); parentModel != nil {
 					// getting the relationship from the parent model
 					parentRel := parentModel.resolve().base().relationships[rel.GetName()]
 
