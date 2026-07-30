@@ -28,7 +28,7 @@ var (
 	deviceOnce sync.Once
 )
 
-// fully describing each of this class' properties & relationships
+// fully describing each of this model's properties & relationships
 func NewDeviceModel() *DeviceModel {
 	thisModel := &DeviceModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
 	thisModel.status = g.AddEnumField(thisModel, "Device", "Status", false, "iot.DeviceStatus")
@@ -50,7 +50,7 @@ func init() {
 	g.RegisterModel("Device", device)
 }
 
-// accessing all the Device class' properties and relationships
+// accessing all the Device model's properties and relationships
 
 func (D *DeviceModel) Status() *g.EnumField {
 	return D.status

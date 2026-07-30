@@ -20,8 +20,8 @@ import (
 // ------------------------------------------------------------------------------------------------
 
 var (
-	modelsDIRPATH  = path.Join("src", "components", "models")
-	handledClasses = map[IClass]bool{}
+	modelsDIRPATH = path.Join("src", "components", "models")
+	handledModels = map[IBusinessObjectModel]bool{}
 )
 
 const (
@@ -42,7 +42,7 @@ func (thisServer *server) generateAllExternalModels(destdir string, regen bool, 
 			thisServer.generateExternalModel(destdir, ep, false, enums, regen, isWebapp)
 
 			// if the endpoint admits a BO as an input (body or URL params), then we also need the model in the webapp
-			if ep.getInputOrParamsClass() != nil {
+			if ep.getInputOrParamsModel() != nil {
 				thisServer.generateExternalModel(destdir, ep, true, enums, regen, isWebapp)
 			}
 		}
@@ -65,33 +65,32 @@ func (ctx *codeContext) getEnumType(field IField) string {
 	return ctx.bObjType.FieldByName(field.GetName()).Type().Name()
 }
 
-func (thisServer *server) generateExternalModel(destdir string, ep iEndpoint, useInputClass bool,
+func (thisServer *server) generateExternalModel(destdir string, ep iEndpoint, useInputModel bool,
 	enums map[string]IEnum, regen bool, isWebapp bool) {
 	// which model to generate?
-	boClass := core.IfThenElse(useInputClass, ep.getInputOrParamsClass(), ep.getResourceClass())
+	boModel := core.IfThenElse(useInputModel, ep.getInputOrParamsModel(), ep.getResourceModel())
 
 	// already done this?
-	if handledClasses[boClass] {
+	if handledModels[boModel] {
 		return
 	}
 
 	// but we're doing this now
-	handledClasses[boClass] = true
+	handledModels[boModel] = true
 
 	// the business object we're dealing with
-	boModel := boClass.getModel()
-	boFields := core.GetSortedValues(boModel.base().fields)
+	boFields := core.GetSortedValues(boModel.getFields())
 
 	// the file we're dealing with
-	modelName := core.PascalToCamel(string(boModel.base().name))
+	modelName := core.PascalToCamel(string(boModel.getName()))
 	filename := modelName + ".ts"
 	filepath := path.Join(destdir, modelsDIRPATH, filename)
 
 	// gathering needed info into a context
 	codeCtx := &codeContext{
 		enums:      enums,
-		bObjType:   reflection.TypeOf(boClass.NewObject(), true),
-		boInstance: reflection.ValueOf(boClass.NewObject()),
+		bObjType:   reflection.TypeOf(boModel.NewObject(), true),
+		boInstance: reflection.ValueOf(boModel.NewObject()),
 	}
 
 	// gathering the needed enums
@@ -102,8 +101,8 @@ func (thisServer *server) generateExternalModel(destdir string, ep iEndpoint, us
 	}
 
 	// do we need to (re)generate the file?
-	if !regen && core.FileExists(filepath) && core.EnsureModTime(filepath).After(boClass.getLastBOMod()) {
-		return // the file already exists and is older than our changes in the BO class file
+	if !regen && core.FileExists(filepath) && core.EnsureModTime(filepath).After(boModel.getLastBOMod()) {
+		return // the file already exists and is older than our changes in the BO Model file
 	}
 
 	// getting the file content - which might be empty if the file does not exist yet
@@ -152,7 +151,7 @@ func (thisCode *codeFile) initFixedBlocks(modelName string, endpointPath string,
 
 // handling a field, adding it if not in the code already, flagging an enum for generation if it's an enum field
 func (thisCode *codeFile) addFieldIfNeeded(codeCtx *codeContext, field IField) {
-	// adding to the context, and the class file content
+	// adding to the context, and the Model file content
 	if typeFamily := field.getPropertyType(); typeFamily != propertyTypeUNKNOWN && typeFamily != propertyTypeRELATIONSHIPxMONOM {
 		// not handling multiple properties for now - nor the ID field
 		if !field.IsMultiple() && field.GetName() != BoFieldID {

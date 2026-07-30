@@ -28,7 +28,7 @@ var (
 	userOnce sync.Once
 )
 
-// fully describing each of this class' properties & relationships
+// fully describing each of this model's properties & relationships
 func NewUserModel() *UserModel {
 	thisModel := &UserModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
 	thisModel.email = g.AddStringField(thisModel, "User", "Email", false)
@@ -50,7 +50,7 @@ func init() {
 	g.RegisterModel("User", user)
 }
 
-// accessing all the User class' properties and relationships
+// accessing all the User model's properties and relationships
 
 func (U *UserModel) Email() *g.StringField {
 	return U.email

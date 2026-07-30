@@ -1,3 +1,4 @@
+// Generated file, do not edit!
 package i18n
 
 import (
@@ -7,8 +8,8 @@ import (
 
 type TranslationUrlParams struct {
 	g.URLQueryParams
-	Namespace string `json:"namespace" io:"o*" desc:"the namespace of the translation keys to retrieve (e.g. 'Common')"`
-	Key       string `json:"key"       io:"o*" desc:"the key for the unique translation to retrieve"`
+	Namespace string `json:"namespace,omitempty" io:"o*" desc:"the namespace of the translation keys to retrieve (e.g. 'Common')"`
+	Key       string `json:"key,omitempty"       io:"o*" desc:"the key for the unique translation to retrieve"`
 }
 
 func init() {

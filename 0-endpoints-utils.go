@@ -197,7 +197,7 @@ func (ep *manyForManyEndpoint[InputType, ResourceType]) returnManyForMany(webCtx
 // Querying for BOs through URLs
 // ------------------------------------------------------------------------------------------------
 
-// particular business object class
+// particular business object model
 type IURLQueryParamsModel interface {
 	IBusinessObjectModel
 }
@@ -207,7 +207,7 @@ type IURLQueryParams interface {
 	IBusinessObject
 }
 
-// particular business object class implem
+// particular business object model implem
 type urlQueryParamsModel struct {
 	businessObjectModel
 }
@@ -218,12 +218,12 @@ type URLQueryParams struct {
 }
 
 func NewURLQueryParamsModel() IURLQueryParamsModel {
-	class := &urlQueryParamsModel{
+	model := &urlQueryParamsModel{
 		businessObjectModel: businessObjectModel{
 			fields: map[string]IField{},
 			inNoDB: true,
 		},
 	}
 
-	return class
+	return model
 }

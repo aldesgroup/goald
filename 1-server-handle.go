@@ -21,7 +21,7 @@ import (
 // Serving the REST endpoints
 // ------------------------------------------------------------------------------------------------
 
-// TODO handle patching BOs with safeguards, like authorizing a limited list of fields (on the class for instance)
+// TODO handle patching BOs with safeguards, like authorizing a limited list of fields (on the model for instance)
 
 func (thisServer *server) ServeEndpoint(ep iEndpoint, w http.ResponseWriter, req *http.Request, params r.Params) {
 
@@ -227,7 +227,7 @@ func retrieveInputData(request *http.Request, webContext *webContextImpl, ep iEn
 
 	if ep.isMultipleInput() {
 		// Handling array of bObj input: []*package.BObj
-		bObjSlice := ep.getInputOrParamsClass().NewSlice()
+		bObjSlice := ep.getInputOrParamsModel().NewSlice()
 
 		// Unmarshaling *[]*package.BObj as an interface - which is expected by the Unmarshal function
 		if jsonErr := json.Unmarshal(inputBodyBytes, &bObjSlice); jsonErr != nil {
@@ -239,7 +239,7 @@ func retrieveInputData(request *http.Request, webContext *webContextImpl, ep iEn
 
 	} else {
 		// Handling single bObj input: *package.BObj
-		bObj := ep.getInputOrParamsClass().NewObject()
+		bObj := ep.getInputOrParamsModel().NewObject()
 
 		if jsonErr := unmarshalBObj(inputBodyBytes, bObj); jsonErr != nil {
 			return nil, ErrorC(jsonErr, "Could not unmarshall the JSON object!")
@@ -252,10 +252,10 @@ func retrieveInputData(request *http.Request, webContext *webContextImpl, ep iEn
 // parsing the request's URL to build the expected URLQueryParams object
 func retrieveURLParams(request *http.Request, _ *webContextImpl, ep iEndpoint) (any, error) {
 	// new URLQueryParams object
-	urlParams := ep.getInputOrParamsClass().NewObject().(IURLQueryParams)
+	urlParams := ep.getInputOrParamsModel().NewObject().(IURLQueryParams)
 
 	// transferring the URL param values from the URL to the object
-	for _, field := range urlParams.getModel().base().fields {
+	for _, field := range urlParams.getModel(urlParams).getFields() {
 		valueToSet := request.URL.Query().Get(field.GetName())
 		if valueToSet == "" {
 			valueToSet = field.getDefaultValue()

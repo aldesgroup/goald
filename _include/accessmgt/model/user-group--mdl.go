@@ -26,7 +26,7 @@ var (
 	userGroupOnce sync.Once
 )
 
-// fully describing each of this class' properties & relationships
+// fully describing each of this model's properties & relationships
 func NewUserGroupModel() *UserGroupModel {
 	thisModel := &UserGroupModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
 	thisModel.name = g.AddStringField(thisModel, "UserGroup", "Name", false)
@@ -46,7 +46,7 @@ func init() {
 	g.RegisterModel("UserGroup", userGroup)
 }
 
-// accessing all the UserGroup class' properties and relationships
+// accessing all the UserGroup model's properties and relationships
 
 func (U *UserGroupModel) Name() *g.StringField {
 	return U.name

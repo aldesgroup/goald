@@ -6,8 +6,8 @@ import (
 	"github.com/aldesgroup/goald/features/utils"
 )
 
-// getting the name of the class for a TranslationUrlParams, without using reflection
-func (bo *TranslationUrlParams) ClassName() utils.ClassName {
+// getting the name of the model for a TranslationUrlParams, without using reflection
+func (bo *TranslationUrlParams) GetModelName() utils.ModelName {
 	return "TranslationUrlParams"
 }
 
@@ -75,4 +75,8 @@ func (bo *TranslationUrlParams) GetMultipleRelationshipValue(relationshipName st
 func (bo *TranslationUrlParams) IsModelValid() error {
 
 	return nil
+}
+
+// removing any cycles from the business object, without using reflection
+func (bo *TranslationUrlParams) RemoveCycles() {
 }

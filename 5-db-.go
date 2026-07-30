@@ -108,8 +108,8 @@ func logSQL(logger logging.ILogger, db *DB, start time.Time, m mask, query strin
 			}
 		}
 		logger.Debug(
-			core.Elude(fmt.Sprintf("Run from '%s' in %s (with args: %+v)", db.name, time.Since(start), loggedArgs), 250) + ": " +
-				core.Elude(strings.Join(strings.Fields(query), " "), 250),
+			core.Elude(fmt.Sprintf("Run from '%s' in %s: "+strings.Join(strings.Fields(query), " "), db.name, time.Since(start)), 250) +
+				core.Elude(fmt.Sprintf(", with args: %+v", loggedArgs), 250),
 		)
 	}
 }
@@ -219,4 +219,17 @@ func (thisServer *server) connectDbSchema(dbSchema *dbconn.DbSchemaConfig) {
 
 	// bit of logging
 	thisServer.Info(fmt.Sprintf("Established connection to DB schema '%s' in %s", dbSchema.Name, time.Since(start)))
+}
+
+// ------------------------------------------------------------------------------------------------
+// Utils
+// ------------------------------------------------------------------------------------------------
+
+func getPackageForDbServerType(databaseType dbconn.DatabaseType) string {
+	switch databaseType {
+	case "postgresql":
+		return "pgsql"
+	default:
+		return ""
+	}
 }

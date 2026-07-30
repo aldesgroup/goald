@@ -2,13 +2,13 @@
 package i18n
 
 import (
-	core "github.com/aldesgroup/corego"
+	"github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald"
 	"github.com/aldesgroup/goald/features/utils"
 )
 
-// getting the name of the class for a Translation, without using reflection
-func (bo *Translation) ClassName() utils.ClassName {
+// getting the name of the model for a Translation, without using reflection
+func (bo *Translation) GetModelName() utils.ModelName {
 	return "Translation"
 }
 
@@ -91,4 +91,8 @@ func (bo *Translation) IsModelValid() error {
 	}
 
 	return nil
+}
+
+// removing any cycles from the business object, without using reflection
+func (bo *Translation) RemoveCycles() {
 }

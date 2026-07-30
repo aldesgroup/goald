@@ -5,14 +5,13 @@ import (
 	"strings"
 
 	"github.com/aldesgroup/goald/features/reflection"
-	"github.com/aldesgroup/goald/features/utils"
 )
 
 // building the checks ensuring that a required relationship (SetRequiredInDb) is properly set on
 // the BO: its target must be non-nil, reference an already-persisted BO (ID > 0), and - if this
-// is a polymorphic relationship - the target's concrete class must be one of the allowed ones
+// is a polymorphic relationship - the target's concrete model must be one of the allowed ones
 // (getTargetNames()); returns nil if this relationship isn't required
-func buildRequiredRelationshipCheck(relationship *Relationship, className utils.ClassName) []string {
+func buildRequiredRelationshipChecks(relationship *Relationship) []string {
 	if !relationship.IsRequiredInDb() {
 		return nil
 	}
@@ -21,23 +20,23 @@ func buildRequiredRelationshipCheck(relationship *Relationship, className utils.
 
 	checks := []string{
 		fmt.Sprintf(
-			"\tif bo.%s == nil {\n\t\treturn goald.Error(\"'%s' is required on '%s'\")\n\t}",
-			relName, relName, className),
+			"\tif bo.%s == nil {\n\r\treturn goald.Error(\"'%s' is required on '%s'\")\n\t}",
+			relName, relName, relationship.owner.getName()),
 		fmt.Sprintf(
 			"\tif bo.%s.GetID() <= 0 {\n\t\treturn goald.Error(\"'%s' must reference an existing, persisted business object\")\n\t}",
 			relName, relName),
 	}
 
 	if relationship.IsPolymorphic() {
-		targetNames := relationship.getTargetClassNames()
+		targetNames := relationship.getTargetModelNames()
 		allowed := make([]string, len(targetNames))
 		for i, targetName := range targetNames {
 			allowed[i] = fmt.Sprintf("%q", string(targetName))
 		}
 
 		checks = append(checks, fmt.Sprintf(
-			"\tif !core.InSlice([]string{%s}, string(bo.%s.GetClassName(bo.%s))) {\n\t\treturn goald.Error(\"Invalid target class for '%s'\")\n\t}",
-			strings.Join(allowed, ", "), relName, relName, relName))
+			"\tif !core.InSlice([]string{%s}, string(bo.%s.GetModelName())) {\n\t\treturn goald.Error(\"Invalid target model for '%s'\")\n\t}",
+			strings.Join(allowed, ", "), relName, relName))
 	}
 
 	return checks
@@ -45,7 +44,7 @@ func buildRequiredRelationshipCheck(relationship *Relationship, className utils.
 
 // building the check ensuring that a mandatory input field (io:"i*") actually has a non-zero
 // (from a Go standpoint) value; returns "" if there's nothing to check
-func buildMandatoryInputCheck(field IField) string {
+func buildMandatoryInputChecks(field IField) string {
 	if !field.isMandatoryInput() {
 		return ""
 	}
@@ -81,7 +80,7 @@ func zeroValueLiteral(propType propertyType) string {
 
 // building the check ensuring that a float field's value complies with its declared format
 // (total digits & decimals), if it has one; returns "" if there's nothing to check
-func buildFloatFormatCheck(field IField) string {
+func buildFloatFormatChecks(field IField) string {
 	propertyType := field.getPropertyType()
 	if propertyType != propertyTypeREAL && propertyType != propertyTypeDOUBLE {
 		return ""
@@ -114,7 +113,7 @@ type iFloatFormat interface {
 
 // building the check ensuring that a string field's value complies with its declared size
 // constraints (SetSize), if it has one; returns "" if there's nothing to check
-func buildStringSizeCheck(field IField) string {
+func buildStringSizeChecks(field IField) string {
 	if field.getPropertyType() != propertyTypeSTRING {
 		return ""
 	}
@@ -133,7 +132,7 @@ func buildStringSizeCheck(field IField) string {
 
 // building the check ensuring that an int (or bigint) field's value complies with its declared
 // Min()/Max() bounds, if any; returns "" if there's nothing to check
-func buildIntRangeCheck(field IField) string {
+func buildIntRangeChecks(field IField) string {
 	var min, max int64
 	var minSet, maxSet bool
 
@@ -169,7 +168,7 @@ func buildIntRangeCheck(field IField) string {
 
 // building the check ensuring that a real (or double) field's value complies with its declared
 // Min()/Max() bounds, if any; returns "" if there's nothing to check
-func buildFloatRangeCheck(field IField) string {
+func buildFloatRangeChecks(field IField) string {
 	var min, max float64
 	var minSet, maxSet bool
 
@@ -222,7 +221,7 @@ func getBits(fieldTypeAlias, getBit string) (string, string, string) {
 	return "", "", ""
 }
 
-func getNonBuiltInFieldType(bOjbType reflection.GoaldType, fieldName string, toBeImported map[string]bool) string {
+func getNonBuiltInFieldType(bOjbType *reflection.GoaldType, fieldName string, toBeImported map[string]bool) string {
 	fieldType := bOjbType.FieldByName(fieldName).Type()
 	fieldPkg := fieldType.PkgPath()
 
@@ -242,7 +241,7 @@ func getNonBuiltInFieldType(bOjbType reflection.GoaldType, fieldName string, toB
 // returns the Go type to use to type-assert a relationship's incoming value against, e.g.
 // "domain.IContact" for a polymorphic relationship, or "*domain.Employee" for a monomorphic one -
 // also registering the corresponding package for import, if needed
-func getRelationshipFieldType(bOjbType reflection.GoaldType, fieldName string, toBeImported map[string]bool) string {
+func getRelationshipFieldType(bOjbType *reflection.GoaldType, fieldName string, toBeImported map[string]bool) string {
 	fieldType := bOjbType.FieldByName(fieldName).Type()
 
 	// for a multi-valued relationship, the Go field is a slice: we need its element type

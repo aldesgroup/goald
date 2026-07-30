@@ -13,7 +13,7 @@ func dbInsert(dao IBusinessObjectDAO, bObjs ...IBusinessObject) error {
 	// controlling we're not trying to insert a business object that already got an ID
 	for _, bObj := range bObjs {
 		if bObj.GetID() > 0 {
-			return Error("Can not insert a business object '%s' that already has an ID", bObj.ClassName())
+			return Error("Can not insert a business object '%s' that already has an ID", bObj.GetModelName())
 		} //
 	}
 
@@ -21,7 +21,7 @@ func dbInsert(dao IBusinessObjectDAO, bObjs ...IBusinessObject) error {
 	rowToIDMap, errInsert := dao.ExecInsertQuery(bObjs...)
 	if errInsert != nil {
 		// TODO _JW$2:handle 1062 error (duplicate entry), 1048 (missing column value), 1054 (unknown column)
-		return ErrorC(errInsert, "Error while performing insert query for '%s'", dao.getClass().getClassName())
+		return ErrorC(errInsert, "Error while performing insert query for '%s'", dao.getModel().getName())
 	}
 
 	// consolidating the DB IDs back into the business objects
@@ -31,7 +31,7 @@ func dbInsert(dao IBusinessObjectDAO, bObjs ...IBusinessObject) error {
 
 	// so far, we've just handle the entities' properties and persisted single links; let's now handle the multiple links
 	if errLinks := dao.ExecInsertLinksQueries(bObjs...); errLinks != nil {
-		return ErrorC(errLinks, "Error while performing insert links for '%s'", dao.getClass().getClassName())
+		return ErrorC(errLinks, "Error while performing insert links for '%s'", dao.getModel().getName())
 	}
 
 	// yeah, we dit it!
@@ -40,7 +40,7 @@ func dbInsert(dao IBusinessObjectDAO, bObjs ...IBusinessObject) error {
 
 // func dbLoadList(_ DaoContext, model IBusinessObjectModel) (result []IBusinessObject, err error) {
 // 	for _, bObj := range mockDatabase {
-// 		if model == bObj.Class() {
+// 		if model == bObj.Model() {
 // 			result = append(result, bObj)
 // 		}
 // 	}
@@ -49,16 +49,16 @@ func dbInsert(dao IBusinessObjectDAO, bObjs ...IBusinessObject) error {
 // }
 
 // func dbLoadList[ResourceType IBusinessObject](_ DaoContext, model IBusinessObjectModel) (result []ResourceType, err error) {
-// 	class := getClass(model)
+// 	Model := getModel(model)
 
-// 	println(class)
+// 	println(Model)
 
 // 	return
 // }
 
 // func dbLoadOne(_ DaoContext, idProp IField, idPropVal string) (result IBusinessObject, err error) {
 // 	// for _, bObj := range mockDatabase {
-// 	// 	if idProp.ownerModel() == bObj.Class() && idPropVal == bObj.GetValueAsString(idPropVal) {
+// 	// 	if idProp.ownerModel() == bObj.Model() && idPropVal == bObj.GetValueAsString(idPropVal) {
 // 	// 		return bObj, nil
 // 	// 	}
 // 	// }
@@ -68,7 +68,7 @@ func dbInsert(dao IBusinessObjectDAO, bObjs ...IBusinessObject) error {
 
 // func dbRemoveOne(_ DaoContext, idProp IField, idPropVal string) (result IBusinessObject, err error) {
 // 	// for _, bObj := range mockDatabase {
-// 	// 	if idProp.ownerModel() == bObj.Class() && idPropVal == bObj.GetValueAsString(idPropVal) {
+// 	// 	if idProp.ownerModel() == bObj.Model() && idPropVal == bObj.GetValueAsString(idPropVal) {
 // 	// 		delete(mockDatabase, string(bObj.GetID()))
 // 	// 		return bObj, nil
 // 	// 	}
@@ -83,7 +83,7 @@ func dbInsert(dao IBusinessObjectDAO, bObjs ...IBusinessObject) error {
 // 	// 	return Error("No object exists with ID %s", input.GetID())
 // 	// }
 
-// 	// input.setClassName(instore.getClassName())
+// 	// input.setModelName(instore.getModelName())
 
 // 	// mockDatabase[string(input.GetID())] = input
 

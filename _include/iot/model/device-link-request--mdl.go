@@ -32,7 +32,7 @@ var (
 	deviceLinkRequestOnce sync.Once
 )
 
-// fully describing each of this class' properties & relationships
+// fully describing each of this model's properties & relationships
 func NewDeviceLinkRequestModel() *DeviceLinkRequestModel {
 	thisModel := &DeviceLinkRequestModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
 	thisModel.model = g.AddStringField(thisModel, "DeviceLinkRequest", "Model", false)
@@ -58,7 +58,7 @@ func init() {
 	g.RegisterModel("DeviceLinkRequest", deviceLinkRequest)
 }
 
-// accessing all the DeviceLinkRequest class' properties and relationships
+// accessing all the DeviceLinkRequest model's properties and relationships
 
 func (D *DeviceLinkRequestModel) Model() *g.StringField {
 	return D.model

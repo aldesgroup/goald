@@ -28,7 +28,7 @@ var (
 	deviceBootstrapOnce sync.Once
 )
 
-// fully describing each of this class' properties & relationships
+// fully describing each of this model's properties & relationships
 func NewDeviceBootstrapModel() *DeviceBootstrapModel {
 	thisModel := &DeviceBootstrapModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
 	thisModel.status = g.AddEnumField(thisModel, "DeviceBootstrap", "Status", false, "iot.BootstrapStatus")
@@ -50,7 +50,7 @@ func init() {
 	g.RegisterModel("DeviceBootstrap", deviceBootstrap)
 }
 
-// accessing all the DeviceBootstrap class' properties and relationships
+// accessing all the DeviceBootstrap model's properties and relationships
 
 func (D *DeviceBootstrapModel) Status() *g.EnumField {
 	return D.status

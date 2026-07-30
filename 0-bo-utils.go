@@ -1,5 +1,5 @@
 // ------------------------------------------------------------------------------------------------
-// Some utilities to help use classes
+// Some utilities to help use business object models
 // ------------------------------------------------------------------------------------------------
 package goald
 
@@ -19,20 +19,16 @@ var (
 )
 
 // ------------------------------------------------------------------------------------------------
-// Access to classes & models, given a class name
+// Access to models, given a model name
 // ------------------------------------------------------------------------------------------------
 
-func classFor(clsName utils.ClassName, failIfNil bool) IClass {
-	if classRegistry.items[clsName] == nil && failIfNil {
-		panic(fmt.Sprintf("It looks like no class named '%s' has been registered, "+
+func modelFor(modelName utils.ModelName, failIfNil ...bool) IBusinessObjectModel {
+	if modelRegistry.items[modelName] == nil && (len(failIfNil) > 0 && failIfNil[0]) {
+		panic(fmt.Sprintf("It looks like no model named '%s' has been registered, "+
 			"i.e. its package has probably not been 'included', i.e. imported in the start.go file,"+
-			" like this: import _ \"module_full_name/_include/package_name\"", clsName))
+			" like this: import _ \"module_full_name/_include/package_name\"", modelName))
 	}
-	return classRegistry.items[clsName]
-}
-
-func modelFor(clsName utils.ClassName) IBusinessObjectModel {
-	return classFor(clsName, true).getModel()
+	return modelRegistry.items[modelName]
 }
 
 // ------------------------------------------------------------------------------------------------

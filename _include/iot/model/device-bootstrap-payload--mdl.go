@@ -27,7 +27,7 @@ var (
 	deviceBootstrapPayloadOnce sync.Once
 )
 
-// fully describing each of this class' properties & relationships
+// fully describing each of this model's properties & relationships
 func NewDeviceBootstrapPayloadModel() *DeviceBootstrapPayloadModel {
 	thisModel := &DeviceBootstrapPayloadModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
 	thisModel.serial = g.AddStringField(thisModel, "DeviceBootstrapPayload", "Serial", false)
@@ -48,7 +48,7 @@ func init() {
 	g.RegisterModel("DeviceBootstrapPayload", deviceBootstrapPayload)
 }
 
-// accessing all the DeviceBootstrapPayload class' properties and relationships
+// accessing all the DeviceBootstrapPayload model's properties and relationships
 
 func (D *DeviceBootstrapPayloadModel) Serial() *g.StringField {
 	return D.serial

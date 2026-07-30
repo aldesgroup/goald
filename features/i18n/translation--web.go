@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	g "github.com/aldesgroup/goald"
+	// "github.com/aldesgroup/goald/_include/i18n/model"
 	"github.com/aldesgroup/goald/_include/i18n/model"
 	"github.com/aldesgroup/goald/features/hstatus"
 )
@@ -20,7 +21,7 @@ func init() {
 
 func listTranslations(webCtx g.WebContext, params *TranslationUrlParams) ([]*Translation, hstatus.Code, string) {
 	// getting the targeted language
-	langStr := webCtx.GetTargetRefOrID()
+	langStr := webCtx.GetResourceRefOrID()
 
 	// not translating english - FOR NOW // TODO refine
 	if langStr == "en" {

@@ -14,11 +14,11 @@ func CreateBusinessObjects[BOTYPE IBusinessObject](bloCtx BloContext, bObjs ...B
 		return nil
 	}
 
-	// we know the BOs here are all of the same class
-	class := bObjs[0].getClass()
+	// we know the BOs here are all of the same model
+	model := bObjs[0].getModel(bObjs[0])
 
 	// let's start a transaction if none is already started
-	beginTransactionHere, errBegin := bloCtx.BeginTransaction(class)
+	beginTransactionHere, errBegin := bloCtx.BeginTransaction(model)
 	if errBegin != nil {
 		return ErrorC(errBegin, "Could not create object since a transaction could not be started")
 	}
@@ -43,13 +43,13 @@ func CreateBusinessObjects[BOTYPE IBusinessObject](bloCtx BloContext, bObjs ...B
 	}
 
 	// let's try to create the given entity
-	createErr = doCreateBusinessObjects(bloCtx, class, bObjs...)
+	createErr = doCreateBusinessObjects(bloCtx, model, bObjs...)
 
 	return
 }
 
 // doCreateBO does the actual creation of a new business object in the database
-func doCreateBusinessObjects[BOTYPE IBusinessObject](bloCtx BloContext, class IClass, bObjs ...BOTYPE) error {
+func doCreateBusinessObjects[BOTYPE IBusinessObject](bloCtx BloContext, model IBusinessObjectModel, bObjs ...BOTYPE) error {
 	if len(bObjs) == 0 {
 		return nil
 	}
@@ -93,12 +93,12 @@ func doCreateBusinessObjects[BOTYPE IBusinessObject](bloCtx BloContext, class IC
 	// // bObj.Set__BOBJ__Status(__BOBJ__StatusCREATED)
 
 	// pushing to the DB ! We're going to add a new line within the __BOBJ__'s table
-	if err := dbInsert(bloCtx.daoFor(class), iBObjs...); err != nil {
+	if err := dbInsert(bloCtx.daoFor(model), iBObjs...); err != nil {
 		return err
 	}
 
 	// TODO inserting all the links that waited for the current entity to be inserted in DB before getting inserted themselves
-	if err := doCreateDependentBusinessObjects(bloCtx, class, iBObjs...); err != nil {
+	if err := doCreateDependentBusinessObjects(bloCtx, model, iBObjs...); err != nil {
 		return err
 	}
 
@@ -114,11 +114,11 @@ func doCreateBusinessObjects[BOTYPE IBusinessObject](bloCtx BloContext, class IC
 }
 
 // doCreateDependentBusinessObjects creates all the business objects that are linked exclusively to the given business objects (children) if any, in a single transaction
-func doCreateDependentBusinessObjects(bloCtx BloContext, class IClass, iBObjs ...IBusinessObject) error {
-	// handlng all the children relationships this class of business objects may have, if any
-	for _, relationship := range class.getModel().base().getRelationshipsWithRequiredBackref() {
+func doCreateDependentBusinessObjects(bloCtx BloContext, model IBusinessObjectModel, iBObjs ...IBusinessObject) error {
+	// handling all the children relationships this model of business objects may have, if any
+	for _, relationship := range model.getRelationshipsWithRequiredBackref() {
 		// gathering all the children, by type - because we may have polymorphic children, and we want to create them in batches of the same type
-		childrenByType := make(map[utils.ClassName][]IBusinessObject)
+		childrenByType := make(map[utils.ModelName][]IBusinessObject)
 		for _, bObj := range iBObjs {
 			// getting the children of this business object for this relationship
 			children, errGet := bObj.GetMultipleRelationshipValue(relationship.name)
@@ -128,15 +128,15 @@ func doCreateDependentBusinessObjects(bloCtx BloContext, class IClass, iBObjs ..
 
 			// grouping the children by type, so that we can create them in batches of the same type
 			for _, child := range children {
-				childrenByType[child.ClassName()] = append(childrenByType[child.ClassName()], child)
+				childrenByType[child.GetModelName()] = append(childrenByType[child.GetModelName()], child)
 			}
 		}
 
 		// creating the children, by type
 		for childType, children := range childrenByType {
-			childClass := classFor(childType, true)
-			if err := doCreateBusinessObjects(bloCtx, childClass, children...); err != nil {
-				return ErrorC(err, "Could not create child objects for relationship '%s.%s'", class.getClassName(), relationship.name)
+			childModel := modelFor(childType, true)
+			if err := doCreateBusinessObjects(bloCtx, childModel, children...); err != nil {
+				return ErrorC(err, "Could not create child objects for relationship '%s.%s'", model.getName(), relationship.name)
 			}
 		}
 	}

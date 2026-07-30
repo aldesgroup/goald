@@ -2,14 +2,14 @@
 package iot
 
 import (
-	core "github.com/aldesgroup/corego"
+	"github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald"
 	"github.com/aldesgroup/goald/features/i18n"
 	"github.com/aldesgroup/goald/features/utils"
 )
 
-// getting the name of the class for a DeviceLinkRequest, without using reflection
-func (bo *DeviceLinkRequest) ClassName() utils.ClassName {
+// getting the name of the model for a DeviceLinkRequest, without using reflection
+func (bo *DeviceLinkRequest) GetModelName() utils.ModelName {
 	return "DeviceLinkRequest"
 }
 
@@ -132,4 +132,8 @@ func (bo *DeviceLinkRequest) IsModelValid() error {
 	}
 
 	return nil
+}
+
+// removing any cycles from the business object, without using reflection
+func (bo *DeviceLinkRequest) RemoveCycles() {
 }

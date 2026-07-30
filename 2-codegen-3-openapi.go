@@ -76,12 +76,12 @@ func (thisServer *server) generateOpenAPIDoc(srcdirs []string, docpath string, r
 func (thisServer *server) isWebModelsChanged(docModified time.Time) bool {
 	// going over all the endpoints
 	for _, ep := range restRegistry.endpoints {
-		if ep.getResourceClass().getLastBOMod().After(docModified) {
-			thisServer.Info(fmt.Sprintf("Output model '%s' for endpoint '%s %s' has changed!", ep.getResourceClass(), ep.getMethod(), ep.getLabel()))
+		if ep.getResourceModel().getLastBOMod().After(docModified) {
+			thisServer.Info(fmt.Sprintf("Output model '%s' for endpoint '%s %s' has changed!", ep.getResourceModel(), ep.getMethod(), ep.getLabel()))
 			return true
 		}
-		if inputClass := ep.getInputOrParamsClass(); inputClass != nil && inputClass.getLastBOMod().After(docModified) {
-			thisServer.Info(fmt.Sprintf("Input model '%s' for endpoint '%s %s' has changed!", inputClass, ep.getMethod(), ep.getLabel()))
+		if inputModel := ep.getInputOrParamsModel(); inputModel != nil && inputModel.getLastBOMod().After(docModified) {
+			thisServer.Info(fmt.Sprintf("Input model '%s' for endpoint '%s %s' has changed!", inputModel, ep.getMethod(), ep.getLabel()))
 			return true
 		}
 	}
@@ -224,21 +224,21 @@ func addEndpointToDoc(doc *openapi3.T, ep iEndpoint) error {
 	}
 
 	// ---------- INPUT ----------
-	inClass := ep.getInputOrParamsClass()
-	if inClass != nil {
+	inModel := ep.getInputOrParamsModel()
+	if inModel != nil {
 
 		if ep.isBodyInputRequired() {
 			// === BODY INPUT ===
-			ref, err := getSchemaRef(doc, inClass)
+			ref, err := getSchemaRef(doc, inModel)
 			if err != nil {
 				return err
 			}
 
 			var description string
 			if ep.isMultipleInput() {
-				description = fmt.Sprintf("An array of %s objects", inClass)
+				description = fmt.Sprintf("An array of %s objects", inModel)
 			} else {
-				description = fmt.Sprintf("A %s object", inClass)
+				description = fmt.Sprintf("A %s object", inModel)
 			}
 
 			op.RequestBody = &openapi3.RequestBodyRef{
@@ -255,7 +255,7 @@ func addEndpointToDoc(doc *openapi3.T, ep iEndpoint) error {
 
 		} else {
 			// === URL PARAMS INPUT ===
-			params, err := paramsFromClass(inClass, openapiPath)
+			params, err := paramsFromModel(inModel, openapiPath)
 			if err != nil {
 				return err
 			}
@@ -264,9 +264,9 @@ func addEndpointToDoc(doc *openapi3.T, ep iEndpoint) error {
 	}
 
 	// ---------- OUTPUT ----------
-	outClass := ep.getResourceClass()
-	if outClass != nil {
-		ref, err := getSchemaRef(doc, outClass)
+	outModel := ep.getResourceModel()
+	if outModel != nil {
+		ref, err := getSchemaRef(doc, outModel)
 		if err != nil {
 			return err
 		}
@@ -307,7 +307,7 @@ func addEndpointToDoc(doc *openapi3.T, ep iEndpoint) error {
 // ------------------------------------------------------------------------------------------------
 
 // we'll put all the schemas here, and avoid repeating ourselves
-var schemaCache = map[IClass]*openapi3.SchemaRef{}
+var schemaCache = map[IBusinessObjectModel]*openapi3.SchemaRef{}
 
 // jsonNameFor returns the JSON property name to use for the given property, honoring an explicit
 // `json:"name"` struct tag if present (dropping any options like `,omitempty`), and falling back
@@ -329,30 +329,24 @@ func jsonNameFor(prop IBusinessObjectProperty) (name string, ok bool) {
 	return core.PascalToCamel(prop.GetName()), true
 }
 
-// getting a schema REF for a given class, initializing it if needed
-func getSchemaRef(doc *openapi3.T, class IClass) (*openapi3.SchemaRef, error) {
+// getting a schema REF for a given model, initializing it if needed
+func getSchemaRef(doc *openapi3.T, model IBusinessObjectModel) (*openapi3.SchemaRef, error) {
 	// fast returning if possible
-	if class == nil {
+	if model == nil {
 		return nil, nil
 	}
-	if ref, ok := schemaCache[class]; ok {
+	if ref, ok := schemaCache[model]; ok {
 		return ref, nil
 	}
 
-	// early caching of a new schema REF for the given class, to avoid cycles
+	// early caching of a new schema REF for the given model, to avoid cycles
 	ref := &openapi3.SchemaRef{
-		Ref: "#/components/schemas/" + string(class.getClassName()),
+		Ref: "#/components/schemas/" + string(model.getName()),
 	}
-	schemaCache[class] = ref
+	schemaCache[model] = ref
 
-	// getting the associated model
-	model := class.getModel()
-	if model == nil {
-		return nil, fmt.Errorf("No model associated with BO class '%s'", class.getClassName())
-	}
-
-	// adding a schema (not juste a REF) for the given class to the doc's components
-	doc.Components.Schemas[string(class.getClassName())] = &openapi3.SchemaRef{Value: schemaFromModel(doc, model)}
+	// adding a schema (not juste a REF) for the given model to the doc's components
+	doc.Components.Schemas[string(model.getName())] = &openapi3.SchemaRef{Value: schemaFromModel(doc, model)}
 
 	return ref, nil
 }
@@ -363,11 +357,11 @@ func schemaFromModel(doc *openapi3.T, model IBusinessObjectModel) *openapi3.Sche
 	schema := &openapi3.Schema{
 		Type:        &openapi3.Types{"object"},
 		Properties:  openapi3.Schemas{},
-		Description: model.base().description,
+		Description: model.getDescription(),
 	}
 
 	// going over the basic properties, i.e. the fields
-	for _, field := range core.GetSortedValues(model.base().fields) {
+	for _, field := range core.GetSortedValues(model.getFields()) {
 		fieldJSONName, ok := jsonNameFor(field)
 		if !ok {
 			// this field is explicitly excluded from JSON (json:"-"), so it has no place in the schema
@@ -388,19 +382,19 @@ func schemaFromModel(doc *openapi3.T, model IBusinessObjectModel) *openapi3.Sche
 	}
 
 	// going over the relationships, i.e. the object-type properties
-	for _, relationship := range core.GetSortedValues(model.base().relationships) {
+	for _, relationship := range core.GetSortedValues(model.getRelationships()) {
 		relationshipJSONName, ok := jsonNameFor(relationship)
 		if !ok {
 			// this relationship is explicitly excluded from JSON (json:"-"), so it has no place in the schema
 			continue
 		}
 
-		if !relationship.IsPolymorphic() || len(relationship.getTargetClassNames()) == 1 {
+		if !relationship.IsPolymorphic() || len(relationship.getTargetModelNames()) == 1 {
 
 			// getting the schema REF for the relationship target
-			prop, errRef := getSchemaRef(doc, classFor(relationship.getUniqueTargetName(), true))
+			prop, errRef := getSchemaRef(doc, modelFor(relationship.getUniqueTargetName(), true))
 			core.PanicMsgIfErr(errRef, "Error while getting schema ref for relationship '%s#%s'",
-				model.base().name, relationship.GetName())
+				model.getName(), relationship.GetName())
 
 			// linking this relationship to the schema
 			if relationship.isPureOutput() {
@@ -426,14 +420,14 @@ func schemaFromModel(doc *openapi3.T, model IBusinessObjectModel) *openapi3.Sche
 				},
 			}
 
-			if len(relationship.getTargetClassNames()) == 0 {
-				core.PanicMsg("Polymorphic relationship '%s#%s' does not have any target model", model.base().name, relationship.GetName())
+			if len(relationship.getTargetModelNames()) == 0 {
+				core.PanicMsg("Polymorphic relationship '%s#%s' does not have any target model", model.getName(), relationship.GetName())
 			}
 
-			for _, targetName := range relationship.getTargetClassNames() {
-				prop, errRef := getSchemaRef(doc, classFor(targetName, true))
+			for _, targetName := range relationship.getTargetModelNames() {
+				prop, errRef := getSchemaRef(doc, modelFor(targetName, true))
 				core.PanicMsgIfErr(errRef, "Error while getting schema ref for relationship '%s#%s'",
-					model.base().name, relationship.GetName())
+					model.getName(), relationship.GetName())
 				schema.Properties[relationshipJSONName].Value.OneOf = append(schema.Properties[relationshipJSONName].Value.OneOf, prop)
 			}
 
@@ -449,16 +443,11 @@ func schemaFromModel(doc *openapi3.T, model IBusinessObjectModel) *openapi3.Sche
 }
 
 // building URL parameters from the given business object model that's associated with a URLQueryParams-derived BO
-func paramsFromClass(class IClass, path string) (openapi3.Parameters, error) {
-	model := class.getModel()
-	if model == nil {
-		return nil, fmt.Errorf("No model associated with URL Query Params class '%s'", class)
-	}
-
+func paramsFromModel(model IBusinessObjectModel, path string) (openapi3.Parameters, error) {
 	// pathVars := extractPathVars(path)
 	var out openapi3.Parameters
 
-	for _, field := range core.GetSortedValues(model.base().fields) {
+	for _, field := range core.GetSortedValues(model.getFields()) {
 		schema := schemaFromPrimitiveType(field, true)
 		parameter := &openapi3.Parameter{
 			Name:        field.GetName(),
@@ -486,7 +475,7 @@ func schemaFromPrimitiveType(field IField, addDesc bool) *openapi3.SchemaRef {
 	var description string
 	if addDesc {
 		if field.GetName() == BoFieldID {
-			description = "the unique identifier of the " + string(field.ownerModel().base().name)
+			description = "the unique identifier of the " + string(field.ownerModel().getName())
 		} else {
 			description = field.getTag("desc")
 		}
@@ -513,7 +502,7 @@ func schemaFromPrimitiveType(field IField, addDesc bool) *openapi3.SchemaRef {
 
 	case propertyTypeENUM:
 		// instantiating an instance of the owner of this field
-		enumOwner := field.ownerModel().getClass().NewObject()
+		enumOwner := field.ownerModel().NewObject()
 
 		// this owner has a zero-value for this field, which is enough for us to do the rest
 		enumVal := reflection.ValueOf(enumOwner).GetFieldValue(field.GetName())

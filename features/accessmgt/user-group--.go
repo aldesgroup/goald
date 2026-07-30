@@ -1,16 +1,16 @@
+// Generated file, do not edit!
 package accessmgt
 
 import (
 	"github.com/aldesgroup/goald"
 	"github.com/aldesgroup/goald/_include/accessmgt/model"
-	// "github.com/aldesgroup/goald/_include/auth/model"
 )
 
 type UserGroup struct {
 	goald.BusinessObject
-	Name        string        `json:"name"        io:"i*" desc:"the user group's name"`
-	Description string        `json:"description" io:"in" desc:"the user group's description"`
-	Members     []goald.IUser `json:"members"     io:"in" desc:"the user group's members"`
+	Name        string        `json:"name,omitempty"        io:"i*" desc:"the user group's name"`
+	Description string        `json:"description,omitempty" io:"in" desc:"the user group's description"`
+	Members     []goald.IUser `json:"members,omitempty"     io:"in" desc:"the user group's members"`
 }
 
 func init() {

@@ -25,7 +25,7 @@ var (
 	translationUrlParamsOnce sync.Once
 )
 
-// fully describing each of this class' properties & relationships
+// fully describing each of this model's properties & relationships
 func NewTranslationUrlParamsModel() *TranslationUrlParamsModel {
 	thisModel := &TranslationUrlParamsModel{IURLQueryParamsModel: g.NewURLQueryParamsModel()}
 	thisModel.namespace = g.AddStringField(thisModel, "TranslationUrlParams", "Namespace", false)
@@ -44,7 +44,7 @@ func init() {
 	g.RegisterModel("TranslationUrlParams", translationUrlParams)
 }
 
-// accessing all the TranslationUrlParams class' properties and relationships
+// accessing all the TranslationUrlParams model's properties and relationships
 
 func (T *TranslationUrlParamsModel) Namespace() *g.StringField {
 	return T.namespace

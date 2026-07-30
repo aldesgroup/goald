@@ -2,13 +2,13 @@
 package iot
 
 import (
-	core "github.com/aldesgroup/corego"
+	"github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald"
 	"github.com/aldesgroup/goald/features/utils"
 )
 
-// getting the name of the class for a Device, without using reflection
-func (bo *Device) ClassName() utils.ClassName {
+// getting the name of the model for a Device, without using reflection
+func (bo *Device) GetModelName() utils.ModelName {
 	return "Device"
 }
 
@@ -102,4 +102,8 @@ func (bo *Device) GetMultipleRelationshipValue(relationshipName string) ([]goald
 func (bo *Device) IsModelValid() error {
 
 	return nil
+}
+
+// removing any cycles from the business object, without using reflection
+func (bo *Device) RemoveCycles() {
 }

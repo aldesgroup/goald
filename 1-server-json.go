@@ -6,12 +6,12 @@
 // Instead of walking the target struct with the reflect package, we rely on what Goald already
 // knows about a business object's shape: its IBusinessObjectModel (built once, at startup) tells
 // us which JSON properties are relationships, and the generated, reflection-free
-// SetRelationshipValue() / AddRelationshipValue() methods (in each class's "--map.go" file) let us
+// SetRelationshipValue() / AddRelationshipValue() methods (in each model's "--xtd.go" file) let us
 // assign the resolved target(s) using plain type assertions.
 //
 // The convention here is that any JSON object meant to fill a polymorphic relationship must carry
-// a "class" property, valued with the name of the registered, concrete BO class to use,
-// e.g.: "mainContact": {"class": "Employee", "firstName": "John", ...}
+// a "mdl" property, valued with the name of the registered, concrete BO model to use,
+// e.g.: "mainContact": {"mdl": "Employee", "firstName": "John", ...}
 // ------------------------------------------------------------------------------------------------
 package goald
 
@@ -25,17 +25,17 @@ import (
 	"github.com/aldesgroup/goald/features/utils"
 )
 
-// the JSON property expected to carry the concrete class name for a polymorphic relationship
-const polymorphicClassField = "class"
+// the JSON property expected to carry the concrete model name for a polymorphic relationship
+const polymorphicModelField = "mdl"
 
 // unmarshalling JSON data into a business object, resolving its relationships (if any) using the
-// business object's model, and assigning them via the class's generated, reflection-free setters
+// business object's model, and assigning them via the model's generated, reflection-free setters
 func unmarshalBObj(data []byte, bObj any) error {
 	ibObj, isBObj := bObj.(IBusinessObject)
-	model := ibObj.getModel()
+	model := ibObj.getModel(ibObj)
 
 	// nothing to do here, this isn't a business object we know about: falling back to the standard unmarshalling
-	if !isBObj || model == nil || len(model.base().relationships) == 0 {
+	if !isBObj || model == nil || len(model.getRelationships()) == 0 {
 		return json.Unmarshal(data, bObj)
 	}
 
@@ -45,7 +45,7 @@ func unmarshalBObj(data []byte, bObj any) error {
 		return err
 	}
 
-	for _, relationship := range model.base().relationships {
+	for _, relationship := range model.getRelationships() {
 		jsonName := core.PascalToCamel(relationship.GetName())
 
 		rawVal, present := raw[jsonName]
@@ -98,44 +98,44 @@ func unmarshalBObj(data []byte, bObj any) error {
 }
 
 // resolving & instantiating the concrete business object targeted by a relationship's raw JSON value:
-// - for a polymorphic relationship, the concrete class is read from the "class" discriminator property
-// - for a monomorphic relationship, the concrete class is already known, from the model itself
+// - for a polymorphic relationship, the concrete model is read from the "model" discriminator property
+// - for a monomorphic relationship, the concrete model is already known, from the model itself
 func unmarshalRelationshipTarget(relationship *Relationship, rawVal json.RawMessage) (IBusinessObject, error) {
-	var targetClsName utils.ClassName
+	var targetModelName utils.ModelName
 
 	if relationship.IsPolymorphic() {
 		var discriminator struct {
-			Class string `json:"class"`
+			Mdl string `json:"mdl"`
 		}
 		if err := json.Unmarshal(rawVal, &discriminator); err != nil {
 			return nil, ErrorC(err, "Could not read the '%s' discriminator property for the '%s' relationship",
-				polymorphicClassField, relationship.GetName())
+				polymorphicModelField, relationship.GetName())
 		}
-		if discriminator.Class == "" {
+		if discriminator.Mdl == "" {
 			return nil, Error("Missing '%s' property to determine the concrete type to use for the '%s' relationship",
-				polymorphicClassField, relationship.GetName())
+				polymorphicModelField, relationship.GetName())
 		}
 
-		targetClsName = utils.ClassName(discriminator.Class)
+		targetModelName = utils.ModelName(discriminator.Mdl)
 	} else {
-		targetNames := relationship.getTargetClassNames()
+		targetNames := relationship.getTargetModelNames()
 		if len(targetNames) == 0 {
-			return nil, Error("Relationship '%s' has no target class", relationship.GetName())
+			return nil, Error("Relationship '%s' has no target model", relationship.GetName())
 		}
 
-		targetClsName = targetNames[0]
+		targetModelName = targetNames[0]
 	}
 
-	targetClass := classFor(targetClsName, true)
+	targetModel := modelFor(targetModelName, true)
 
-	target := targetClass.NewObject()
+	target := targetModel.NewObject()
 	if err := unmarshalBObj(rawVal, target); err != nil {
 		return nil, err
 	}
 
 	targetBObj, ok := target.(IBusinessObject)
 	if !ok {
-		return nil, Error("Class '%s' does not describe a business object", targetClsName)
+		return nil, Error("Model '%s' does not describe a business object", targetModelName)
 	}
 
 	return targetBObj, nil

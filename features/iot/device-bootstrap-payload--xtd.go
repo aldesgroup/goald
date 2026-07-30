@@ -2,13 +2,13 @@
 package iot
 
 import (
-	core "github.com/aldesgroup/corego"
+	"github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald"
 	"github.com/aldesgroup/goald/features/utils"
 )
 
-// getting the name of the class for a DeviceBootstrapPayload, without using reflection
-func (bo *DeviceBootstrapPayload) ClassName() utils.ClassName {
+// getting the name of the model for a DeviceBootstrapPayload, without using reflection
+func (bo *DeviceBootstrapPayload) GetModelName() utils.ModelName {
 	return "DeviceBootstrapPayload"
 }
 
@@ -100,4 +100,8 @@ func (bo *DeviceBootstrapPayload) IsModelValid() error {
 	}
 
 	return nil
+}
+
+// removing any cycles from the business object, without using reflection
+func (bo *DeviceBootstrapPayload) RemoveCycles() {
 }

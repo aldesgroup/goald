@@ -16,62 +16,58 @@ import (
 )
 
 // ------------------------------------------------------------------------------------------------
-// Defining and registering classes
-// ------------------------------------------------------------------------------------------------
-
-// The registry for all the app's business objects.
-// This helps registering 1 instance of each business object type, which is then used
-// by code generation mechanisms to generate the business object classes, using reflection
-var classRegistry = &struct {
-	items map[utils.ClassName]IClass // all the business objects! mapped by the name
-	mx    sync.Mutex
-}{
-	items: map[utils.ClassName]IClass{},
-}
-
-type moduleName string
-
-type moduleClassRegitry struct {
-	module moduleName
-}
-
-// allows to declare a new module where to register Classes
-func In(module moduleName) *moduleClassRegitry {
-	return &moduleClassRegitry{module}
-}
-
-func (m *moduleClassRegitry) Register(class IClass) *moduleClassRegitry {
-	classRegistry.mx.Lock()
-	defer classRegistry.mx.Unlock()
-
-	class.setModule(m.module)
-
-	// registering the business object type globally
-	classRegistry.items[class.getClassName()] = class
-
-	return m
-}
-
-// ------------------------------------------------------------------------------------------------
-// The registry for all the app's business object models
+// Registering Business Object Models
 // ------------------------------------------------------------------------------------------------
 
 var modelRegistry = struct {
-	items map[utils.ClassName]IBusinessObjectModel
+	items map[utils.ModelName]IBusinessObjectModel
 	mx    sync.Mutex
 }{
-	items: map[utils.ClassName]IBusinessObjectModel{},
+	items: map[utils.ModelName]IBusinessObjectModel{},
 }
 
-func RegisterModel(name utils.ClassName, model IBusinessObjectModel) {
+func RegisterModel(name utils.ModelName, model IBusinessObjectModel) {
 	modelRegistry.mx.Lock()
 
-	// setting the class name
-	model.base().name = name
+	// setting the model name
+	model.setName(name)
 
 	// actual registration
 	modelRegistry.items[name] = model
 	modelRegistry.mx.Unlock()
+}
+
+// ------------------------------------------------------------------------------------------------
+// Registering Business Object Model Sources
+// ------------------------------------------------------------------------------------------------
+
+// The registry for all the app's business object model sources
+var sourceRegistry = &struct {
+	items map[utils.ModelName]IBusinessObjectModelSource // all the business objects! mapped by the name
+	mx    sync.Mutex
+}{
+	items: map[utils.ModelName]IBusinessObjectModelSource{},
+}
+
+type sourceModuleRegitry struct {
+	module sourceModuleName
+}
+
+// allows to declare a new module where to register business object model sources
+func In(module sourceModuleName) *sourceModuleRegitry {
+	return &sourceModuleRegitry{module}
+}
+
+func (m *sourceModuleRegitry) Register(source IBusinessObjectModelSource) *sourceModuleRegitry {
+	sourceRegistry.mx.Lock()
+	defer sourceRegistry.mx.Unlock()
+
+	source.setModule(m.module)
+
+	// registering the business object type globally
+	sourceRegistry.items[source.getName()] = source
+
+	return m
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -136,7 +132,9 @@ func getDbAdapter(dbType dbconn.DatabaseType) iDBAdapter {
 
 	dbAdapter := dbAdapterRegistry.dbAdapters[dbType]
 	if dbAdapter == nil {
-		panic(fmt.Sprintf("No DB adapter found for database type '%s'", dbType))
+		panic(fmt.Sprintf("No DB adapter found for database type '%s'. "+
+			"You should add this import: _ \"github.com/aldesgroup/goald/features/dbconn/%s\"",
+			dbType, getPackageForDbServerType(dbType)))
 	}
 
 	return dbAdapter
@@ -198,29 +196,29 @@ func RegisterDataLoader(fn dataLoader, migrationPhase bool) {
 // ------------------------------------------------------------------------------------------------
 
 var daoRegistry = &struct {
-	daos map[utils.ClassName]IBusinessObjectDAO
+	daos map[utils.ModelName]IBusinessObjectDAO
 	mx   sync.Mutex
 }{
-	daos: map[utils.ClassName]IBusinessObjectDAO{},
+	daos: map[utils.ModelName]IBusinessObjectDAO{},
 }
 
-func RegisterDAO(clsName utils.ClassName, dao IBusinessObjectDAO) IBusinessObjectDAO {
+func RegisterDAO(modelName utils.ModelName, dao IBusinessObjectDAO) IBusinessObjectDAO {
 	daoRegistry.mx.Lock()
-	if daoRegistry.daos[clsName] != nil {
-		panic(fmt.Sprintf("There's already a DAO registered for class '%s'", clsName))
+	if daoRegistry.daos[modelName] != nil {
+		panic(fmt.Sprintf("There's already a DAO registered for model '%s'", modelName))
 	}
-	daoRegistry.daos[clsName] = dao
+	daoRegistry.daos[modelName] = dao
 	daoRegistry.mx.Unlock()
 	return dao
 }
 
-func newDaoFor(class IClass) IBusinessObjectDAO {
+func newDaoFor(modelName utils.ModelName) IBusinessObjectDAO {
 	daoRegistry.mx.Lock()
 	defer daoRegistry.mx.Unlock()
 
-	dao := daoRegistry.daos[class.getClassName()]
+	dao := daoRegistry.daos[modelName]
 	if dao == nil {
-		panic(fmt.Sprintf("No DAO found for class '%s'", class.getClassName()))
+		panic(fmt.Sprintf("No DAO found for model '%s'", modelName))
 	}
 
 	// a DAO is somehow its own factory

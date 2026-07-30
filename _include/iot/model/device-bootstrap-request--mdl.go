@@ -26,7 +26,7 @@ var (
 	deviceBootstrapRequestOnce sync.Once
 )
 
-// fully describing each of this class' properties & relationships
+// fully describing each of this model's properties & relationships
 func NewDeviceBootstrapRequestModel() *DeviceBootstrapRequestModel {
 	thisModel := &DeviceBootstrapRequestModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
 	thisModel.factoryCertPem = g.AddStringField(thisModel, "DeviceBootstrapRequest", "FactoryCertPEM", false)
@@ -46,7 +46,7 @@ func init() {
 	g.RegisterModel("DeviceBootstrapRequest", deviceBootstrapRequest)
 }
 
-// accessing all the DeviceBootstrapRequest class' properties and relationships
+// accessing all the DeviceBootstrapRequest model's properties and relationships
 
 func (D *DeviceBootstrapRequestModel) FactoryCertPEM() *g.StringField {
 	return D.factoryCertPem

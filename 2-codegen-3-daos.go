@@ -1,12 +1,10 @@
 // ------------------------------------------------------------------------------------------------
-// Here is the code used for generating the class files
+// Here is the code used for generating the DAO files
 // ------------------------------------------------------------------------------------------------
 package goald
 
 import (
 	"fmt"
-	"path"
-	"strings"
 	"time"
 
 	core "github.com/aldesgroup/corego"
@@ -92,11 +90,11 @@ func (thisServer *server) generateAllObjectDAOs(srcdir string, regen bool) (code
 	// we're going to keep track of all the DAO folders to import in all the registry files
 	daoFolders := map[string]map[dbconn.DatabaseType]bool{}
 
-	// we'll gather all the existing class files, per DB type
-	existingDAOFiles := map[dbconn.DatabaseType]map[utils.ClassName]*daoFile{}
+	// we'll gather all the existing DAO files, per DB type
+	existingDAOFiles := map[dbconn.DatabaseType]map[utils.ModelName]*daoFile{}
 	for dbType := range dbTypes {
 		// some init
-		existingDAOFiles[dbType] = map[utils.ClassName]*daoFile{}
+		existingDAOFiles[dbType] = map[utils.ModelName]*daoFile{}
 
 		// making sure the DAO folder exists for this DB type
 		daoDir := core.EnsureDir(srcdir, includePATH, dbFOLDERNAME, string(dbType))
@@ -105,8 +103,8 @@ func (thisServer *server) generateAllObjectDAOs(srcdir string, regen bool) (code
 		for _, daoEntry := range core.EnsureReadDir(daoDir) {
 			daoEntryInfo, errInfo := daoEntry.Info()
 			core.PanicMsgIfErr(errInfo, "Could not read info for file '%s'", daoEntry.Name())
-			daoClassName := utils.ClassName(core.KebabToPascal(daoEntry.Name()[:len(daoEntry.Name())-daoFILExSUFFIXxLEN]))
-			existingDAOFiles[dbType][daoClassName] = &daoFile{
+			modelName := utils.ModelName(core.KebabToPascal(daoEntry.Name()[:len(daoEntry.Name())-daoFILExSUFFIXxLEN]))
+			existingDAOFiles[dbType][modelName] = &daoFile{
 				modTime:  daoEntryInfo.ModTime(),
 				filename: daoEntry.Name(),
 			}
@@ -114,35 +112,33 @@ func (thisServer *server) generateAllObjectDAOs(srcdir string, regen bool) (code
 	}
 
 	// let's now generate all the DAOs we need in these DB folders
-	for name, class := range classRegistry.items {
-		// we only consider the business objects
-		if !class.isInterface() {
-			// obviously we don't persist abstract business objects, so we skip them
-			if boModel := class.getModel(); !boModel.base().abstract && boModel.base().isPersistedHere() {
-				// what's the DB type involved here?
-				dbType := boModel.base().db.schema.DbServer.Type
+	for name, boModel := range modelRegistry.items {
+		// we only consider the concrete business objects that are persisted in this project
+		if !boModel.isInterface() && !boModel.isAbstract() && boModel.isPersistedHere() {
+			// what's the DB type involved here?
+			dbType := boModel.getDB().schema.DbServer.Type
 
-				// do we meed to generate a DAO for this business object ?
-				if existingDAO := existingDAOFiles[dbType][name]; regen ||
-					existingDAO == nil || existingDAO.modTime.Before(class.getLastBOMod()) {
+			// do we meed to generate a DAO for this business object ?
+			if existingDAO := existingDAOFiles[dbType][name]; regen ||
+				existingDAO == nil || existingDAO.modTime.Before(boModel.getLastBOMod()) {
 
-					// generating the missing or outdated class
-					thisServer.generateOneDAO(srcdir, string(dbType), boModel)
+				// generating the missing or outdated DAO
+				thisServer.generateOneDAO(srcdir, string(dbType), boModel)
 
-					// code has been changed
-					codeChanged = true
+				// code has been changed
+				codeChanged = true
 
-					// keeping track of this class package needing to import the DAO package in its registry file
-					if _, ok := daoFolders[class.getSrcPath()]; !ok {
-						daoFolders[class.getSrcPath()] = map[dbconn.DatabaseType]bool{}
-					}
-					daoFolders[class.getSrcPath()][dbType] = true
+				// keeping track of the package needed to import the DAO package in its registry file
+				if _, ok := daoFolders[boModel.getSrcPath()]; !ok {
+					daoFolders[boModel.getSrcPath()] = map[dbconn.DatabaseType]bool{}
 				}
-
-				// flagging this business object class as NOT unneeded (i.e. needed)
-				delete(existingDAOFiles[dbType], name)
+				daoFolders[boModel.getSrcPath()][dbType] = true
 			}
+
+			// flagging this business object DAO as NOT unneeded (i.e. needed)
+			delete(existingDAOFiles[dbType], name)
 		}
+
 	}
 
 	// // iterating over each package for which we've already got a registry
@@ -157,47 +153,25 @@ func (thisServer *server) generateAllObjectDAOs(srcdir string, regen bool) (code
 	// 	// where the DAO files will be generated
 	// 	daoDir := core.EnsureDir(srcdir, includePATH, includeDirEntry.Name(), daoFOLDERxNAME)
 
-	// 	// removing the unneeded classes
+	// 	// removing the unneeded DAOs
 	// 	for _, unneededDAO := range existingDAOFiles {
 	// 		thisServer.Info(fmt.Sprintf("removing %s", unneededDAO.filename))
 	// 		if errRem := os.Remove(path.Join(daoDir, unneededDAO.filename)); errRem != nil {
-	// 			core.PanicMsgIfErr(errRem, "Could not delete class file '%s'", unneededDAO.filename)
+	// 			core.PanicMsgIfErr(errRem, "Could not delete DAO file '%s'", unneededDAO.filename)
 	// 		}
 	// 	}
-
-	// let's make the registry file import the DAO package, if it doesn't already
-	if codeChanged {
-		for srcPath := range daoFolders {
-			for dbType := range daoFolders[srcPath] {
-				filename := path.Join(srcdir, includePATH, srcPath, sourceREGISTRYxNAME)
-				if core.FileExists(filename) {
-					daoFolderPath := "_ \"" + path.Join(getCurrentModule(), includePATH, dbFOLDERNAME, string(dbType)) + "\""
-					if _, line := core.FindLineInFile(filename, func(line string) bool { return strings.Contains(line, "/"+daoFolderPath) }, false); line == 0 {
-						core.ReplaceInFile(filename, map[string]string{goaldIMPORT: goaldIMPORT + newline + daoFolderPath})
-					}
-				}
-			}
-		}
-	}
 
 	return
 }
 
 func (thisServer *server) generateOneDAO(srcdir string, dbType string, model IBusinessObjectModel) bool {
-	// if model.base().name != "StaffMember" {
-	// 	return false
-	// }
-
-	////
-
 	// where the DAO should end up
 	daoDir := core.EnsureDir(srcdir, includePATH, dbFOLDERNAME, dbType)
 
 	// trivial filling of the template
-	class := model.getClass()
-	classCamel := core.PascalToCamel(string(class.getClassName()))
-	importForClass := getImportPackageLine(class)
-	content := fmt.Sprintf(daoINITxTEMPLATE, dbType, importForClass, class.getClassName(), classCamel, model.base().db.name)
+	modelNameCamel := core.PascalToCamel(string(model.getName()))
+	importForBOModel := getImportPackageLine(model)
+	content := fmt.Sprintf(daoINITxTEMPLATE, dbType, importForBOModel, model.getName(), modelNameCamel, model.getDB().name)
 
 	// adding all the needed DAO methods
 	content += thisServer.generateExecInsertQuery(model)
@@ -205,9 +179,9 @@ func (thisServer *server) generateOneDAO(srcdir string, dbType string, model IBu
 	content += thisServer.generateExecInsertLinksQueries(model)
 
 	// writing to file
-	core.WriteToFile(content, daoDir, core.PascalToKebab(string(class.getClassName()))+daoFILExSUFFIX)
+	core.WriteToFile(content, daoDir, core.PascalToKebab(string(model.getName()))+daoFILExSUFFIX)
 
-	thisServer.Info(fmt.Sprintf("(Re-)generated DAO for %s", class.getClassName()))
+	thisServer.Info(fmt.Sprintf("(Re-)generated DAO for %s", model.getName()))
 
 	return true
 }
@@ -221,9 +195,9 @@ func (thisServer *server) generateOneDAO(srcdir string, dbType string, model IBu
 // BatchInsertContext.FillRow closure), the masked-column pattern (for hiding secret values from the logs),
 // and the total number of columns involved.
 func (thisServer *server) getColumnsAndInsertData(model IBusinessObjectModel, space string) (columns, argAssignments, maskPattern string, nbCols int) {
-	varName := core.PascalToCamel(string(model.base().name))
+	varName := core.PascalToCamel(string(model.getName()))
 
-	for _, prop := range model.base().getPersistedProperties() {
+	for _, prop := range model.getPersistedProperties() {
 		// the ID column is auto-generated by the DB (and retrieved via the RETURNING clause), so it
 		// must never be part of the columns/values being inserted
 		if prop.GetName() == BoFieldID {
@@ -248,14 +222,14 @@ func (thisServer *server) getColumnsAndInsertData(model IBusinessObjectModel, sp
 			fieldExpr := fmt.Sprintf("%s.%s", varName, relationship.GetName())
 
 			if relationship.IsPolymorphic() {
-				columns += ", " + relationship.getColumnNameForTargetClass()
+				columns += ", " + relationship.getColumnNameForTargetModel()
 				maskPattern += ", " + core.IfThenElse(relationship.isSecret(), "true", "false")
 				polyIndex := nbCols
 				nbCols++
 				//
 				argAssignments += fmt.Sprintf("%[1]sif %[2]s != nil {\n"+
 					"%[1]s\targs[base+%[3]d] = %[2]s.GetID()\n"+
-					"%[1]s\targs[base+%[4]d] = %[2]s.GetClassName(%[2]s)\n"+
+					"%[1]s\targs[base+%[4]d] = %[2]s.GetModelName()\n"+
 					"%[1]s} else {\n"+
 					"%[1]s\targs[base+%[3]d] = nil\n"+
 					"%[1]s\targs[base+%[4]d] = nil\n"+
@@ -292,8 +266,7 @@ func (thisServer *server) getColumnsAndInsertData(model IBusinessObjectModel, sp
 func (thisServer *server) generateExecInsertQuery(model IBusinessObjectModel) string {
 
 	columns, argAssignments, maskPattern, nbCols := thisServer.getColumnsAndInsertData(model, "\t\t\t")
-	className := model.base().name
-	varName := core.PascalToCamel(string(className))
+	varName := core.PascalToCamel(string(model.getName()))
 
 	return fmt.Sprintf(`// ExecInsertQuery implements [goald.IBusinessObjectDAO].
 func (thisDAO *%[1]sDAO) ExecInsertQuery(bObjs ...goald.IBusinessObject) (map[int]int64, error) {
@@ -310,14 +283,14 @@ func (thisDAO *%[1]sDAO) ExecInsertQuery(bObjs ...goald.IBusinessObject) (map[in
 %[6]s		},
 	})
 }`,
-		className,                     // 1
-		varName,                       // 2
-		model.getClass().getPackage(), // 3
-		model.getTableName(false),     // 4
-		columns,                       // 5
-		argAssignments,                // 6
-		maskPattern,                   // 7
-		nbCols,                        // 8
+		model.getName(),           // 1
+		varName,                   // 2
+		model.getPackage(),        // 3
+		model.getTableName(false), // 4
+		columns,                   // 5
+		argAssignments,            // 6
+		maskPattern,               // 7
+		nbCols,                    // 8
 	)
 }
 
@@ -335,12 +308,11 @@ func (thisDAO *%[1]sDAO) ExecInsertQuery(bObjs ...goald.IBusinessObject) (map[in
 // method is never left to fall back on BusinessObjectDAO's default (which panics), matching how
 // ExecInsertQuery is always generated too.
 func (thisServer *server) generateExecInsertLinksQueries(model IBusinessObjectModel) string {
-	className := model.base().name
-	varName := core.PascalToCamel(string(className))
-	pkg := model.getClass().getPackage()
+	varName := core.PascalToCamel(string(model.getName()))
+	pkg := model.getPackage()
 
 	var blocks string
-	for _, relationship := range core.GetSortedValues(model.base().relationships) {
+	for _, relationship := range core.GetSortedValues(model.getRelationships()) {
 		// the relationship that actually owns the link table, i.e. the "source" side; and whether we're
 		// looking at it from the "target" side (reversed) instead
 		linkRel := relationship
@@ -358,21 +330,21 @@ func (thisServer *server) generateExecInsertLinksQueries(model IBusinessObjectMo
 			reversed = true
 		}
 
-		sourceCol, sourceClsCol := linkRel.getLinkTableSourceColumn()
-		targetCol, targetClsCol := linkRel.getLinkTableTargetColumn()
+		sourceCol, sourceModelCol := linkRel.getLinkTableSourceColumn()
+		targetCol, targetModelCol := linkRel.getLinkTableTargetColumn()
 
 		// the columns are always given in the table's actual order: source(s) first, then target(s) -
 		// this never changes, regardless of which side we're generating for
 		columns := sourceCol
 		nbCols := 1
-		if sourceClsCol != "" {
-			columns += ", " + sourceClsCol
+		if sourceModelCol != "" {
+			columns += ", " + sourceModelCol
 			nbCols++
 		}
 		columns += ", " + targetCol
 		nbCols++
-		if targetClsCol != "" {
-			columns += ", " + targetClsCol
+		if targetModelCol != "" {
+			columns += ", " + targetModelCol
 			nbCols++
 		}
 
@@ -383,19 +355,19 @@ func (thisServer *server) generateExecInsertLinksQueries(model IBusinessObjectMo
 		otherArgs := "target.GetID()"
 		if !reversed {
 			// this business object is the source, the slice elements are the targets
-			if sourceClsCol != "" {
-				ownArgs += fmt.Sprintf(", %[1]s.GetClassName(%[1]s)", varName)
+			if sourceModelCol != "" {
+				ownArgs += fmt.Sprintf(", %[1]s.GetModelName()", varName)
 			}
-			if targetClsCol != "" {
-				otherArgs += ", target.GetClassName(target)"
+			if targetModelCol != "" {
+				otherArgs += ", target.GetModelName()"
 			}
 		} else {
 			// this business object is the target, the slice elements are the sources
-			if sourceClsCol != "" {
-				otherArgs += ", target.GetClassName(target)"
+			if sourceModelCol != "" {
+				otherArgs += ", target.GetModelName()"
 			}
-			if targetClsCol != "" {
-				ownArgs += fmt.Sprintf(", %[1]s.GetClassName(%[1]s)", varName)
+			if targetModelCol != "" {
+				ownArgs += fmt.Sprintf(", %[1]s.GetModelName()", varName)
 			}
 		}
 
@@ -421,7 +393,7 @@ func (thisServer *server) generateExecInsertLinksQueries(model IBusinessObjectMo
 		return err
 	}
 `,
-			className,                  // 1
+			model.getName(),            // 1
 			varName,                    // 2
 			pkg,                        // 3
 			relationship.GetName(),     // 4 - the field to iterate, on THIS model
@@ -436,8 +408,8 @@ func (thisServer *server) generateExecInsertLinksQueries(model IBusinessObjectMo
 func (thisDAO *%[1]sDAO) ExecInsertLinksQueries(bObjs ...goald.IBusinessObject) error {%[2]s
 	return nil
 }`,
-		className, // 1
-		blocks,    // 2
+		model.getName(), // 1
+		blocks,          // 2
 	)
 }
 

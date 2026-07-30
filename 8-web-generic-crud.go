@@ -6,7 +6,6 @@ package goald
 
 import (
 	"fmt"
-	"reflect"
 
 	"github.com/aldesgroup/goald/features/hstatus"
 )
@@ -21,49 +20,20 @@ func GenericHandleCreate[BOTYPE IBusinessObject](group *EndpointGroup) *oneForOn
 	ep := PostOneGetOne( //
 		// new (anonym) handler function here
 		func(webCtx WebContext, input BOTYPE) (BOTYPE, hstatus.Code, string) {
-
-			// Use reflection here to duplicate the input 500 times, and look for a field called "Name" on it,
-			// and append a number to it, so that we can create 500 instances of the same object with different names
-			const duplicateCount = 50000
-			copies := make([]BOTYPE, duplicateCount)
-
-			// input is expected to be a pointer to a struct (e.g. *StaffMember)
-			inputVal := reflect.ValueOf(input).Elem()
-			nameField := inputVal.FieldByName("Name")
-
-			for i := 0; i < duplicateCount; i++ {
-				// creating a fresh copy of the underlying struct
-				copyPtr := reflect.New(inputVal.Type())
-				copyPtr.Elem().Set(inputVal)
-
-				// if there's a settable string field called "Name", let's make it unique
-				if nameField.IsValid() && nameField.Kind() == reflect.String {
-					copyPtr.Elem().FieldByName("Name").SetString(fmt.Sprintf("%s-%d", nameField.String(), i+1))
-				}
-
-				copies[i] = copyPtr.Interface().(BOTYPE)
-			}
-
-			// calling the Business LOgic (BLO) for business object creation
-			if errCreate := CreateBusinessObjects(webCtx.GetBloContext(), copies...); errCreate != nil {
-				return input, hstatus.InternalServerError,
-					fmt.Sprintf("Failed creating a new '%T' instance: %s", input, errCreate)
-			}
-
 			// calling the Business LOgic (BLO) for business object creation
 			if errCreate := CreateBusinessObjects(webCtx.GetBloContext(), input); errCreate != nil {
-				return input, hstatus.InternalServerError,
+				return cleaned(input), hstatus.InternalServerError,
 					fmt.Sprintf("Failed creating a new '%T' instance: %s", input, errCreate)
 			}
 
 			// return the created instance
-			return input, hstatus.Created, fmt.Sprintf("Created a new '%T' instance", input)
+			return cleaned(input), hstatus.Created, fmt.Sprintf("Created a new '%T' instance", input)
 		},
 		// passing the loading type
 		"")
 
-	ep.Label(fmt.Sprintf("Create a new %s", ep.getResourceClass()))
-	ep.Description(fmt.Sprintf("Performs controls and saves the given %s instance in the database", ep.getResourceClass()))
+	ep.Label(fmt.Sprintf("Create a new %s", ep.getResourceModel().getName()))
+	ep.Description(fmt.Sprintf("Performs controls and saves the given %s instance in the database", ep.getResourceModel().getName()))
 	ep.InGroup(group)
 
 	return ep
@@ -74,7 +44,7 @@ func GenericHandleCreate[BOTYPE IBusinessObject](group *EndpointGroup) *oneForOn
 // 		// new (anonym) handler function here
 // 		func(webCtx WebContext) (BOTYPE, hstatus.Code, string) {
 
-// 			// boClass := GetClass[BOTYPE]()
+// 			// boModel := GetModel[BOTYPE]()
 // 			output, errRead := ReadBO(webCtx.GetBloContext(), idProp, webCtx.GetTargetRefOrID(), loadingType)
 // 			if errRead != nil {
 // 				return *new(BOTYPE), hstatus.InternalServerError,
@@ -113,7 +83,7 @@ func GenericHandleCreate[BOTYPE IBusinessObject](group *EndpointGroup) *oneForOn
 // 	ep := DeleteOne(
 // 		// new (anonym) handler function here
 // 		func(webCtx WebContext) (BOTYPE, hstatus.Code, string) {
-// 			// boClass := GetClass[BOTYPE]()
+// 			// boModel := GetModel[BOTYPE]()
 // 			output, errRead := DeleteBO(webCtx.GetBloContext(), idProp, webCtx.GetTargetRefOrID())
 // 			if errRead != nil {
 // 				return *new(BOTYPE), hstatus.InternalServerError,

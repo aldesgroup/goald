@@ -10,10 +10,10 @@ import (
 )
 
 type BloContext interface {
-	AppContext                                   // a particular AppContext dedicated to Business LOgic processing
-	BeginTransaction(class IClass) (bool, error) // starts a new transaction if none is already started; returns true if a new transaction was started, false if there was already one
-	EndTransaction(err error) error              // ends the current transaction if it was started by this BloContext, and commits or rollbacks depending on the given error
-	daoFor(class IClass) IBusinessObjectDAO      // returns a new DAO from a given business object
+	AppContext                                                 // a particular AppContext dedicated to Business LOgic processing
+	BeginTransaction(model IBusinessObjectModel) (bool, error) // starts a new transaction if none is already started; returns true if a new transaction was started, false if there was already one
+	EndTransaction(err error) error                            // ends the current transaction if it was started by this BloContext, and commits or rollbacks depending on the given error
+	daoFor(model IBusinessObjectModel) IBusinessObjectDAO      // returns a new DAO from a given business object
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -27,7 +27,7 @@ type baseBloContextImpl struct {
 }
 
 // BeginTransaction implements [BloContext].
-func (baseBloCtx *baseBloContextImpl) BeginTransaction(class IClass) (newTxStarted bool, err error) {
+func (baseBloCtx *baseBloContextImpl) BeginTransaction(model IBusinessObjectModel) (newTxStarted bool, err error) {
 	// not messing around with concurrent routines
 	baseBloCtx.mx.Lock()
 	defer baseBloCtx.mx.Unlock()
@@ -38,7 +38,7 @@ func (baseBloCtx *baseBloContextImpl) BeginTransaction(class IClass) (newTxStart
 	// we create a new transaction only if there is none yet
 	if baseBloCtx.currentTx == nil {
 		// let's start a transaction at the DB level
-		baseBloCtx.currentTx, err = class.getModel().getDB().do.Begin()
+		baseBloCtx.currentTx, err = model.getDB().do.Begin()
 
 		// handling a potential error
 		if err != nil {
@@ -124,11 +124,10 @@ func newHttpBloContextFromWebCtx(thisWebCtx *webContextImpl) *httpBloContextImpl
 }
 
 // daoFor implements [BloContext].
-func (httpBloCtx *httpBloContextImpl) daoFor(class IClass) IBusinessObjectDAO {
-	newDAO := newDaoFor(class)
+func (httpBloCtx *httpBloContextImpl) daoFor(model IBusinessObjectModel) IBusinessObjectDAO {
+	newDAO := newDaoFor(model.getName())
 	newDAO.setLogger(httpBloCtx)
-	newDAO.setClass(class)
-	newDAO.setDB(class.getModel().getDB())
+	newDAO.setModel(model)
 	newDAO.setTx(httpBloCtx.currentTx)
 	return newDAO
 }

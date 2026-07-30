@@ -3,11 +3,12 @@ package accessmgt
 
 import (
 	g "github.com/aldesgroup/goald"
-	accessmgt "github.com/aldesgroup/goald/_include/accessmgt/class"
+	_ "github.com/aldesgroup/goald/_include/accessmgt/model"
+	"github.com/aldesgroup/goald/_include/accessmgt/source"
 )
 
 func init() {
 	g.In("goald").
-		Register(accessmgt.ClassForUser("features/accessmgt", "2026-07-27T16:36:01+02:00")).
-		Register(accessmgt.ClassForUserGroup("features/accessmgt", "2026-07-27T16:36:01+02:00"))
+		Register(source.ForUser("features/accessmgt", "2026-07-30T11:35:48+02:00")).
+		Register(source.ForUserGroup("features/accessmgt", "2026-07-30T11:35:57+02:00"))
 }

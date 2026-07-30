@@ -38,7 +38,7 @@ const (
 	prefixTARGET  = "target__"
 	prefixUK      = "uk__"
 	prefixCK      = "ck__"
-	suffixCLS     = "__cls"
+	suffixMDL     = "__mdl"
 	suffixID      = "__id"
 )
 
@@ -67,22 +67,22 @@ func (thisServer *server) migrateDBs() {
 	start := time.Now()
 
 	// we'll gather some intel about the models and theirs DBs
-	modelsInAnyDB := map[dbconn.DbSchemaName]map[utils.ClassName]IBusinessObjectModel{}
+	modelsInAnyDB := map[dbconn.DbSchemaName]map[utils.ModelName]IBusinessObjectModel{}
 
 	// first, checking that all the models that should be persisted have their respective DB (schema) ready
 	for _, model := range modelRegistry.items {
-		if !model.base().abstract && !model.isNotPersisted() {
+		if !model.isAbstract() && !model.isNotPersisted() {
 			if model.getDB() == nil {
-				core.PanicMsg("Model '%s' is persisted and yet it's not associated with a DB", model.base().name)
+				core.PanicMsg("Model '%s' is persisted and yet it's not associated with a DB", model.getName())
 			}
 			if model.getDB().do == nil {
-				core.PanicMsg("Model '%s' is persisted and yet it's DB '%s' is not initialized", model.base().name, model.getDB().name)
+				core.PanicMsg("Model '%s' is persisted and yet it's DB '%s' is not initialized", model.getName(), model.getDB().name)
 			}
 
 			if modelsInAnyDB[model.getDB().schema.Name] == nil {
-				modelsInAnyDB[model.getDB().schema.Name] = map[utils.ClassName]IBusinessObjectModel{}
+				modelsInAnyDB[model.getDB().schema.Name] = map[utils.ModelName]IBusinessObjectModel{}
 			}
-			modelsInAnyDB[model.getDB().schema.Name][model.base().name] = model
+			modelsInAnyDB[model.getDB().schema.Name][model.getName()] = model
 		}
 	}
 
@@ -94,9 +94,9 @@ func (thisServer *server) migrateDBs() {
 	for _, db := range allDBs {
 		thisServer.Info(fmt.Sprintf("Auto-migrating the '%s' DB", db.schema.Name))
 
-		// getting all the classes associated with the current DB
+		// getting all the models associated with the current DB
 		modelsForThisDB := modelsInAnyDB[db.schema.Name]
-		thisServer.Debug(fmt.Sprintf("Existing classes: %+v\n", core.GetSortedKeys(modelsForThisDB)))
+		thisServer.Debug(fmt.Sprintf("Existing models: %+v\n", core.GetSortedKeys(modelsForThisDB)))
 
 		// getting the names of the tables existing in the current DB
 		tablesInThisDB := thisServer.getTableNames(db)
@@ -153,8 +153,8 @@ func (thisServer *server) migrateDBs() {
 // ----------------------------------------------------------------------------
 
 // createMissingTables reads the tables contained in the DB, and browses all the persisted BO
-// classes, and create a table for each class that does not have one yet
-func (thisServer *server) createMissingTables(db *DB, modelsForThisDB map[utils.ClassName]IBusinessObjectModel, tablesInThisDB []string) bool {
+// models, and create a table for each Model that does not have one yet
+func (thisServer *server) createMissingTables(db *DB, modelsForThisDB map[utils.ModelName]IBusinessObjectModel, tablesInThisDB []string) bool {
 	thisServer.Debug("Scanning for missing TABLES, for all our resources")
 
 	// flag to indicate if new tables were created
@@ -163,7 +163,7 @@ func (thisServer *server) createMissingTables(db *DB, modelsForThisDB map[utils.
 	// required tables
 	requiredTables := []string{}
 
-	// iterating over all the persisted classes on the given DB, and creating the missing tables if needed
+	// iterating over all the persisted models on the given DB, and creating the missing tables if needed
 	for _, model := range modelsForThisDB {
 		// the table required to persist this model
 		requiredTable := model.getTableName(false)
@@ -204,7 +204,7 @@ func (thisServer *server) createMissingTable(db *DB, model IBusinessObjectModel)
 	sqlColumnsMaxLength := 0
 
 	// adding a column for each property that is persisted in the given BO model's table
-	for _, property := range model.base().getPersistedProperties() {
+	for _, property := range model.getPersistedProperties() {
 		sqlColumnDeclaration, additionalColumnDeclaration := db.get.SQLColumnDeclaration(property)
 		sqlColumnNames = append(sqlColumnNames, property.getColumnName())
 		sqlColumnDeclarations = append(sqlColumnDeclarations, sqlColumnDeclaration)
@@ -212,9 +212,9 @@ func (thisServer *server) createMissingTable(db *DB, model IBusinessObjectModel)
 
 		// if the property is a polymorphic relationship, we need to add an additional column for the target object type
 		if relationship, ok := property.(*Relationship); ok && relationship.IsPolymorphic() {
-			sqlColumnNames = append(sqlColumnNames, relationship.getColumnNameForTargetClass())
+			sqlColumnNames = append(sqlColumnNames, relationship.getColumnNameForTargetModel())
 			sqlColumnDeclarations = append(sqlColumnDeclarations, additionalColumnDeclaration)
-			sqlColumnsMaxLength = max(sqlColumnsMaxLength, len(relationship.getColumnNameForTargetClass()))
+			sqlColumnsMaxLength = max(sqlColumnsMaxLength, len(relationship.getColumnNameForTargetModel()))
 		}
 	}
 
@@ -290,7 +290,7 @@ func (thisServer *server) getTableColumns(db *DB) map[string]map[string]*tableCo
 }
 
 // createMissingColumns adds the columns that are required by the code, but do not exist yet in the DB
-func (thisServer *server) createMissingColumns(db *DB, modelsForThisDB map[utils.ClassName]IBusinessObjectModel, columnsInThisDB map[string]map[string]*tableColumnInfo) {
+func (thisServer *server) createMissingColumns(db *DB, modelsForThisDB map[utils.ModelName]IBusinessObjectModel, columnsInThisDB map[string]map[string]*tableColumnInfo) {
 	// iterating over all models associated with the given DB, and creating the missing columns if needed
 	for _, model := range modelsForThisDB {
 		// listing all the needed column names, to help us identify the unused ones
@@ -303,7 +303,7 @@ func (thisServer *server) createMissingColumns(db *DB, modelsForThisDB map[utils
 		columnsFromDB := columnsInThisDB[tableName]
 
 		// browsing through the PERSISTED properties
-		for _, property := range model.base().getPersistedProperties() {
+		for _, property := range model.getPersistedProperties() {
 
 			// are we dealing with a polymorphic relationship here?
 			var polymorphicRelationship *Relationship
@@ -314,7 +314,7 @@ func (thisServer *server) createMissingColumns(db *DB, modelsForThisDB map[utils
 			// this column is obviously required since we're browsing through the PERSISTED fields
 			requiredColumnNames = append(requiredColumnNames, property.getColumnName())
 			if polymorphicRelationship != nil {
-				requiredColumnNames = append(requiredColumnNames, polymorphicRelationship.getColumnNameForTargetClass())
+				requiredColumnNames = append(requiredColumnNames, polymorphicRelationship.getColumnNameForTargetModel())
 			}
 
 			// creating the column if it does not exist yet
@@ -333,7 +333,7 @@ func (thisServer *server) createMissingColumns(db *DB, modelsForThisDB map[utils
 				if polymorphicRelationship != nil {
 					// the SQL request allowing to create the missing column for the target object type
 					alterQuery = "ALTER TABLE " + model.getTableName(true) + " " +
-						"ADD COLUMN " + polymorphicRelationship.getColumnNameForTargetClass() + " " + additionalColumnDeclaration
+						"ADD COLUMN " + polymorphicRelationship.getColumnNameForTargetModel() + " " + additionalColumnDeclaration
 
 					// executing the query
 					db.mustExec(thisServer, nil, alterQuery)
@@ -353,7 +353,7 @@ func (thisServer *server) createMissingColumns(db *DB, modelsForThisDB map[utils
 }
 
 // createMissingForeignKeys create the missing foreign keys linking the tables to each other
-func (thisServer *server) createMissingForeignKeys(db *DB, modelsForThisDB map[utils.ClassName]IBusinessObjectModel) {
+func (thisServer *server) createMissingForeignKeys(db *DB, modelsForThisDB map[utils.ModelName]IBusinessObjectModel) {
 	// first, we need to know which foreign keys already exist
 	foreignKeysInThisDB := db.FetchStringMap(thisServer, true, nil, db.get.ForeignKeysQuery(prefixFK), db.schema.Name)
 
@@ -364,7 +364,7 @@ func (thisServer *server) createMissingForeignKeys(db *DB, modelsForThisDB map[u
 	for _, model := range modelsForThisDB {
 
 		// managing the relationships that are persisted directly in the table
-		for _, relationship := range model.base().getRelationshipsWithColumn() {
+		for _, relationship := range model.getRelationshipsWithColumn() {
 			// TODO not dealing with polymorphic relationships for now, as they require an additional column for the target object type
 			// But we could have a "vehicle" table associated with the "car" and "bicycle" tables
 			// It would have a "vehicle_id" column for the car or bicycle ID (so no UNIQUE constraint in this column obviously),
@@ -418,7 +418,7 @@ func (thisServer *server) createMissingForeignKeys(db *DB, modelsForThisDB map[u
 
 // createMissingLinkTables is used to create the link tables that are missing
 // Foreign keys can be created only after all the tables have been created, else adding a foreign key can fail
-func (thisServer *server) createMissingLinkTables(db *DB, modelsForThisDB map[utils.ClassName]IBusinessObjectModel, tablesInThisDB []string) {
+func (thisServer *server) createMissingLinkTables(db *DB, modelsForThisDB map[utils.ModelName]IBusinessObjectModel, tablesInThisDB []string) {
 	// listing all the needed link table names, to help us identify the dead tables
 	var requiredLinkTableNames []string
 
@@ -429,7 +429,7 @@ func (thisServer *server) createMissingLinkTables(db *DB, modelsForThisDB map[ut
 	for _, model := range modelsForThisDB {
 
 		// iterating over its relationships that need a link table
-		for _, relationship := range model.base().getRelationshipsWithLinkTable() {
+		for _, relationship := range model.getRelationshipsWithLinkTable() {
 
 			// the name of the link table we're about to create if it does not exist yet
 			linkTableName := relationship.getLinkTableName()
@@ -440,8 +440,8 @@ func (thisServer *server) createMissingLinkTables(db *DB, modelsForThisDB map[ut
 			// checking the existence, and creating the table if needed
 			if !core.InSlice(tablesInThisDB, linkTableName) && !createdLinkTables[linkTableName] {
 				// getting the column names for the current link table
-				sourceColumnName, sourceClassColumnName := relationship.getLinkTableSourceColumn()
-				targetColumnName, targetClassColumnName := relationship.getLinkTableTargetColumn()
+				sourceColumnName, sourceModelColumnName := relationship.getLinkTableSourceColumn()
+				targetColumnName, targetModelColumnName := relationship.getLinkTableTargetColumn()
 
 				// do we need to handle polymorphism?
 				polymSource := relationship.backRef != nil && relationship.backRef.IsPolymorphic()
@@ -453,22 +453,22 @@ func (thisServer *server) createMissingLinkTables(db *DB, modelsForThisDB map[ut
 				// the link table columns
 				createQuery += fmt.Sprintf("%s BIGINT NOT NULL", sourceColumnName)
 				if polymSource {
-					createQuery += fmt.Sprintf(", %s VARCHAR(48) NOT NULL", sourceClassColumnName)
+					createQuery += fmt.Sprintf(", %s VARCHAR(48) NOT NULL", sourceModelColumnName)
 				}
 				createQuery += fmt.Sprintf(", %s BIGINT NOT NULL", targetColumnName)
 				if polymTarget {
-					createQuery += fmt.Sprintf(", %s VARCHAR(48) NOT NULL", targetClassColumnName)
+					createQuery += fmt.Sprintf(", %s VARCHAR(48) NOT NULL", targetModelColumnName)
 				}
 
 				// the PK elements
 				pkElements := []string{}
 				pkElements = append(pkElements, sourceColumnName)
 				if polymSource {
-					pkElements = append(pkElements, sourceClassColumnName)
+					pkElements = append(pkElements, sourceModelColumnName)
 				}
 				pkElements = append(pkElements, targetColumnName)
 				if polymTarget {
-					pkElements = append(pkElements, targetClassColumnName)
+					pkElements = append(pkElements, targetModelColumnName)
 				}
 
 				// the primary key constraint
@@ -505,7 +505,7 @@ func (thisServer *server) createMissingLinkTables(db *DB, modelsForThisDB map[ut
 }
 
 // createMissingSingleUniqueConstraints create the missing UNIQUE constraints
-func (thisServer *server) createMissingSingleUniqueConstraints(db *DB, modelsForThisDB map[utils.ClassName]IBusinessObjectModel) {
+func (thisServer *server) createMissingSingleUniqueConstraints(db *DB, modelsForThisDB map[utils.ModelName]IBusinessObjectModel) {
 	// getting the existing UNIQUE constraints
 	uniqueConstraintsInThisDB := db.FetchStringMap(thisServer, true, nil, db.get.UniqueConstraintsQuery(prefixUK), db.schema.Name)
 
@@ -515,7 +515,7 @@ func (thisServer *server) createMissingSingleUniqueConstraints(db *DB, modelsFor
 	// iterating over all the BO models, and creating the missing unique constraints if needed
 	for _, model := range modelsForThisDB {
 		// browsing through the UNIQUE properties
-		for _, property := range model.base().getPersistedProperties() {
+		for _, property := range model.getPersistedProperties() {
 			// only handling unique FIELDS for now
 			if _, ok := property.(*Relationship); !ok && property.isUnique() {
 				// building the UNIQUE constraint name
@@ -551,7 +551,7 @@ func (thisServer *server) createMissingSingleUniqueConstraints(db *DB, modelsFor
 }
 
 // createMissingCompositeUniqueConstraints create the missing UNIQUE constraints
-func (thisServer *server) createMissingCompositeUniqueConstraints(db *DB, modelsForThisDB map[utils.ClassName]IBusinessObjectModel) {
+func (thisServer *server) createMissingCompositeUniqueConstraints(db *DB, modelsForThisDB map[utils.ModelName]IBusinessObjectModel) {
 	// getting the existing COMPOSITE UNIQUE constraints
 	compositeConstraintsInThisDB := db.FetchStringMap(thisServer, true, nil, db.get.UniqueConstraintsQuery(prefixCK), db.schema.Name) // note the different prefix here
 
@@ -561,7 +561,7 @@ func (thisServer *server) createMissingCompositeUniqueConstraints(db *DB, models
 	// iterating over all the BO models, and creating the missing composite constraints if needed
 	for _, model := range modelsForThisDB {
 		// iterating over all the composite constraints set on the model
-		for compositeConstraintName, properties := range model.base().uniqueCombinations {
+		for compositeConstraintName, properties := range model.getUniqueCombinations() {
 			// using lowercase for the composite constraint name, to avoid case sensitivity issues
 			compositeConstraintName = strings.ToLower(compositeConstraintName)
 
@@ -573,7 +573,7 @@ func (thisServer *server) createMissingCompositeUniqueConstraints(db *DB, models
 			for i := 1; i < len(properties); i++ {
 				columnNames = columnNames + ", " + properties[i].getColumnName()
 				if relationship, ok := properties[i].(*Relationship); ok && relationship.IsPolymorphic() {
-					columnNames = columnNames + ", " + relationship.getColumnNameForTargetClass()
+					columnNames = columnNames + ", " + relationship.getColumnNameForTargetModel()
 				}
 			}
 
@@ -604,14 +604,14 @@ func (thisServer *server) createMissingCompositeUniqueConstraints(db *DB, models
 
 // createMissingNotNullConstraints create the missing NOT NULL constraints
 // But it also removes the NOT NULL constraints when the property is not required anymore
-func (thisServer *server) createMissingNotNullConstraints(db *DB, modelsForThisDB map[utils.ClassName]IBusinessObjectModel, columnsInThisDB map[string]map[string]*tableColumnInfo) {
+func (thisServer *server) createMissingNotNullConstraints(db *DB, modelsForThisDB map[utils.ModelName]IBusinessObjectModel, columnsInThisDB map[string]map[string]*tableColumnInfo) {
 	// iterating over all the BO models, and creating the missing NOT NULL constraints if needed
 	for _, model := range modelsForThisDB {
 		// getting the colums as found in the DB, for this model
 		columnsForThisModel := columnsInThisDB[model.getTableName(false)]
 
 		// browsing through the PERSISTED properties
-		for _, property := range model.base().getPersistedProperties() {
+		for _, property := range model.getPersistedProperties() {
 			// not considering the ID, which is a special case - nor booleans
 			if property.GetName() != BoFieldID && property.getPropertyType() != propertyTypeBOOL {
 				// a priori, we do not need to change anything
@@ -646,14 +646,14 @@ func (thisServer *server) createMissingNotNullConstraints(db *DB, modelsForThisD
 
 // extendsColumns look for columns that have been a maxlength in DB smaller than required by the code.
 // NB: This function can only extend columns, never shrink them!
-func (thisServer *server) extendsColumns(db *DB, modelsForThisDB map[utils.ClassName]IBusinessObjectModel, columnsInThisDB map[string]map[string]*tableColumnInfo) {
+func (thisServer *server) extendsColumns(db *DB, modelsForThisDB map[utils.ModelName]IBusinessObjectModel, columnsInThisDB map[string]map[string]*tableColumnInfo) {
 	// iterating over all the BO models, and extending the columns if needed, based on the properties of the model
 	for _, model := range modelsForThisDB {
 		// getting the colums as found in the DB, for this model
 		columnsForThisModel := columnsInThisDB[model.getTableName(false)]
 
 		// browsing through the PERSISTED properties
-		for _, property := range model.base().getPersistedProperties() {
+		for _, property := range model.getPersistedProperties() {
 			// not considering the ID, which is a special case
 			if property.GetName() != BoFieldID {
 				// a priori, we do not need to change anything

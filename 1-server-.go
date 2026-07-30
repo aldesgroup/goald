@@ -44,7 +44,7 @@ func NewServer() ServerContext {
 	flag.BoolVar(&migrate, "migrate", false, "activates the auto-migration of the configured databases")
 	flag.StringVar(&cgParams.srcdir, "srcdir", "api", "where to find all the Go code, from the project's root")
 	flag.StringVar(&cgParams.othersrcdirs, "othersrcdirs", "", "where to find secondary go source code directories, eg. path/to/dir1,dir2,etc")
-	flag.IntVar(&cgParams.codegen, "codegen", 0, "if > 0, runs code generation and exits; 1 = objects, 2 = classes")
+	flag.IntVar(&cgParams.codegen, "codegen", 0, "if > 0, runs code generation and exits; 1 = BO sources, 2 = BO models, 3 = BO utils")
 	flag.StringVar(&cgParams.docpath, "docpath", "", "the path of the API doc file to generate, i.e. data/api-doc.yaml")
 	flag.StringVar(&cgParams.webdir, "webdir", "webapp", "where to find all the Web app code, from the project's root")
 	flag.StringVar(&cgParams.nativedir, "nativedir", "webapp", "where to find all the Native app code, from the project's root")
@@ -213,7 +213,7 @@ func (thisServer *server) handleFor(ep iEndpoint) httprouter.Handle {
 var _ BloContext = (*server)(nil)
 
 // BeginTransaction implements [ServerContext].
-func (thisServer *server) BeginTransaction(class IClass) (bool, error) {
+func (thisServer *server) BeginTransaction(model IBusinessObjectModel) (bool, error) {
 	panic("unimplemented")
 }
 
@@ -228,6 +228,6 @@ func (thisServer *server) IsTransactionStarted() bool {
 }
 
 // DaoFor implements [BloContext].
-func (thisServer *server) daoFor(class IClass) IBusinessObjectDAO {
+func (thisServer *server) daoFor(model IBusinessObjectModel) IBusinessObjectDAO {
 	panic("unimplemented")
 }

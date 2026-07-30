@@ -27,7 +27,7 @@ var (
 	translationOnce sync.Once
 )
 
-// fully describing each of this class' properties & relationships
+// fully describing each of this model's properties & relationships
 func NewTranslationModel() *TranslationModel {
 	thisModel := &TranslationModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
 	thisModel.lang = g.AddStringField(thisModel, "Translation", "Lang", false)
@@ -48,7 +48,7 @@ func init() {
 	g.RegisterModel("Translation", translation)
 }
 
-// accessing all the Translation class' properties and relationships
+// accessing all the Translation model's properties and relationships
 
 func (T *TranslationModel) Lang() *g.StringField {
 	return T.lang

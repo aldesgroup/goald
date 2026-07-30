@@ -5,6 +5,7 @@ package goald
 
 import (
 	"fmt"
+	"path"
 	"strings"
 	"time"
 
@@ -12,7 +13,7 @@ import (
 	"github.com/aldesgroup/goald/features/dbconn"
 )
 
-const dbFILExINIT = `
+const dbFILExINIT = `// Generated file, do not edit!
 
 import (
 	"sync"
@@ -53,7 +54,7 @@ func (thisServer *server) generateDatabasesList(srcdir string) {
 		content += dbFILExINIT
 
 		for _, dbConfig := range core.GetSortedValues(thisServer.config.base().DBServers) {
-			otherImportsMap[getPackageForDbServerType(dbConfig.Type)] = true
+			// otherImportsMap[thisServer.getPackageForDbServerType(dbConfig.Type)] = true
 			for _, schemaConfig := range core.GetSortedValues(dbConfig.Schemas) {
 				dbParagraph := strings.ReplaceAll(dbTEMPLATE, "$$dbID$$", core.PascalToCamel(string(schemaConfig.Name)))
 				dbParagraph = strings.ReplaceAll(dbParagraph, "$$DbID$$", core.ToPascal(string(schemaConfig.Name)))
@@ -73,13 +74,22 @@ func (thisServer *server) generateDatabasesList(srcdir string) {
 	// writing to file
 	core.WriteToFile(content, srcdir, includePATH, dbFOLDERNAME, dbFILE)
 	thisServer.Info(fmt.Sprintf("DB list generated in %s", time.Since(start)))
+
+	// preparing 1 folder for each DB type
+	for _, dbType := range thisServer.getAllDbTypes() {
+		if !core.DirExists(srcdir, includePATH, dbFOLDERNAME, string(dbType)) {
+			dbTypeDir := core.EnsureDir(srcdir, includePATH, dbFOLDERNAME, string(dbType))
+			core.WriteStringToFile(path.Join(dbTypeDir, "index.go"), `// Generated file, do not edit!
+			package %s
+			`, dbType)
+		}
+	}
 }
 
-func getPackageForDbServerType(databaseType dbconn.DatabaseType) string {
-	switch databaseType {
-	case "postgresql":
-		return "pgsql"
-	default:
-		return ""
+func (thisServer *server) getAllDbTypes() []dbconn.DatabaseType {
+	dbTypes := map[dbconn.DatabaseType]bool{}
+	for _, dbServer := range core.GetSortedValues(thisServer.config.base().DBServers) {
+		dbTypes[dbServer.Type] = true
 	}
+	return core.GetSortedKeys(dbTypes)
 }

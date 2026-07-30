@@ -46,10 +46,10 @@ func handleLinkDevice(webCtx g.WebContext, req *iot.DeviceLinkRequest) (*iot.Dev
 
 func handleGetDevice(webCtx g.WebContext) (*iot.Device, hstatus.Code, string) {
 	// TODO better
-	device := getDevice(webCtx.GetTargetRefOrID())
+	device := getDevice(webCtx.GetResourceRefOrID())
 
 	if device == nil {
-		return nil, hstatus.NotFound, "No device has been found with this serial: " + webCtx.GetTargetRefOrID()
+		return nil, hstatus.NotFound, "No device has been found with this serial: " + webCtx.GetResourceRefOrID()
 	}
 
 	return device, hstatus.OK, ""

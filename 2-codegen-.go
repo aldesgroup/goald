@@ -15,7 +15,7 @@ import (
 type codeGenLevel int
 type packageName string
 
-const codeGenCLASSES codeGenLevel = 1
+const codeGenSOURCES codeGenLevel = 1
 const codeGenMODELS codeGenLevel = 2
 const codeGenUTILS codeGenLevel = 3
 const codeGenCHECK codeGenLevel = 4
@@ -25,7 +25,7 @@ const dirtyFILENAME = "dirty"
 // can be used as a development server, generating code for us
 func (thisServer *server) runCodeGen(cgp *codegenParams) {
 	switch level := codeGenLevel(cgp.codegen); level {
-	case codeGenCLASSES:
+	case codeGenSOURCES:
 		start := time.Now()
 
 		// TODO optimize with go routines here (?)
@@ -33,8 +33,8 @@ func (thisServer *server) runCodeGen(cgp *codegenParams) {
 		// we're making all the databases globally accessible
 		thisServer.generateDatabasesList(cgp.srcdir)
 
-		// generating the classes and the packages that register them, and make the corresponding business objects "importable"
-		codeChanged := thisServer.generateAllClasses(cgp.srcdir, ".", false, map[packageName]map[utils.ClassName]*baseClass{}, cgp.regen)
+		// generating the BO sources and the packages that register them, and make the corresponding business objects "importable"
+		codeChanged := thisServer.generateAllSources(cgp.srcdir, ".", false, cgp.regen, map[packageName]map[utils.ModelName]*baseBusinessObjectModelSource{})
 
 		// saving the dirty state
 		core.WriteToFile(fmt.Sprintf("%t", codeChanged), cgp.bindir, dirtyFILENAME)
@@ -56,9 +56,7 @@ func (thisServer *server) runCodeGen(cgp *codegenParams) {
 		start := time.Now()
 
 		// now, using the models, we can generate useful utils
-		// codeChanged := thisServer.generateAllObjectValueMappers(cgp.srcdir, ".", cgp.regen)
-		// codeChanged = thisServer.generateAllObjectChecks(cgp.srcdir, ".", cgp.regen) || codeChanged
-		codeChanged := thisServer.generateAllObjectUtils(cgp.srcdir, ".", cgp.regen)
+		codeChanged := thisServer.generateAllObjectXTDs(cgp.srcdir, ".", cgp.regen)
 		codeChanged = thisServer.generateAllObjectDAOs(cgp.srcdir, cgp.regen) || codeChanged
 
 		// saving the dirty state

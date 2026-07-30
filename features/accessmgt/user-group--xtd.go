@@ -2,13 +2,13 @@
 package accessmgt
 
 import (
-	core "github.com/aldesgroup/corego"
+	"github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald"
 	"github.com/aldesgroup/goald/features/utils"
 )
 
-// getting the name of the class for a UserGroup, without using reflection
-func (bo *UserGroup) ClassName() utils.ClassName {
+// getting the name of the model for a UserGroup, without using reflection
+func (bo *UserGroup) GetModelName() utils.ModelName {
 	return "UserGroup"
 }
 
@@ -102,4 +102,8 @@ func (bo *UserGroup) IsModelValid() error {
 	}
 
 	return nil
+}
+
+// removing any cycles from the business object, without using reflection
+func (bo *UserGroup) RemoveCycles() {
 }

@@ -1,9 +1,3 @@
-// ------------------------------------------------------------------------------------------------
-// Here is the code used for generating the XTD (extension) files - these are meant to eventually
-// replace both the CHK (checks) and VMAP (value mapper) files: the difference is that the generated
-// methods here are attached directly to the Business Object types themselves (instead of to their
-// "*Class" companion objects), so there's no more need to pass the BO as an argument, nor to cast it.
-// ------------------------------------------------------------------------------------------------
 package goald
 
 import (
@@ -12,8 +6,6 @@ import (
 	"strings"
 
 	core "github.com/aldesgroup/corego"
-	"github.com/aldesgroup/goald/features/reflection"
-	"github.com/aldesgroup/goald/features/utils"
 )
 
 const utilsFileTEMPLATE = `// Generated file, do not edit!
@@ -23,8 +15,8 @@ import (
 	$$otherimports$$
 )
 
-// getting the name of the class for a $$Upper$$, without using reflection
-func (bo *$$Upper$$) ClassName() utils.ClassName {
+// getting the name of the model for a $$Upper$$, without using reflection
+func (bo *$$Upper$$) GetModelName() utils.ModelName {
 	return "$$Upper$$"
 }
 
@@ -87,47 +79,42 @@ func (bo *$$Upper$$) IsModelValid() error {
 $$modelchecks$$
 	return nil
 }
+
+// removing any cycles from the business object, without using reflection
+func (bo *$$Upper$$) RemoveCycles() {
+$$removecycles$$}
 `
 
 const utilsFILExSUFFIX = "--xtd.go"
 
-func (thisServer *server) generateAllObjectUtils(srcdir, currentPath string, regen bool) (codeChanged bool) {
+func (thisServer *server) generateAllObjectXTDs(srcdir, currentPath string, regen bool) (codeChanged bool) {
 	// the path we're currently reading at e.g. go/pkg1/pkg2
 	readingPath := path.Join(srcdir, currentPath)
 
 	// going through the resources found withing the current directory
-	// we got the BO & class registries, but we still need to browse the filesystem since we're updating it with files
+	// we got the BO & model registries, but we still need to browse the filesystem since we're updating it with files
 	for _, entry := range core.EnsureReadDir(readingPath) {
 		if entry.IsDir() {
 			// not going into the vendor
 			if entry.Name() != "vendor" && entry.Name() != ".git" {
 				// found another directory, let's dive deeper!
-				codeChanged = thisServer.generateAllObjectUtils(srcdir, path.Join(currentPath, entry.Name()), regen) || codeChanged
+				codeChanged = thisServer.generateAllObjectXTDs(srcdir, path.Join(currentPath, entry.Name()), regen) || codeChanged
 			}
 		} else {
 			// found a file... but we're only interested in files containing Business Objects, which must end with sourceFILExSUFFIX
-			if strings.HasSuffix(entry.Name(), sourceFILExSUFFIX) {
-				// getting the business object entry within this file, then the registred entry in the code
-				baseClass := getClassFromFile(srcdir, currentPath, entry.Name())
+			if strings.HasSuffix(entry.Name(), boFILExSUFFIX) {
+				// getting the model - which should exist at this stage!
+				model := thisServer.getModelFromFile(srcdir, currentPath, entry.Name())
 
-				if baseClass == nil {
-					core.PanicMsg("It looks like there's no BusinessObject-derived struct in '%s/%s/%s'",
-						srcdir, currentPath, entry.Name())
-				}
-
-				class := classFor(baseClass.class, true)
-
-				// this file lives directly alongside the BO's own source file, within the BO's own package -
-				// there's no more need for a separate "class" subdirectory, since there's no more casting/indirection
-				utilsFilepath := path.Join(srcdir, class.getSrcPath(),
-					strings.Replace(entry.Name(), sourceFILExSUFFIX, utilsFILExSUFFIX, 1))
+				// this file lives directly alongside the BO's own source file, within the BO's own package
+				utilsFilepath := path.Join(srcdir, model.getSrcPath(), strings.Replace(entry.Name(), boFILExSUFFIX, utilsFILExSUFFIX, 1))
 
 				// no xtd file for interfaces
-				if !class.isInterface() {
+				if !model.isInterface() {
 
 					// generating the xtd file, if not existing yet, or too old
-					if regen || !core.FileExists(utilsFilepath) || core.EnsureModTime(utilsFilepath).Before(class.getLastBOMod()) {
-						generateObjectUtilsForBO(class, utilsFilepath)
+					if regen || !core.FileExists(utilsFilepath) || core.EnsureModTime(utilsFilepath).Before(model.getLastBOMod()) {
+						generateObjectXtdForModel(model, utilsFilepath)
 						codeChanged = true
 					}
 				}
@@ -138,54 +125,30 @@ func (thisServer *server) generateAllObjectUtils(srcdir, currentPath string, reg
 	return
 }
 
-// generating a BO's "xtd" file, gathering what used to be split between the value mapper (--map.go)
-// and the checks (--chk.go) generators - reusing as much as possible of their case/check-building logic
-func generateObjectUtilsForBO(class IClass, filepath string) {
-	// the corresponding class
-	className := class.getClassName()
-	model := class.getModel()
-
-	// checking the BO code makes use of its class
-	// TODO - auto-add this code block into the BO code + the import
-	if model == nil {
-		core.PanicMsg("It looks like class '%s' has never been imported and thus not initialized and registered. \n"+
-			"Add this - and complete as necessary - to your business object definition code: \n\n"+
-			"import (class \"%s/_include/%s/model\") \n"+
-			"func init() { \n"+
-			"	model.%s().SetNotPersisted() \n"+
-			"}",
-			className, getCurrentModule(), class.getPackage(), className)
-	}
-
-	// the package this file will actually live in: the BO's own package, since these methods are
-	// now attached directly to the BO type - so this package must never end up importing itself
-	classPkg := path.Join(getCurrentModule(), class.getSrcPath())
-	shortPkg := path.Base(classPkg)
-
-	// need for some imports - goald & utils (for the Class() method) are always needed
+// generating the xtd file for a given model, at the given path
+func generateObjectXtdForModel(model IBusinessObjectModel, filepath string) {
+	// need for some imports - goald & utils are always needed
 	importsMap := map[string]bool{
 		"github.com/aldesgroup/goald":                true,
 		"github.com/aldesgroup/goald/features/utils": true,
 	}
 
-	// getting the type of business object
-	bObjectType := reflection.TypeOf(class.NewObject(), true)
-
 	// building the get/set cases, the relationship cases, and the validity checks
-	getCases, setCases, importUtils := buildUtilsValueCases(model, bObjectType, shortPkg, importsMap)
-	setRelCases, addRelCases, clearRelCases, getMultiRelCases := buildUtilsRelationshipCases(model, bObjectType, className, shortPkg, importsMap)
-	modelChecks := buildUtilsModelChecks(model, className, importsMap)
+	getCases, setCases, importUtils := buildUtilsValueCases(model, importsMap)
+	setRelCases, addRelCases, clearRelCases, getMultiRelCases := buildUtilsRelationshipCases(model, importsMap)
+	modelChecks := buildUtilsModelChecks(model, importsMap)
+	removeCyclesStatements := buildUtilsRemoveCyclesStatements(model)
 
 	if importUtils {
 		importsMap["github.com/aldesgroup/corego"] = true
 	}
 
 	// this file lives within the BO's own package: it must never import that same package
-	delete(importsMap, classPkg)
+	delete(importsMap, path.Join(getCurrentSourceModule(), model.getSrcPath()))
 
 	// starting the content
-	content := strings.ReplaceAll(utilsFileTEMPLATE, "$$package$$", shortPkg)
-	content = strings.ReplaceAll(content, "$$Upper$$", string(className))
+	content := strings.ReplaceAll(utilsFileTEMPLATE, "$$package$$", model.getPackage())
+	content = strings.ReplaceAll(content, "$$Upper$$", string(model.getName()))
 	content = strings.ReplaceAll(content, "$$getcases$$", strings.Join(getCases, newline))
 	content = strings.ReplaceAll(content, "$$setcases$$", strings.Join(setCases, newline))
 	content = strings.ReplaceAll(content, "$$setrelcases$$", strings.Join(setRelCases, newline))
@@ -198,6 +161,12 @@ func generateObjectUtilsForBO(class IClass, filepath string) {
 		checksBody = strings.Join(modelChecks, newline) + newline
 	}
 	content = strings.ReplaceAll(content, "$$modelchecks$$", checksBody)
+
+	removeCyclesBody := ""
+	if len(removeCyclesStatements) > 0 {
+		removeCyclesBody = strings.Join(removeCyclesStatements, newline) + newline
+	}
+	content = strings.ReplaceAll(content, "$$removecycles$$", removeCyclesBody)
 
 	imports := ""
 	if len(importsMap) > 0 {
@@ -212,16 +181,16 @@ func generateObjectUtilsForBO(class IClass, filepath string) {
 // building the get/set cases for GetValueAsString() / SetValueAsString(), reusing the same
 // per-property-type logic as the value mapper generator, but accessing fields directly on the
 // receiver (named "bo" in the generated code), since no casting is needed anymore
-func buildUtilsValueCases(model IBusinessObjectModel, bObjectType reflection.GoaldType, shortPkg string, importsMap map[string]bool) (getCases []string, setCases []string, importUtils bool) {
+func buildUtilsValueCases(model IBusinessObjectModel, importsMap map[string]bool) (getCases []string, setCases []string, importUtils bool) {
 	// browsing the entity's properties to fill the get / set cases in the 2 switch
-	for _, field := range core.GetSortedValues(model.base().fields) {
-		// adding to the context, and the class file content
+	for _, field := range core.GetSortedValues(model.getFields()) {
+		// adding to the context, and the model file content
 		if propertyType := field.getPropertyType(); propertyType != propertyTypeUNKNOWN && propertyType != propertyTypeRELATIONSHIPxMONOM {
 			// not handling multiple properties for now
 			if fieldName := field.GetName(); !field.IsMultiple() && fieldName != boFieldPreID {
 				// is the field type a type alias, or a built-in type? - stripping this package's own
 				// qualification, since we're generating code that lives directly within that package
-				fieldTypeAlias := stripSelfPackage(getNonBuiltInFieldType(bObjectType, fieldName, importsMap), shortPkg)
+				fieldTypeAlias := stripSelfPackage(getNonBuiltInFieldType(model.getType(), fieldName, importsMap), model.getPackage())
 
 				// case init
 				getCase := fmt.Sprintf("\tcase \"%s\":", fieldName)
@@ -287,21 +256,20 @@ func buildUtilsValueCases(model IBusinessObjectModel, bObjectType reflection.Goa
 
 // building the cases for the relationship setters/getters, reusing the same logic as the value
 // mapper generator, but without any casting, since these methods are now attached to the BO itself
-func buildUtilsRelationshipCases(model IBusinessObjectModel, bObjectType reflection.GoaldType, clsName utils.ClassName, shortPkg string,
-	importsMap map[string]bool) (setRelCases, addRelCases, clearRelCases, getMultiRelCases []string) {
+func buildUtilsRelationshipCases(model IBusinessObjectModel, importsMap map[string]bool) (setRelCases, addRelCases, clearRelCases, getMultiRelCases []string) {
 
 	// browsing the entity's relationships to fill the set / add cases for the relationship setters
-	for _, relationship := range core.GetSortedValues(model.base().relationships) {
+	for _, relationship := range core.GetSortedValues(model.getRelationships()) {
 		relName := relationship.GetName()
 
 		// the Go type to assert the incoming value against, e.g. "domain.IContact" or "*domain.Employee" -
 		// stripping this package's own qualification, since we're generating code living within that package
-		targetType := stripSelfPackage(getRelationshipFieldType(bObjectType, relName, importsMap), shortPkg)
+		targetType := stripSelfPackage(getRelationshipFieldType(model.getType(), relName, importsMap), model.getPackage())
 
 		relCase := fmt.Sprintf("\tcase \"%s\":", relName)
 		relCase += newline + fmt.Sprintf("\t\ttargetValue, ok := value.(%s)", targetType)
 		relCase += newline + "\t\tif !ok {"
-		relCase += newline + fmt.Sprintf("\t\t\treturn goald.Error(\"Expected a value of type '%s' for '%s.%s', got %%T\", value)", targetType, clsName, relName)
+		relCase += newline + fmt.Sprintf("\t\t\treturn goald.Error(\"Expected a value of type '%s' for '%s.%s', got %%T\", value)", targetType, model.getName(), relName)
 		relCase += newline + "\t\t}"
 
 		if relationship.IsMultiple() {
@@ -343,17 +311,38 @@ func buildGetMultiRelCase(relationship *Relationship, relName string) string {
 	return getMultiCase
 }
 
+// building the statements for RemoveCycles(): for every multi-valued relationship whose targets hold a
+// single-valued backref pointing back to us (e.g. a PurchaseOrder's Items pointing back via OrderItem.PurchaseOrder),
+// we nil out that backref on each target, so that marshaling this BO to JSON doesn't loop forever; polymorphic
+// relationships are skipped, since the backref field then lives on an interface, not on a concrete type
+func buildUtilsRemoveCyclesStatements(model IBusinessObjectModel) []string {
+	statements := []string{}
+
+	for _, relationship := range core.GetSortedValues(model.getRelationships()) {
+		if relationship.IsMultiple() && !relationship.IsPolymorphic() && relationship.backRef != nil && !relationship.backRef.IsMultiple() {
+			relName := relationship.GetName()
+			backRefName := relationship.backRef.GetName()
+
+			statements = append(statements, fmt.Sprintf("\tfor _, target := range bo.%s {", relName))
+			statements = append(statements, fmt.Sprintf("\t\ttarget.%s = nil", backRefName))
+			statements = append(statements, "\t}")
+		}
+	}
+
+	return statements
+}
+
 // building the checks for IsModelValid(), simply reusing - unchanged - the check builders from the
 // checks (--chk.go) generator: they already produce code referring to a "bo" variable, which is
 // exactly the name we're using for this method's receiver, so no adaptation is needed there
-func buildUtilsModelChecks(model IBusinessObjectModel, clsName utils.ClassName, importsMap map[string]bool) []string {
+func buildUtilsModelChecks(model IBusinessObjectModel, importsMap map[string]bool) []string {
 	checks := []string{}
 
 	// checking that every required relationship is properly set on the BO
-	for _, relationship := range core.GetSortedValues(model.base().relationships) {
-		checks = append(checks, buildRequiredRelationshipCheck(relationship, clsName)...)
+	for _, relationship := range core.GetSortedValues(model.getRelationships()) {
+		checks = append(checks, buildRequiredRelationshipChecks(relationship)...)
 
-		// core.InSlice is used for polymorphic relationships' target class check
+		// core.InSlice is used for polymorphic relationships' target model check
 		if relationship.IsRequiredInDb() && relationship.IsPolymorphic() {
 			importsMap["github.com/aldesgroup/corego"] = true
 		}
@@ -361,20 +350,20 @@ func buildUtilsModelChecks(model IBusinessObjectModel, clsName utils.ClassName, 
 
 	// going through the entity's fields once, letting each per-field check builder chime in;
 	// the mandatory-input check always comes first, before the other, more specific checks
-	for _, field := range core.GetSortedValues(model.base().fields) {
-		if check := buildMandatoryInputCheck(field); check != "" {
+	for _, field := range core.GetSortedValues(model.getFields()) {
+		if check := buildMandatoryInputChecks(field); check != "" {
 			checks = append(checks, check)
 		}
-		if check := buildFloatFormatCheck(field); check != "" {
+		if check := buildFloatFormatChecks(field); check != "" {
 			checks = append(checks, check)
 		}
-		if check := buildStringSizeCheck(field); check != "" {
+		if check := buildStringSizeChecks(field); check != "" {
 			checks = append(checks, check)
 		}
-		if check := buildIntRangeCheck(field); check != "" {
+		if check := buildIntRangeChecks(field); check != "" {
 			checks = append(checks, check)
 		}
-		if check := buildFloatRangeCheck(field); check != "" {
+		if check := buildFloatRangeChecks(field); check != "" {
 			checks = append(checks, check)
 		}
 	}

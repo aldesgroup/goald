@@ -7,8 +7,7 @@ package goald
 type WebContext interface {
 	restContext
 	GetBloContext() BloContext
-	GetTargetRefOrID() string
-	GetResource() IBusinessObjectModel   // the class of the resource being requested
+	GetResourceRefOrID() string
 	GetResourceLoadingType() LoadingType // returns the loading type of the current main resources (BOs) being worked on
 }
 
@@ -16,10 +15,9 @@ type WebContext interface {
 type webContextImpl struct {
 	*httpRequestContext // wrapping one of the server's children handling 1 request
 	ep                  iEndpoint
-	resource            IBusinessObjectModel
+	resourceModel       IBusinessObjectModel
+	resourceRefOrID     string // the ID or ref, or whatever property value used to clearly identify a resource
 	bloContext          BloContext
-	targetClass         IClass // the class of the resource being requested
-	targetRefOrID       string // the ID or ref, or whatever property value used to clearly identify a resource
 }
 
 // type check
@@ -30,8 +28,8 @@ func newWebContext(reqCtx *httpRequestContext, ep iEndpoint, targetRefOrID strin
 	return &webContextImpl{
 		httpRequestContext: reqCtx,
 		ep:                 ep,
-		targetClass:        ep.getResourceClass(),
-		targetRefOrID:      targetRefOrID,
+		resourceModel:      ep.getResourceModel(),
+		resourceRefOrID:    targetRefOrID,
 	}
 }
 
@@ -43,20 +41,16 @@ func (thisWebCtx *webContextImpl) GetBloContext() BloContext {
 	return thisWebCtx.bloContext
 }
 
-func (thisWebCtx *webContextImpl) GetResource() IBusinessObjectModel {
-	if thisWebCtx.resource == nil {
-		thisWebCtx.resource = thisWebCtx.ep.getResourceClass().getModel()
+func (thisWebCtx *webContextImpl) getResourceModel() IBusinessObjectModel {
+	if thisWebCtx.resourceModel == nil {
+		thisWebCtx.resourceModel = thisWebCtx.ep.getResourceModel()
 	}
 
-	return thisWebCtx.resource
+	return thisWebCtx.resourceModel
 }
 
-func (thisWebCtx *webContextImpl) getTargetResourceClass() IClass {
-	return thisWebCtx.targetClass
-}
-
-func (thisWebCtx *webContextImpl) GetTargetRefOrID() string {
-	return thisWebCtx.targetRefOrID
+func (thisWebCtx *webContextImpl) GetResourceRefOrID() string {
+	return thisWebCtx.resourceRefOrID
 }
 
 func (thisWebCtx *webContextImpl) GetResourceLoadingType() LoadingType {

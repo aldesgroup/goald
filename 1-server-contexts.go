@@ -25,7 +25,7 @@ type AppContext interface {
 
 type restContext interface { // TODO keep ?
 	AppContext
-	getTargetResourceClass() IClass // the class of the resource being requested
+	getResourceModel() IBusinessObjectModel // the business object model of the resource being requested
 }
 
 // ------------------------------------------------------------------------------------------------

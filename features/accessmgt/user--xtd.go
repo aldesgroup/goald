@@ -2,13 +2,13 @@
 package accessmgt
 
 import (
-	core "github.com/aldesgroup/corego"
+	"github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald"
 	"github.com/aldesgroup/goald/features/utils"
 )
 
-// getting the name of the class for a User, without using reflection
-func (bo *User) ClassName() utils.ClassName {
+// getting the name of the model for a User, without using reflection
+func (bo *User) GetModelName() utils.ModelName {
 	return "User"
 }
 
@@ -114,7 +114,7 @@ func (bo *User) IsModelValid() error {
 	if bo.LastName == "" {
 		return goald.Error("'LastName' is mandatory and must have a non-zero value")
 	}
-	if err := goald.CheckStringSize(bo.LastName, 24, 0); err != nil {
+	if err := goald.CheckStringSize(bo.LastName, 26, 0); err != nil {
 		return goald.ErrorC(err, "Invalid value for 'LastName'")
 	}
 	if bo.Password == "" {
@@ -125,4 +125,8 @@ func (bo *User) IsModelValid() error {
 	}
 
 	return nil
+}
+
+// removing any cycles from the business object, without using reflection
+func (bo *User) RemoveCycles() {
 }
