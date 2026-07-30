@@ -100,7 +100,7 @@ func (baseDAO *BusinessObjectDAO) ExecBatchInsert(ctx *BatchInsertContext) (map[
 		if errBatch := func() (err error) {
 			rows, errQuery := baseDAO.Query(batchMask, queryBuilder.String(), batchArgs...)
 			if errQuery != nil {
-				return errQuery
+				return baseDAO.HandleDbError(errQuery)
 			}
 
 			defer func() {

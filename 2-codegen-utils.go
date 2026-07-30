@@ -20,7 +20,7 @@ func buildRequiredRelationshipChecks(relationship *Relationship) []string {
 
 	checks := []string{
 		fmt.Sprintf(
-			"\tif bo.%s == nil {\n\r\treturn goald.Error(\"'%s' is required on '%s'\")\n\t}",
+			"\tif bo.%s == nil {\n\t\treturn goald.Error(\"'%s' is required on '%s'\")\n\t}",
 			relName, relName, relationship.owner.getName()),
 		fmt.Sprintf(
 			"\tif bo.%s.GetID() <= 0 {\n\t\treturn goald.Error(\"'%s' must reference an existing, persisted business object\")\n\t}",

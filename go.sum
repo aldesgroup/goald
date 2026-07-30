@@ -10,8 +10,8 @@ github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v1.2.0 h1:nCYfg
 github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/internal v1.2.0/go.mod h1:ucUjca2JtSZboY8IoUqyQyuuXvwbMBVwFOm0vdQPNhA=
 github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0 h1:XRzhVemXdgvJqCH0sFfrBUTnUJSBrBf7++ypk+twtRs=
 github.com/AzureAD/microsoft-authentication-library-for-go v1.6.0/go.mod h1:HKpQxkWaGLJ+D/5H8QRpyQXA1eKjxkFlOMwck5+33Jk=
-github.com/aldesgroup/corego v1.0.7 h1:EtXpqX+P5KUN/bDDFwA/aV6U5vBiCGQtwXA3T2zdaKM=
-github.com/aldesgroup/corego v1.0.7/go.mod h1:lRpl6jwI1kh4fo/6Hg+3FAdJ5fLJ+Aq9mSJFMgVpIOQ=
+github.com/aldesgroup/corego v1.0.8 h1:AWbqK09Dl2/LmunU0nAOux40EsdmrboFlZcmbRJfOvs=
+github.com/aldesgroup/corego v1.0.8/go.mod h1:lRpl6jwI1kh4fo/6Hg+3FAdJ5fLJ+Aq9mSJFMgVpIOQ=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

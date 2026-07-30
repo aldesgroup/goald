@@ -236,9 +236,9 @@ func addEndpointToDoc(doc *openapi3.T, ep iEndpoint) error {
 
 			var description string
 			if ep.isMultipleInput() {
-				description = fmt.Sprintf("An array of %s objects", inModel)
+				description = fmt.Sprintf("An array of %s objects", inModel.getName())
 			} else {
-				description = fmt.Sprintf("A %s object", inModel)
+				description = fmt.Sprintf("A %s object", inModel.getName())
 			}
 
 			op.RequestBody = &openapi3.RequestBodyRef{

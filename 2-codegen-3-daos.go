@@ -227,20 +227,13 @@ func (thisServer *server) getColumnsAndInsertData(model IBusinessObjectModel, sp
 				polyIndex := nbCols
 				nbCols++
 				//
-				argAssignments += fmt.Sprintf("%[1]sif %[2]s != nil {\n"+
-					"%[1]s\targs[base+%[3]d] = %[2]s.GetID()\n"+
-					"%[1]s\targs[base+%[4]d] = %[2]s.GetModelName()\n"+
-					"%[1]s} else {\n"+
-					"%[1]s\targs[base+%[3]d] = nil\n"+
-					"%[1]s\targs[base+%[4]d] = nil\n"+
-					"%[1]s}\n",
+				argAssignments += fmt.Sprintf(
+					"%[1]sargs[base+%[3]d] = goald.GetIDOrNilPlm(%[2]s)\n"+
+						"%[1]sargs[base+%[4]d] = goald.GetModelOrNil(%[2]s)\n",
 					space, fieldExpr, colIndex, polyIndex)
 			} else {
-				argAssignments += fmt.Sprintf("%[1]sif %[2]s != nil {\n"+
-					"%[1]s\targs[base+%[3]d] = %[2]s.GetID()\n"+
-					"%[1]s} else {\n"+
-					"%[1]s\targs[base+%[3]d] = nil\n"+
-					"%[1]s}\n",
+				argAssignments += fmt.Sprintf(
+					"%[1]sargs[base+%[3]d] = goald.GetIDOrNil(%[2]s)\n",
 					space, fieldExpr, colIndex)
 			}
 		} else if prop.GetName() == boFieldPreID {

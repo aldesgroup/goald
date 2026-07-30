@@ -2,6 +2,44 @@ package goald
 
 import "github.com/aldesgroup/goald/features/logging"
 
+// ----------------------------------------------------------------------------
+// DB errors
+// ----------------------------------------------------------------------------
+
+type DbError int
+
+const (
+	DbErrorUNIDENTIFIED    DbError = 0
+	DbErrorDUPLICATExENTRY DbError = 1
+	DbErrorINVALIDxENTRY   DbError = 2
+	DbErrorMISSINGxVALUE   DbError = 3
+)
+
+var dbErrors = map[int]string{
+	int(DbErrorUNIDENTIFIED):    "unidentified error",
+	int(DbErrorDUPLICATExENTRY): "duplicate entry error",
+	int(DbErrorINVALIDxENTRY):   "invalid entry error",
+	int(DbErrorMISSINGxVALUE):   "missing value error",
+}
+
+func (thisError DbError) String() string {
+	return dbErrors[int(thisError)]
+}
+
+// Val helps implement the IEnum interface
+func (thisError DbError) Val() int {
+	return int(thisError)
+}
+
+// Values helps implement the IEnum interface
+func (thisError DbError) Values() map[int]string {
+	return dbErrors
+}
+
+// ----------------------------------------------------------------------------
+// DB methods to quickly fetch stuff from the database
+// ----------------------------------------------------------------------------
+
 // FetchStringColumn executes a query that should only return an array of string (1 column)
 func (thisDB *DB) FetchStringColumn(logger logging.ILogger, failIfErr bool, m mask, query string, args ...any) (results []string) {
 	// executing the query

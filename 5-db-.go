@@ -45,6 +45,9 @@ type iDBAdapter interface {
 	UserExistsQuery() string                                    // checking if a given user exists in the DB server
 	CreateUserQuery(user dbconn.DbUserName, pass string) string // creating a user in the DB server
 
+	// DB server-related error handling methods
+	ParseDbError(err error) (DbError, string)
+
 	// DB schema-related authorization queries
 	GrantUsageCreateOnSchemaQuery(schema dbconn.DbSchemaName, user dbconn.DbUserName) string   // granting privileges to a user on a schema
 	GrantUsageOnSchemaQuery(schema dbconn.DbSchemaName, user dbconn.DbUserName) string         // granting privileges to a user on a schema
