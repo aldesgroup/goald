@@ -191,8 +191,8 @@ func buildPropDecl(source IBusinessObjectModelSource, context *modelGenerationCo
 
 	if context.superType = superModelField.Type(); context.superType.Equals(typeBUSINESSxOBJECT) {
 		result += "g.IBusinessObjectModel"
-	} else if context.superType.Equals(typeURLxQUERYxOBJECT) {
-		result += "g.IURLQueryParamsModel"
+	} else if context.superType.Equals(typeQUERYxOBJECT) {
+		result += "g.IQueryParamsObjectModel"
 	} else {
 		result += "" + getImportPkg(imports, source, superModelField.Type().Name()) +
 			superModelField.Type().Name() + modelNAMExSUFFIX
@@ -271,9 +271,9 @@ func buildPropInit(source IBusinessObjectModelSource, context *modelGenerationCo
 	modelInit := "thisModel := &" + string(source.getName()) + modelNAMExSUFFIX + "{%s: %s}"
 	superModelDecl := "IBusinessObjectModel"
 	superModelValue := "g.NewBusinessObjectModel()"
-	if context.superType.Equals(typeURLxQUERYxOBJECT) {
-		superModelDecl = "IURLQueryParamsModel"
-		superModelValue = "g.NewURLQueryParamsModel()"
+	if context.superType.Equals(typeQUERYxOBJECT) {
+		superModelDecl = "IQueryParamsObjectModel"
+		superModelValue = "g.NewQueryParamsObjectModel()"
 	} else if !context.superType.Equals(typeBUSINESSxOBJECT) {
 		superModelDecl = context.superType.Name() + modelNAMExSUFFIX
 		superModelValue = "*" + getImportPkg(imports, source, context.superType.Name()) + "New" + context.superType.Name() + "Model()"

@@ -124,6 +124,32 @@ func (bo *DeviceLinkRequest) GetMultipleRelationshipValue(relationshipName strin
 
 // checking a business object's general validity, without using reflection
 func (bo *DeviceLinkRequest) IsModelValid() error {
+	if bo.ENTranslation == nil {
+		return goald.Error("'ENTranslation' is required on 'DeviceLinkRequest'")
+	}
+	if bo.ENTranslation.GetID() <= 0 {
+		return goald.Error("'ENTranslation' must reference an existing, persisted business object")
+	}
+	if bo.ForWho == nil {
+		return goald.Error("'ForWho' is required on 'DeviceLinkRequest'")
+	}
+	if bo.ForWho.GetID() <= 0 {
+		return goald.Error("'ForWho' must reference an existing, persisted business object")
+	}
+	if !core.InSlice([]string{}, string(bo.ForWho.GetModelName())) {
+		return goald.Error("Invalid target model for 'ForWho'")
+	}
+	if len(bo.Users) == 0 {
+		return goald.Error("'Users' is required on 'DeviceLinkRequest'")
+	}
+	for _, target := range bo.Users {
+		if target.GetID() <= 0 {
+			return goald.Error("'Users' must reference an existing, persisted business object")
+		}
+		if !core.InSlice([]string{}, string(target.GetModelName())) {
+			return goald.Error("Invalid target model for 'Users'")
+		}
+	}
 	if bo.Model == "" {
 		return goald.Error("'Model' is mandatory and must have a non-zero value")
 	}

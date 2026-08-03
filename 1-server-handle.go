@@ -74,13 +74,14 @@ func (thisServer *server) ServeEndpoint(ep iEndpoint, w http.ResponseWriter, req
 
 // the type of response returned by all our REST endpoints
 type response struct {
-	Object     any          `json:"object,omitempty"`
-	ObjectList any          `json:"objectList,omitempty"`
-	statusObj  hstatus.Code `json:"-"`
-	StatusCode int          `json:"statusCode"`
-	Status     string       `json:"status"`
-	Message    string       `json:"message"`
-	Version    string       `json:"version"`
+	Object         any          `json:"object,omitempty"`
+	ObjectList     any          `json:"objectList,omitempty"`
+	ObjectListSize int          `json:"objectListSize,omitempty"`
+	statusObj      hstatus.Code `json:"-"`
+	StatusCode     int          `json:"statusCode"`
+	Status         string       `json:"status"`
+	Message        string       `json:"message"`
+	Version        string       `json:"version"`
 }
 
 func errResp(status hstatus.Code, msg string, args ...any) *response {
@@ -166,6 +167,11 @@ func (thisReqCtx *httpRequestContext) serve(ep iEndpoint, w http.ResponseWriter,
 		}
 	}
 
+	// setting the size of the returned list, if any
+	if resp.ObjectList != nil {
+		resp.ObjectListSize = ep.getOutputListLen(resp.ObjectList)
+	}
+
 End:
 	// writing out the response
 	thisReqCtx.write(resp, w)
@@ -249,10 +255,10 @@ func retrieveInputData(request *http.Request, webContext *webContextImpl, ep iEn
 	}
 }
 
-// parsing the request's URL to build the expected URLQueryParams object
+// parsing the request's URL to build the expected QueryParamsObject object
 func retrieveURLParams(request *http.Request, _ *webContextImpl, ep iEndpoint) (any, error) {
-	// new URLQueryParams object
-	urlParams := ep.getInputOrParamsModel().NewObject().(IURLQueryParams)
+	// new QueryParamsObject object
+	urlParams := ep.getInputOrParamsModel().NewObject().(IQueryParamsObject)
 
 	// transferring the URL param values from the URL to the object
 	for _, field := range urlParams.getModel(urlParams).getFields() {

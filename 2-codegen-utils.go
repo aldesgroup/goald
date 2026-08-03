@@ -8,15 +8,45 @@ import (
 )
 
 // building the checks ensuring that a required relationship (SetRequiredInDb) is properly set on
-// the BO: its target must be non-nil, reference an already-persisted BO (ID > 0), and - if this
-// is a polymorphic relationship - the target's concrete model must be one of the allowed ones
-// (getTargetNames()); returns nil if this relationship isn't required
+// the BO: for a single-valued relationship, its target must be non-nil and reference an
+// already-persisted BO (ID > 0); for a multi-valued relationship, there must be at least one
+// target, and each of them must reference an already-persisted BO (ID > 0); in both cases, if
+// this is a polymorphic relationship, the target's (or each target's) concrete model must be one
+// of the allowed ones (getTargetNames()); returns nil if this relationship isn't required
 func buildRequiredRelationshipChecks(relationship *Relationship) []string {
-	if !relationship.IsRequiredInDb() {
+	if !relationship.IsRequiredInDb() && !relationship.isMandatoryInput() {
 		return nil
 	}
 
 	relName := relationship.GetName()
+
+	if relationship.IsMultiple() {
+		checks := []string{
+			fmt.Sprintf(
+				"\tif len(bo.%s) == 0 {\n\t\treturn goald.Error(\"'%s' is required on '%s'\")\n\t}",
+				relName, relName, relationship.owner.getName()),
+		}
+
+		loopBody := []string{
+			fmt.Sprintf("\t\tif target.GetID() <= 0 {\n\t\t\treturn goald.Error(\"'%s' must reference an existing, persisted business object\")\n\t\t}", relName),
+		}
+
+		if relationship.IsPolymorphic() {
+			targetNames := relationship.getTargetModelNames()
+			allowed := make([]string, len(targetNames))
+			for i, targetName := range targetNames {
+				allowed[i] = fmt.Sprintf("%q", string(targetName))
+			}
+
+			loopBody = append(loopBody, fmt.Sprintf(
+				"\t\tif !core.InSlice([]string{%s}, string(target.GetModelName())) {\n\t\t\treturn goald.Error(\"Invalid target model for '%s'\")\n\t\t}",
+				strings.Join(allowed, ", "), relName))
+		}
+
+		checks = append(checks, fmt.Sprintf("\tfor _, target := range bo.%s {\n%s\n\t}", relName, strings.Join(loopBody, "\n")))
+
+		return checks
+	}
 
 	checks := []string{
 		fmt.Sprintf(
@@ -166,6 +196,24 @@ func buildIntRangeChecks(field IField) string {
 		fieldName, min, minSet, max, maxSet, fieldName)
 }
 
+// building the check ensuring that an int field declared with SetEqualLen actually equals the
+// number of targets of the multi-valued property (relationship or field) it's tied to (e.g.
+// NbItems == len(Items)); returns "" if this field isn't an int field, or has no SetEqualLen
+// property set
+func buildEqualLenChecks(field IField) string {
+	intField, ok := field.(*IntField)
+	if !ok || intField.equalLenTo == nil {
+		return ""
+	}
+
+	fieldName := field.GetName()
+	propName := intField.equalLenTo.GetName()
+
+	return fmt.Sprintf(
+		"\tif bo.%s != len(bo.%s) {\n\t\treturn goald.Error(\"'%s' must be equal to the number of '%s'\")\n\t}",
+		fieldName, propName, fieldName, propName)
+}
+
 // building the check ensuring that a real (or double) field's value complies with its declared
 // Min()/Max() bounds, if any; returns "" if there's nothing to check
 func buildFloatRangeChecks(field IField) string {
@@ -200,6 +248,22 @@ func buildFloatRangeChecks(field IField) string {
 	return fmt.Sprintf(
 		"\tif err := goald.CheckFloatRange(float64(bo.%s), %v, %t, %v, %t); err != nil {\n\t\treturn goald.ErrorC(err, \"Invalid value for '%s'\")\n\t}",
 		fieldName, min, minSet, max, maxSet, fieldName)
+}
+
+// building the check ensuring that an enum field's value is a legit one, i.e. listed in the map
+// returned by its IEnum's Values() method (e.g. OrderStatus.Values()); this catches values that
+// were set from some arbitrary, unlisted integer (e.g. via SetValueAsString bypassing its own
+// guard, or a raw cast); returns "" if this field isn't an enum field
+func buildEnumValueChecks(field IField) string {
+	if field.getPropertyType() != propertyTypeENUM {
+		return ""
+	}
+
+	fieldName := field.GetName()
+
+	return fmt.Sprintf(
+		"\tif _, isLegitValue := bo.%[1]s.Values()[bo.%[1]s.Val()]; !isLegitValue {\n\t\treturn goald.Error(\"Invalid value '%%d' for '%[2]s.%[1]s'\", bo.%[1]s.Val())\n\t}",
+		fieldName, field.ownerModel().getName())
 }
 
 // removing this package's own qualification from a generated type expression (e.g. turning

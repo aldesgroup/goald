@@ -31,8 +31,9 @@ type IBusinessObjectDAO interface {
 	HandleDbError(err error) error
 
 	// these are the generic queries any DAO should be able to perform for its associated business object ModelName
-	ExecInsertQuery(bObjs ...IBusinessObject) (map[int]int64, error) // executes the insert query for the given BOs, returning a map of the BO's rowID to the DB's ID
-	ExecInsertLinksQueries(bObjs ...IBusinessObject) error           // executes the insert links queries for the given business objects
+	ExecInsertQuery(bObjs ...IBusinessObject) (map[int]int64, error)                           // executes the insert query for the given BOs, returning a map of the BO's rowID to the DB's ID
+	ExecInsertLinksQueries(bObjs ...IBusinessObject) error                                     // executes the insert links queries for the given business objects
+	ExecSelectQuery(queryName queryName, values IQueryParamsObject) ([]IBusinessObject, error) // executes the select query for the given query name and values, returning the resulting business objects
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -100,6 +101,11 @@ func (baseDAO *BusinessObjectDAO) ExecInsertQuery(bObjs ...IBusinessObject) (map
 
 // ExecInsertLinksQueries implements [IBusinessObjectDAO].
 func (baseDAO *BusinessObjectDAO) ExecInsertLinksQueries(bObjs ...IBusinessObject) error {
+	panic("unimplemented")
+}
+
+// ExecSelectQuery implements [IBusinessObjectDAO].
+func (baseDAO *BusinessObjectDAO) ExecSelectQuery(queryName queryName, values IQueryParamsObject) ([]IBusinessObject, error) {
 	panic("unimplemented")
 }
 

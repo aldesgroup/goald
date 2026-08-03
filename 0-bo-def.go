@@ -85,7 +85,7 @@ func (thisBO *BusinessObject) GetMultipleRelationshipValue(relName string) ([]IB
 	panic("unimplemented")
 }
 func (thisBO *BusinessObject) IsModelValid() error { panic("unimplemented") }
-func (thisBO *BusinessObject) RemoveCycles()        { panic("unimplemented") }
+func (thisBO *BusinessObject) RemoveCycles()       { panic("unimplemented") }
 
 // ------------------------------------------------------------------------------------------------
 // Special accessors

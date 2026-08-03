@@ -59,6 +59,7 @@ type iEndpoint interface {
 	isCalledFromNativeApp() bool
 	trimBodyLoggingTo() int
 	getGroup() *EndpointGroup
+	getOutputListLen(list any) int // the number of elements in a returned object list, whatever its concrete []ResourceType is
 	returnOne(webCtx WebContext) (any, hstatus.Code, string)
 	returnMany(webCtx WebContext) (any, hstatus.Code, string)
 	returnOneForOne(webCtx WebContext, input any) (any, hstatus.Code, string)
@@ -92,6 +93,18 @@ type endpoint[ResourceType IBusinessObject] struct {
 
 func (ep *endpoint[ResourceType]) getMethod() string {
 	return ep.method
+}
+
+// getOutputListLen returns the number of elements held by a returned object list. Since
+// isMultipleOutput() handlers actually return a concrete []ResourceType (not a []any), this
+// generic method - resolved at compile time for each concrete ResourceType, no runtime
+// reflection needed - is the only safe way to read that slice's length back in server code that
+// only deals with iEndpoint and "any" values.
+func (ep *endpoint[ResourceType]) getOutputListLen(list any) int {
+	if list == nil {
+		return 0
+	}
+	return len(list.([]ResourceType))
 }
 
 func (ep *endpoint[ResourceType]) getResourceModel() IBusinessObjectModel {
@@ -323,14 +336,14 @@ func DeleteOne[ResourceType IBusinessObject](
 	return handleOne(http.MethodDelete, handlerFunc, "")
 }
 
-// Declaring an endpoint to return N BO instances from a GET request
-func GetMany[ResourceType IBusinessObject](
-	handlerFunc func(webCtx WebContext) ([]ResourceType, hstatus.Code, string),
-	loadingType LoadingType,
-) *manyForNoneEndpoint[ResourceType] {
+// // Declaring an endpoint to return N BO instances from a GET request
+// func GetMany[ResourceType IBusinessObject](
+// 	handlerFunc func(webCtx WebContext) ([]ResourceType, hstatus.Code, string),
+// 	loadingType LoadingType,
+// ) *manyForNoneEndpoint[ResourceType] {
 
-	return handleMany(http.MethodGet, handlerFunc, loadingType)
-}
+// 	return handleMany(http.MethodGet, handlerFunc, loadingType)
+// }
 
 // Declaring an endpoint to return 1 BO instance from 1 POSTed BO instance
 func PostOneGetOne[InputType, ResourceType IBusinessObject](
@@ -359,11 +372,11 @@ func PostManyGetMany[InputType, ResourceType IBusinessObject](
 	return handleManyForMany(http.MethodPost, handlerFunc, loadingType)
 }
 
-// Declaring an endpoint to return N BO instance from query parameters that are described with 1 URLQueryParams
-func GetManyWithParams[ResourceType IBusinessObject, QueryParamsType IURLQueryParams](
-	handlerFunc func(webCtx WebContext, queryParams QueryParamsType) ([]ResourceType, hstatus.Code, string),
+// Declaring an endpoint to return N BO instance from query parameters that are described with 1 QueryParamsObject
+func GetManyWithParams[ResourceType IBusinessObject, QueryParamsObjectType IQueryParamsObject](
+	handlerFunc func(webCtx WebContext, QueryParamsObject QueryParamsObjectType) ([]ResourceType, hstatus.Code, string),
 	loadingType LoadingType,
-) *manyForOneEndpoint[QueryParamsType, ResourceType] {
+) *manyForOneEndpoint[QueryParamsObjectType, ResourceType] {
 
 	return handleManyForOne(http.MethodGet, handlerFunc, loadingType, false)
 }

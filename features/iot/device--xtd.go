@@ -100,6 +100,9 @@ func (bo *Device) GetMultipleRelationshipValue(relationshipName string) ([]goald
 
 // checking a business object's general validity, without using reflection
 func (bo *Device) IsModelValid() error {
+	if _, isLegitValue := bo.Status.Values()[bo.Status.Val()]; !isLegitValue {
+		return goald.Error("Invalid value '%d' for 'Device.Status'", bo.Status.Val())
+	}
 
 	return nil
 }

@@ -144,6 +144,38 @@ func doCreateDependentBusinessObjects(bloCtx BloContext, model IBusinessObjectMo
 	return nil
 }
 
+func SearchBusinessObjects(bloCtx BloContext, query IQuery, values IQueryParamsObject) ([]IBusinessObject, error) {
+	// performing some actions on the query params values before searching
+	if err := values.DoBeforeSearch(bloCtx); err != nil {
+		return nil, ErrorC(err, "Could not search for business objects since the query params values got an error")
+	}
+
+	// first we need to make sure the query params values are valid
+	if err := values.IsModelValid(); err != nil {
+		return nil, ErrorC(err, "Could not search for business objects since the query is not valid")
+	}
+
+	// doing the selection of the business objects from the database
+	results, err := dbSelect(bloCtx.daoFor(query.getModel()), query.getName(), values)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO access control
+	// // we check that this entity can be read, given the context
+	// if err = loadedEntity.CanBeRead(biContext, loadingID); err != nil {
+	// 	return nil, NewErrC(err, "Could not read entity '%s' given the context", fullReference)
+	// }
+
+	// // now that we're okey with our loading, me might have to perform some specific actions
+	// if err = loadedEntity.DoAfterRead(biContext, loadingID); err != nil {
+	// 	return nil, NewErrC(err, "Error occurring after reading entity '%s'", referenceOrID)
+	// }
+
+	// not much more logic for now
+	return results, nil
+}
+
 // func ReadBO(bloCtx BloContext, idProp IField, idPropVal string, loadingType LoadingType) (IBusinessObject, error) {
 // 	loadedBOs, errLoad := dbLoadOne(bloCtx.GetDaoContext(), idProp, idPropVal)
 

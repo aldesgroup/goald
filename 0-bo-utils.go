@@ -13,13 +13,13 @@ import (
 
 var (
 	typeBUSINESSxOBJECT   = reflection.TypeOf((*BusinessObject)(nil), true)
-	typeURLxQUERYxOBJECT  = reflection.TypeOf((*URLQueryParams)(nil), true)
+	typeQUERYxOBJECT      = reflection.TypeOf((*QueryParamsObject)(nil), true)
 	typeIxBUSINESSxOBJECT = reflection.TypeOf((*IBusinessObject)(nil), true)
 	typeIxENUM            = reflection.TypeOf((*IEnum)(nil), true)
 )
 
 // ------------------------------------------------------------------------------------------------
-// Access to models, given a model name
+// Retrieving models / instantiating business objects
 // ------------------------------------------------------------------------------------------------
 
 func modelFor(modelName utils.ModelName, failIfNil ...bool) IBusinessObjectModel {
@@ -29,6 +29,12 @@ func modelFor(modelName utils.ModelName, failIfNil ...bool) IBusinessObjectModel
 			" like this: import _ \"module_full_name/_include/package_name\"", modelName))
 	}
 	return modelRegistry.items[modelName]
+}
+
+func NewBusinessObject(modelName string, id int64) any {
+	bObj := modelFor(utils.ModelName(modelName), true).NewObject()
+	bObj.(IBusinessObject).setID(BObjID(id))
+	return bObj
 }
 
 // ------------------------------------------------------------------------------------------------

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	core "github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald/features/utils"
 )
 
@@ -119,8 +120,9 @@ func CheckStringSize(value string, size int, atLeast int) error {
 
 type IntField struct {
 	numericField
-	min int
-	max int
+	min        int
+	max        int
+	equalLenTo IBusinessObjectProperty // if set, this field's value must equal len(bo.<property>)
 }
 
 func (f *IntField) Min(min int) *IntField {
@@ -132,6 +134,16 @@ func (f *IntField) Min(min int) *IntField {
 func (f *IntField) Max(max int) *IntField {
 	f.max = max
 	f.maxSet = true
+	return f
+}
+
+// SetEqualLen declares that this int field's value must always equal the number of targets of the
+// given, multi-valued property (a relationship, e.g. o.NbItems().SetEqualLen(o.Items()), or a
+// multi-valued field), ensuring NbItems always equals len(Items). This gets enforced as a generated
+// check in IsModelValid(). Panics if the given property isn't itself multi-valued (IsMultiple()).
+func (f *IntField) SetEqualLen(property IBusinessObjectProperty) *IntField {
+	core.PanicMsgIf(!property.IsMultiple(), "SetEqualLen: '%s' is not a multi-valued property", property.GetName())
+	f.equalLenTo = property
 	return f
 }
 

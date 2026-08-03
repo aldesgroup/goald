@@ -37,38 +37,38 @@ func (ep *oneForNoneEndpoint[ResourceType]) returnOne(webCtx WebContext) (any, h
 	return ep.handlerFunc(webCtx)
 }
 
-// ------------------------------------------------------------------------------------------------
-// The different endpoint types: (2) = N resources for no input
-// ------------------------------------------------------------------------------------------------
+// // ------------------------------------------------------------------------------------------------
+// // The different endpoint types: (2) = N resources for no input
+// // ------------------------------------------------------------------------------------------------
 
-type manyForNoneEndpoint[ResourceType IBusinessObject] struct {
-	*endpoint[ResourceType]
-	handlerFunc func(webCtx WebContext) ([]ResourceType, hstatus.Code, string)
-}
+// type manyForNoneEndpoint[ResourceType IBusinessObject] struct {
+// 	*endpoint[ResourceType]
+// 	handlerFunc func(webCtx WebContext) ([]ResourceType, hstatus.Code, string)
+// }
 
-func handleMany[ResourceType IBusinessObject](
-	method string,
-	handlerFunc func(webCtx WebContext) ([]ResourceType, hstatus.Code, string),
-	loadingType LoadingType,
-) *manyForNoneEndpoint[ResourceType] {
+// func handleMany[ResourceType IBusinessObject](
+// 	method string,
+// 	handlerFunc func(webCtx WebContext) ([]ResourceType, hstatus.Code, string),
+// 	loadingType LoadingType,
+// ) *manyForNoneEndpoint[ResourceType] {
 
-	return registerEndpoint(&manyForNoneEndpoint[ResourceType]{
-		endpoint: newEndpoint[ResourceType, ResourceType](
-			true,
-			method,
-			loadingType,
-			false,
-			false,
-			false),
-		handlerFunc: handlerFunc,
-	}).(*manyForNoneEndpoint[ResourceType])
-}
+// 	return registerEndpoint(&manyForNoneEndpoint[ResourceType]{
+// 		endpoint: newEndpoint[ResourceType, ResourceType](
+// 			true,
+// 			method,
+// 			loadingType,
+// 			false,
+// 			false,
+// 			false),
+// 		handlerFunc: handlerFunc,
+// 	}).(*manyForNoneEndpoint[ResourceType])
+// }
 
-// adapting the parametrized function to a generic format that the main *httpRequestContext.serve() can call
-func (ep *manyForNoneEndpoint[ResourceType]) returnMany(webCtx WebContext) (any,
-	hstatus.Code, string) {
-	return ep.handlerFunc(webCtx)
-}
+// // adapting the parametrized function to a generic format that the main *httpRequestContext.serve() can call
+// func (ep *manyForNoneEndpoint[ResourceType]) returnMany(webCtx WebContext) (any,
+// 	hstatus.Code, string) {
+// 	return ep.handlerFunc(webCtx)
+// }
 
 // ------------------------------------------------------------------------------------------------
 // The different endpoint types: (3) = 1 resource for 1 input
@@ -198,30 +198,38 @@ func (ep *manyForManyEndpoint[InputType, ResourceType]) returnManyForMany(webCtx
 // ------------------------------------------------------------------------------------------------
 
 // particular business object model
-type IURLQueryParamsModel interface {
+type IQueryParamsObjectModel interface {
 	IBusinessObjectModel
 }
 
 // particular business object
-type IURLQueryParams interface {
+type IQueryParamsObject interface {
 	IBusinessObject
+	DoBeforeSearch(bloCtx BloContext) error
 }
 
 // particular business object model implem
-type urlQueryParamsModel struct {
+type QueryParamsObjectModel struct {
 	businessObjectModel
 }
 
 // particular business object implem
-type URLQueryParams struct {
+type QueryParamsObject struct {
 	BusinessObject
 }
 
-func NewURLQueryParamsModel() IURLQueryParamsModel {
-	model := &urlQueryParamsModel{
+// default implem
+func (this *QueryParamsObject) DoBeforeSearch(bloCtx BloContext) error {
+	// default implementation does nothing
+	return nil
+}
+
+func NewQueryParamsObjectModel() IQueryParamsObjectModel {
+	model := &QueryParamsObjectModel{
 		businessObjectModel: businessObjectModel{
-			fields: map[string]IField{},
-			inNoDB: true,
+			fields:        map[string]IField{},
+			relationships: map[string]*Relationship{},
+			inNoDB:        true,
 		},
 	}
 

@@ -5,6 +5,8 @@ package goald
 
 import (
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	core "github.com/aldesgroup/corego"
@@ -16,10 +18,12 @@ const daoINITxTEMPLATE = `// Generated file, do not edit!
 package %[1]s
 
 import (
+	"database/sql"
+	"fmt"
 	"sync"
 
 	"%[2]s"
-	"github.com/aldesgroup/goald"
+	"github.com/aldesgroup/goald"%[7]s
 )
 
 // ------------------------------------------------------------------------------------------------
@@ -54,6 +58,7 @@ func (thisDAO *%[3]sDAO) NewDAO() goald.IBusinessObjectDAO {
 var (
 	%[4]sDB     string
 	%[4]sDBOnce sync.Once
+	%[4]sMask   = []bool{%[6]s}
 )
 
 // ------------------------------------------------------------------------------------------------
@@ -171,12 +176,24 @@ func (thisServer *server) generateOneDAO(srcdir string, dbType string, model IBu
 	// trivial filling of the template
 	modelNameCamel := core.PascalToCamel(string(model.getName()))
 	importForBOModel := getImportPackageLine(model)
-	content := fmt.Sprintf(daoINITxTEMPLATE, dbType, importForBOModel, model.getName(), modelNameCamel, model.getDB().name)
+	_, _, maskPattern, _ := thisServer.getColumnsAndInsertData(model, "\t\t\t")
+
+	// gathering the extra imports needed by the select-query-building/scanning code below (e.g. a
+	// relationship's target package, or the query params' package if it's not this model's own) -
+	// this model's own package is always already imported, so it's never added twice
+	extraImports := map[string]bool{}
+	selectQueryCode := thisServer.generateExecSelectQuery(model, extraImports)
+	delete(extraImports, importForBOModel)
+
+	content := fmt.Sprintf(daoINITxTEMPLATE, dbType, importForBOModel, model.getName(), modelNameCamel,
+		model.getDB().name, maskPattern, buildExtraImportsBlock(extraImports))
 
 	// adding all the needed DAO methods
 	content += thisServer.generateExecInsertQuery(model)
 	content += "\n\n"
 	content += thisServer.generateExecInsertLinksQueries(model)
+	content += "\n\n"
+	content += selectQueryCode
 
 	// writing to file
 	core.WriteToFile(content, daoDir, core.PascalToKebab(string(model.getName()))+daoFILExSUFFIX)
@@ -184,6 +201,28 @@ func (thisServer *server) generateOneDAO(srcdir string, dbType string, model IBu
 	thisServer.Info(fmt.Sprintf("(Re-)generated DAO for %s", model.getName()))
 
 	return true
+}
+
+// buildExtraImportsBlock turns a set of extra import paths (gathered while generating a DAO's
+// select-query-building/scanning code) into the source snippet to splice right after the standard
+// imports in daoINITxTEMPLATE, e.g. "\n\t\"git-ext.aldes.com/.../domain\"".
+func buildExtraImportsBlock(extraImports map[string]bool) string {
+	if len(extraImports) == 0 {
+		return ""
+	}
+
+	paths := make([]string, 0, len(extraImports))
+	for importPath := range extraImports {
+		paths = append(paths, importPath)
+	}
+	sort.Strings(paths)
+
+	var block strings.Builder
+	for _, importPath := range paths {
+		block.WriteString(fmt.Sprintf("\n\t%q", importPath))
+	}
+
+	return block.String()
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -258,7 +297,7 @@ func (thisServer *server) getColumnsAndInsertData(model IBusinessObjectModel, sp
 
 func (thisServer *server) generateExecInsertQuery(model IBusinessObjectModel) string {
 
-	columns, argAssignments, maskPattern, nbCols := thisServer.getColumnsAndInsertData(model, "\t\t\t")
+	columns, argAssignments, _, nbCols := thisServer.getColumnsAndInsertData(model, "\t\t\t")
 	varName := core.PascalToCamel(string(model.getName()))
 
 	return fmt.Sprintf(`// ExecInsertQuery implements [goald.IBusinessObjectDAO].
@@ -266,8 +305,8 @@ func (thisDAO *%[1]sDAO) ExecInsertQuery(bObjs ...goald.IBusinessObject) (map[in
 	return thisDAO.ExecBatchInsert(&goald.BatchInsertContext{
 		Table:       %[2]sDB + `+bq+`.%[4]s`+bq+`,
 		Columns:     `+bq+`%[5]s`+bq+`,
-		NbCols:      %[8]d,
-		MaskPattern: []bool{%[7]s},
+		NbCols:      %[7]d,
+		MaskPattern: %[2]sMask,
 		BObjs:       bObjs,
 		FillRow: func(bObj goald.IBusinessObject, args []any, base int) {
 			// casting the business object to its actual type
@@ -282,8 +321,7 @@ func (thisDAO *%[1]sDAO) ExecInsertQuery(bObjs ...goald.IBusinessObject) (map[in
 		model.getTableName(false), // 4
 		columns,                   // 5
 		argAssignments,            // 6
-		maskPattern,               // 7
-		nbCols,                    // 8
+		nbCols,                    // 7
 	)
 }
 
@@ -403,6 +441,356 @@ func (thisDAO *%[1]sDAO) ExecInsertLinksQueries(bObjs ...goald.IBusinessObject) 
 }`,
 		model.getName(), // 1
 		blocks,          // 2
+	)
+}
+
+// ------------------------------------------------------------------------------------------------
+//  ExecSelectQuery generation: the WHERE-building code mirrors, for every query registered against
+//  this model (via Find(...).Where(...) in a *--blo.go file), the OR-ed/AND-ed clause tree built with
+//  Either/Or - flattened into its equivalent DNF (a flat list of AND-ed clauses, OR-ed together, by
+//  OR's associativity) - plus the row-scanning code for all of the model's persisted columns.
+// ------------------------------------------------------------------------------------------------
+
+// generateExecSelectQuery builds the ExecSelectQuery method, the query-args dispatcher + 1 builder
+// function per query registered against this model, and the row-scanning function - registering, in
+// extraImports, any package (other than this model's own) that this generated code ends up needing.
+func (thisServer *server) generateExecSelectQuery(model IBusinessObjectModel, extraImports map[string]bool) string {
+	varName := core.PascalToCamel(string(model.getName()))
+	columns := getColumnsForSelect(model)
+	queries := getQueriesForModel(model)
+
+	execSelect := fmt.Sprintf(`// ExecSelectQuery implements [goald.IBusinessObjectDAO].
+func (thisDAO *%[1]sDAO) ExecSelectQuery(queryName goald.QueryName, values goald.IQueryParamsObject) ([]goald.IBusinessObject, error) {
+	return thisDAO.ExecSelect(&goald.SelectContext{
+		Table:     %[2]sDB + `+bq+`.%[3]s`+bq+`,
+		Columns:   `+bq+`%[4]s`+bq+`,
+		QueryArgs: build%[1]sQueryArgs,
+		ScanRow:   scan%[1]sRow,
+	}, queryName, values)
+}`,
+		model.getName(),           // 1
+		varName,                   // 2
+		model.getTableName(false), // 3
+		columns,                   // 4
+	)
+
+	var dispatchCases string
+	var builders string
+
+	for i, q := range queries {
+		funcName := fmt.Sprintf("build%sQueryArgs%d", model.getName(), i+1)
+		dispatchCases += fmt.Sprintf("\tcase %q:\n\t\treturn %s(values)\n\n", q.name, funcName)
+		builders += "\n\n" + thisServer.generateQueryArgsBuilder(model, q, funcName, extraImports)
+	}
+
+	dispatcher := fmt.Sprintf(`// build%[1]sQueryArgs builds the query args for whichever of %[1]s's registered queries is being run
+func build%[1]sQueryArgs(queryName goald.QueryName, values goald.IQueryParamsObject) *goald.QueryArgs {
+	switch queryName {
+%[2]s	default:
+		panic(fmt.Sprintf("build%[1]sQueryArgs: unhandled query name '%%s'", queryName))
+	}
+}`,
+		model.getName(), // 1
+		dispatchCases,   // 2
+	)
+
+	return execSelect + "\n\n" + dispatcher + builders + "\n\n" + thisServer.generateScanRowFunc(model, extraImports)
+}
+
+// getColumnsForSelect returns the comma-separated column list to SELECT for the given model: every
+// persisted property, in the same (ID-first, then alphabetical) order used for the table itself -
+// except the pre-ID, which is a purely transient, insert-batching helper column with no meaning once
+// a row is persisted.
+func getColumnsForSelect(model IBusinessObjectModel) string {
+	var columns string
+
+	for _, prop := range model.getPersistedProperties() {
+		if prop.GetName() == boFieldPreID {
+			continue
+		}
+
+		if columns != "" {
+			columns += ", "
+		}
+
+		if relationship, ok := prop.(*Relationship); ok {
+			columns += relationship.getColumnName()
+			if relationship.IsPolymorphic() {
+				columns += ", " + relationship.getColumnNameForTargetModel()
+			}
+		} else {
+			columns += prop.getColumnName()
+		}
+	}
+
+	return columns
+}
+
+// getQueriesForModel returns every query registered (via Find(...).Where(...)) against the given
+// model, sorted by (dynamically generated) name, for deterministic codegen output.
+func getQueriesForModel(model IBusinessObjectModel) []*query { // caca
+	queryRegistry.mx.Lock()
+	defer queryRegistry.mx.Unlock()
+
+	var queries []*query
+	for _, q := range queryRegistry.queries {
+		if concreteQuery, ok := q.(*query); ok && concreteQuery.model.getName() == model.getName() {
+			queries = append(queries, concreteQuery)
+		}
+	}
+
+	sort.Slice(queries, func(i, j int) bool { return queries[i].name < queries[j].name })
+
+	return queries
+}
+
+// flatten turns a clause tree (built with Either/Or/comparisons in a *--blo.go file) into its
+// equivalent flat list of AND-ed clauses (leaves), OR-ed together.
+func flatten(c *clause) [][]*clause {
+	switch c.ctype {
+	case clauseTypeOR:
+		var result [][]*clause
+		for _, sub := range c.subClauses {
+			result = append(result, flatten(sub)...)
+		}
+		return result
+
+	case clauseTypeAND:
+		product := [][]*clause{{}}
+		for _, sub := range c.subClauses {
+			var newProduct [][]*clause
+			for _, existingGroup := range product {
+				for _, subGroup := range flatten(sub) {
+					combined := make([]*clause, 0, len(existingGroup)+len(subGroup))
+					combined = append(combined, existingGroup...)
+					combined = append(combined, subGroup...)
+					newProduct = append(newProduct, combined)
+				}
+			}
+			product = newProduct
+		}
+		return product
+
+	default:
+		// a leaf clause (a comparison, or an IN)
+		return [][]*clause{{c}}
+	}
+}
+
+// findQueryParamsModel returns the query params model (e.g. PurchaseOrderQuery) that a query's clauses
+// compare against, found via any comparison leaf's right-hand side - the left-hand side is always the
+// business object's own property (e.g. order.OrderRef()), the right-hand side the query param being
+// compared against it (e.g. query.OrderRefExact()); an IN clause has no right-hand side (its values are
+// literal constants), hence looking across every leaf until one is found.
+func findQueryParamsModel(dnf [][]*clause) IBusinessObjectModel {
+	for _, group := range dnf {
+		for _, leaf := range group {
+			if leaf.right != nil {
+				return leaf.right.ownerModel()
+			}
+		}
+	}
+
+	return nil
+}
+
+// generateQueryArgsBuilder builds the function computing 1 registered query's *goald.QueryArgs (its
+// OR-ed/AND-ed condition clauses, args, and secret mask) from that query's param values.
+func (thisServer *server) generateQueryArgsBuilder(model IBusinessObjectModel, q *query, funcName string, extraImports map[string]bool) string {
+	var dnf [][]*clause
+	for _, top := range q.where {
+		dnf = append(dnf, flatten(top)...)
+	}
+
+	queryParamsModel := findQueryParamsModel(dnf)
+	extraImports[getImportPackageLine(queryParamsModel)] = true
+	queryParamsType := fmt.Sprintf("*%s.%s", queryParamsModel.getPackage(), queryParamsModel.getName())
+
+	var body strings.Builder
+	nbArgs := 0
+
+	for i, group := range dnf {
+		if i > 0 {
+			body.WriteString("\n\tqueryArgs.NewAndClause()\n\n")
+		}
+
+		for _, leaf := range group {
+			line, argCount := thisServer.generateLeafClauseCode(leaf, model, extraImports)
+			body.WriteString("\t")
+			body.WriteString(line)
+			body.WriteString("\n")
+			nbArgs += argCount
+		}
+	}
+
+	return fmt.Sprintf(`// %[1]s builds the query args for the %[2]q query
+func %[1]s(values goald.IQueryParamsObject) *goald.QueryArgs {
+	// casting the query params to their actual type
+	queryParams := values.(%[3]s)
+
+	// pre-sizing for the worst case (every condition present), to avoid slice reallocations below
+	queryArgs := goald.NewQueryArgs(%[4]d)
+
+%[5]s
+	return queryArgs
+}`,
+		funcName,        // 1
+		q.name,          // 2
+		queryParamsType, // 3
+		nbArgs,          // 4
+		body.String(),   // 5
+	)
+}
+
+// generateLeafClauseCode builds the single statement appending 1 leaf clause (a comparison, or an IN)
+// to the AND-clause currently being built, and returns how many query args it consumes.
+func (thisServer *server) generateLeafClauseCode(c *clause, model IBusinessObjectModel, extraImports map[string]bool) (string, int) {
+	if c.ctype == clauseTypeIN {
+		enumTypeExpr := getNonBuiltInFieldType(model.getType(), c.left.GetName(), extraImports)
+		columnName := c.left.getColumnName()
+
+		addExprs := make([]string, len(c.values))
+		for i, v := range c.values {
+			prefix := ""
+			if i == 0 {
+				prefix = columnName + " IN ("
+			}
+			addExprs[i] = fmt.Sprintf("queryArgs.AddSingleClause(%q, %s(%d), false)", prefix, enumTypeExpr, v.Val())
+		}
+
+		return fmt.Sprintf(`queryArgs.AppendRawAndClause(true, %s+")")`, strings.Join(addExprs, `+", "+`)), len(c.values)
+	}
+
+	columnName := c.left.getColumnName()
+	fieldName := c.right.GetName()
+	secret := c.right.isSecret()
+	operator := string(c.ctype)
+
+	condition := fmt.Sprintf("queryParams.%s != %s", fieldName, zeroValueLiteral(c.right.getPropertyType()))
+	valueExpr := fmt.Sprintf("queryParams.%s", fieldName)
+	if c.right.getPropertyType() == propertyTypeDATE {
+		condition = fmt.Sprintf("queryParams.%s != nil", fieldName)
+		valueExpr = "*" + valueExpr
+	}
+
+	return fmt.Sprintf("queryArgs.AppendAndClause(%s, %q, %s, %t)", condition, columnName+" "+operator+" ", valueExpr, secret), 1
+}
+
+// generateScanRowFunc builds the function instantiating and filling in 1 business object from a
+// *sql.Rows, in the same column order given to ExecSelectQuery above.
+func (thisServer *server) generateScanRowFunc(model IBusinessObjectModel, extraImports map[string]bool) string {
+	varName := core.PascalToCamel(string(model.getName()))
+	pkg := model.getPackage()
+
+	var declarations []string
+	var scanTargets []string
+	var assignments []string
+
+	for _, prop := range model.getPersistedProperties() {
+		if prop.GetName() == boFieldPreID {
+			continue
+		}
+
+		if prop.GetName() == BoFieldID {
+			declarations = append(declarations, "id int64")
+			scanTargets = append(scanTargets, "&id")
+			assignments = append(assignments, fmt.Sprintf("%s.ID = goald.BObjID(id)", varName))
+			continue
+		}
+
+		fieldName := prop.GetName()
+		propVarName := core.PascalToCamel(fieldName)
+
+		if relationship, ok := prop.(*Relationship); ok {
+			idVar := propVarName + "ID"
+			declarations = append(declarations, fmt.Sprintf("%s sql.NullInt64", idVar))
+			scanTargets = append(scanTargets, "&"+idVar)
+
+			if relationship.IsPolymorphic() {
+				mdlVar := propVarName + "Mdl"
+				declarations = append(declarations, fmt.Sprintf("%s sql.NullString", mdlVar))
+				scanTargets = append(scanTargets, "&"+mdlVar)
+
+				targetTypeExpr := getRelationshipFieldType(model.getType(), fieldName, extraImports)
+				assignments = append(assignments, fmt.Sprintf(
+					"if %[1]s.Valid && %[2]s.Valid {\n\t\t%[3]s.%[4]s = goald.NewBusinessObject(%[2]s.String, %[1]s.Int64).(%[5]s)\n\t}",
+					idVar, mdlVar, varName, fieldName, targetTypeExpr))
+			} else {
+				targetTypeExpr := strings.TrimPrefix(getRelationshipFieldType(model.getType(), fieldName, extraImports), "*")
+				assignments = append(assignments, fmt.Sprintf(
+					"if %[1]s.Valid {\n\t\t%[2]s.%[3]s = &%[4]s{}\n\t\t%[2]s.%[3]s.ID = goald.BObjID(%[1]s.Int64)\n\t}",
+					idVar, varName, fieldName, targetTypeExpr))
+			}
+
+			continue
+		}
+
+		switch prop.getPropertyType() {
+		case propertyTypeBOOL:
+			declarations = append(declarations, propVarName+" bool")
+			scanTargets = append(scanTargets, "&"+propVarName)
+			assignments = append(assignments, fmt.Sprintf("%s.%s = %s", varName, fieldName, propVarName))
+
+		case propertyTypeSTRING:
+			declarations = append(declarations, propVarName+" string")
+			scanTargets = append(scanTargets, "&"+propVarName)
+			assignments = append(assignments, fmt.Sprintf("%s.%s = %s", varName, fieldName, propVarName))
+
+		case propertyTypeINT:
+			declarations = append(declarations, propVarName+" int")
+			scanTargets = append(scanTargets, "&"+propVarName)
+			assignments = append(assignments, fmt.Sprintf("%s.%s = %s", varName, fieldName, propVarName))
+
+		case propertyTypeBIGINT:
+			declarations = append(declarations, propVarName+" int64")
+			scanTargets = append(scanTargets, "&"+propVarName)
+			assignments = append(assignments, fmt.Sprintf("%s.%s = %s", varName, fieldName, propVarName))
+
+		case propertyTypeREAL:
+			declarations = append(declarations, propVarName+" float32")
+			scanTargets = append(scanTargets, "&"+propVarName)
+			assignments = append(assignments, fmt.Sprintf("%s.%s = %s", varName, fieldName, propVarName))
+
+		case propertyTypeDOUBLE:
+			declarations = append(declarations, propVarName+" float64")
+			scanTargets = append(scanTargets, "&"+propVarName)
+			assignments = append(assignments, fmt.Sprintf("%s.%s = %s", varName, fieldName, propVarName))
+
+		case propertyTypeDATE:
+			declarations = append(declarations, propVarName+" sql.NullTime")
+			scanTargets = append(scanTargets, "&"+propVarName)
+			assignments = append(assignments, fmt.Sprintf("if %[1]s.Valid {\n\t\t%[2]s.%[3]s = &%[1]s.Time\n\t}", propVarName, varName, fieldName))
+
+		case propertyTypeENUM:
+			enumTypeExpr := getNonBuiltInFieldType(model.getType(), fieldName, extraImports)
+			declarations = append(declarations, propVarName+" int")
+			scanTargets = append(scanTargets, "&"+propVarName)
+			assignments = append(assignments, fmt.Sprintf("%s.%s = %s(%s)", varName, fieldName, enumTypeExpr, propVarName))
+		}
+	}
+
+	return fmt.Sprintf(`// scan%[1]sRow instantiates and fills in one %[1]s from the current row
+func scan%[1]sRow(rows *sql.Rows) (goald.IBusinessObject, error) {
+	var (
+		%[3]s
+	)
+
+	if errScan := rows.Scan(
+		%[4]s); errScan != nil {
+		return nil, errScan
+	}
+
+	%[2]s := &%[5]s.%[1]s{}
+	%[6]s
+
+	return %[2]s, nil
+}`,
+		model.getName(),                      // 1
+		varName,                              // 2
+		strings.Join(declarations, "\n\t\t"), // 3
+		strings.Join(scanTargets, ",\n\t\t"), // 4
+		pkg,                                  // 5
+		strings.Join(assignments, "\n\t"),    // 6
 	)
 }
 

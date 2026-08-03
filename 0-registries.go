@@ -94,10 +94,9 @@ func getSortedEndpointList() []iEndpoint {
 	sort.Slice(restRegistry.endpoints, func(i, j int) bool {
 		epI := restRegistry.endpoints[i]
 		epJ := restRegistry.endpoints[j]
-		if epI.getPathAsString() != epJ.getPathAsString() {
-			return epI.getPathAsString() < epJ.getPathAsString()
+		if epI.getOperationPath(false) != epJ.getOperationPath(false) {
+			return epI.getOperationPath(false) < epJ.getOperationPath(false)
 		}
-
 		return epI.getMethod() < epJ.getMethod()
 	})
 
@@ -223,4 +222,35 @@ func newDaoFor(modelName utils.ModelName) IBusinessObjectDAO {
 
 	// a DAO is somehow its own factory
 	return dao.NewDAO()
+}
+
+// ------------------------------------------------------------------------------------------------
+// Queries registry
+// ------------------------------------------------------------------------------------------------
+
+type queryName string
+
+// QueryName is the exported alias of queryName, letting DAOs implemented outside of this package (e.g.
+// generated DAOs living in an application's own module) reference this type when implementing
+// [IBusinessObjectDAO]'s ExecSelectQuery method.
+type QueryName = queryName
+
+var queryRegistry = &struct {
+	queries map[queryName]IQuery    // all the queries registered in the system, mapped by their name
+	counter map[utils.ModelName]int // a counter for each model, to generate unique query names
+	mx      sync.Mutex
+}{
+	queries: map[queryName]IQuery{},
+	counter: map[utils.ModelName]int{},
+}
+
+func registerQuery(query IQuery) IQuery {
+	queryRegistry.mx.Lock()
+	currentCount := queryRegistry.counter[query.getModel().getName()]
+	currentCount++
+	queryName := queryName(fmt.Sprintf("QueryFor%s%d", query.getModel().getName(), currentCount))
+	queryRegistry.queries[queryName] = query.withName(queryName)
+	queryRegistry.counter[query.getModel().getName()] = currentCount
+	queryRegistry.mx.Unlock()
+	return query
 }

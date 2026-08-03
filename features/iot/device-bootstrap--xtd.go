@@ -91,6 +91,9 @@ func (bo *DeviceBootstrap) GetMultipleRelationshipValue(relationshipName string)
 
 // checking a business object's general validity, without using reflection
 func (bo *DeviceBootstrap) IsModelValid() error {
+	if _, isLegitValue := bo.Status.Values()[bo.Status.Val()]; !isLegitValue {
+		return goald.Error("Invalid value '%d' for 'DeviceBootstrap.Status'", bo.Status.Val())
+	}
 
 	return nil
 }

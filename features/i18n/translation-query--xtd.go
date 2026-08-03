@@ -6,13 +6,13 @@ import (
 	"github.com/aldesgroup/goald/features/utils"
 )
 
-// getting the name of the model for a TranslationUrlParams, without using reflection
-func (bo *TranslationUrlParams) GetModelName() utils.ModelName {
-	return "TranslationUrlParams"
+// getting the name of the model for a TranslationQuery, without using reflection
+func (bo *TranslationQuery) GetModelName() utils.ModelName {
+	return "TranslationQuery"
 }
 
 // getting a property's value as a string, without using reflection
-func (bo *TranslationUrlParams) GetValueAsString(propertyName string) string {
+func (bo *TranslationQuery) GetValueAsString(propertyName string) string {
 	switch propertyName {
 	case "Key":
 		return bo.Key
@@ -24,7 +24,7 @@ func (bo *TranslationUrlParams) GetValueAsString(propertyName string) string {
 }
 
 // setting a property's value with a given string value, without using reflection
-func (bo *TranslationUrlParams) SetValueAsString(propertyName string, valueAsString string) error {
+func (bo *TranslationQuery) SetValueAsString(propertyName string, valueAsString string) error {
 	switch propertyName {
 	case "Key":
 		bo.Key = valueAsString
@@ -36,7 +36,7 @@ func (bo *TranslationUrlParams) SetValueAsString(propertyName string, valueAsStr
 }
 
 // setting a single-valued relationship's target, given the relationship's name, without using reflection
-func (bo *TranslationUrlParams) SetRelationshipValue(relationshipName string, value goald.IBusinessObject) error {
+func (bo *TranslationQuery) SetRelationshipValue(relationshipName string, value goald.IBusinessObject) error {
 	switch relationshipName {
 
 	}
@@ -45,7 +45,7 @@ func (bo *TranslationUrlParams) SetRelationshipValue(relationshipName string, va
 }
 
 // appending a target to a multi-valued relationship, given the relationship's name, without using reflection
-func (bo *TranslationUrlParams) AddRelationshipValue(relationshipName string, value goald.IBusinessObject) error {
+func (bo *TranslationQuery) AddRelationshipValue(relationshipName string, value goald.IBusinessObject) error {
 	switch relationshipName {
 
 	}
@@ -54,7 +54,7 @@ func (bo *TranslationUrlParams) AddRelationshipValue(relationshipName string, va
 }
 
 // resetting a multi-valued relationship to an empty slice, given the relationship's name, without using reflection
-func (bo *TranslationUrlParams) ClearRelationshipValue(relationshipName string) error {
+func (bo *TranslationQuery) ClearRelationshipValue(relationshipName string) error {
 	switch relationshipName {
 
 	}
@@ -63,7 +63,7 @@ func (bo *TranslationUrlParams) ClearRelationshipValue(relationshipName string) 
 }
 
 // getting a multi-valued relationship's targets, given the relationship's name, without using reflection
-func (bo *TranslationUrlParams) GetMultipleRelationshipValue(relationshipName string) ([]goald.IBusinessObject, error) {
+func (bo *TranslationQuery) GetMultipleRelationshipValue(relationshipName string) ([]goald.IBusinessObject, error) {
 	switch relationshipName {
 
 	}
@@ -72,11 +72,11 @@ func (bo *TranslationUrlParams) GetMultipleRelationshipValue(relationshipName st
 }
 
 // checking a business object's general validity, without using reflection
-func (bo *TranslationUrlParams) IsModelValid() error {
+func (bo *TranslationQuery) IsModelValid() error {
 
 	return nil
 }
 
 // removing any cycles from the business object, without using reflection
-func (bo *TranslationUrlParams) RemoveCycles() {
+func (bo *TranslationQuery) RemoveCycles() {
 }

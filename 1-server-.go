@@ -133,19 +133,19 @@ func (thisServer *server) initRoutes() {
 	thisServer.router = httprouter.New()
 	thisServer.router.RedirectTrailingSlash = false
 
-	// serving the API doc
-	thisServer.Info("Serving: GET /doc/api")
-	thisServer.router.Handle(http.MethodGet, "/doc/api", serveDocForAPI)
-
 	// locally, we also serve the API doc from the root path, for easier access
 	if thisServer.IsLocal() {
-		thisServer.Info("Serving: GET /")
+		thisServer.Info("Serving:  GET /")
 		thisServer.router.Handle(http.MethodGet, "/", serveDocForAPI)
 	}
 
+	// serving the API doc
+	thisServer.Info("Serving:  GET /doc/api")
+	thisServer.router.Handle(http.MethodGet, "/doc/api", serveDocForAPI)
+
 	// configuring & adding the REST API endpoints - should we have to serve an API
-	for _, endpoint := range restRegistry.endpoints {
-		thisServer.Info(fmt.Sprintf("Serving: %s", endpoint.getPathAsString()))
+	for _, endpoint := range getSortedEndpointList() {
+		thisServer.Info(fmt.Sprintf("Serving: %s", core.PadLeft(endpoint.getMethod(), 4, " ")+" "+endpoint.getOperationPath(true)))
 		thisServer.router.Handle(endpoint.getMethod(), endpoint.getOperationPath(true), thisServer.handleFor(endpoint))
 	}
 }

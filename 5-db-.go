@@ -111,8 +111,8 @@ func logSQL(logger logging.ILogger, db *DB, start time.Time, m mask, query strin
 			}
 		}
 		logger.Debug(
-			core.Elude(fmt.Sprintf("Run from '%s' in %s: "+strings.Join(strings.Fields(query), " "), db.name, time.Since(start)), 250) +
-				core.Elude(fmt.Sprintf(", with args: %+v", loggedArgs), 250),
+			core.Elude(fmt.Sprintf("Run from '%s' in %s: "+strings.Join(strings.Fields(query), " "), db.name, time.Since(start)), 500) +
+				core.Elude(fmt.Sprintf(", with args: %+v", loggedArgs), 500),
 		)
 	}
 }

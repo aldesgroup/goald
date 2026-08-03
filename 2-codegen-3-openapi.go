@@ -442,7 +442,7 @@ func schemaFromModel(doc *openapi3.T, model IBusinessObjectModel) *openapi3.Sche
 	return schema
 }
 
-// building URL parameters from the given business object model that's associated with a URLQueryParams-derived BO
+// building URL parameters from the given business object model that's associated with a QueryParamsObject-derived BO
 func paramsFromModel(model IBusinessObjectModel, path string) (openapi3.Parameters, error) {
 	// pathVars := extractPathVars(path)
 	var out openapi3.Parameters
@@ -450,11 +450,10 @@ func paramsFromModel(model IBusinessObjectModel, path string) (openapi3.Paramete
 	for _, field := range core.GetSortedValues(model.getFields()) {
 		schema := schemaFromPrimitiveType(field, true)
 		parameter := &openapi3.Parameter{
-			Name:        field.GetName(),
-			In:          "query",
-			Required:    field.isMandatoryInput(),
-			Schema:      schema,
-			Description: "URL query Parameter: " + schema.Value.Description,
+			Name:     field.GetName(),
+			In:       "query",
+			Required: field.isMandatoryInput(),
+			Schema:   schema,
 		}
 
 		out = append(out, &openapi3.ParameterRef{Value: parameter})

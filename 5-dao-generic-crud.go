@@ -14,7 +14,7 @@ func dbInsert(dao IBusinessObjectDAO, bObjs ...IBusinessObject) error {
 	for _, bObj := range bObjs {
 		if bObj.GetID() > 0 {
 			return Error("Can not insert a business object '%s' that already has an ID", bObj.GetModelName())
-		} //
+		}
 	}
 
 	// executing the insert request, which should result in all the BOs getting an ID
@@ -36,6 +36,17 @@ func dbInsert(dao IBusinessObjectDAO, bObjs ...IBusinessObject) error {
 
 	// yeah, we dit it!
 	return nil
+}
+
+// Generic function to select business objects from the database
+func dbSelect(dao IBusinessObjectDAO, queryName queryName, values IQueryParamsObject) (result []IBusinessObject, err error) {
+	// calling the right DAO method
+	bObjs, errSelect := dao.ExecSelectQuery(queryName, values)
+	if errSelect != nil {
+		return nil, ErrorC(errSelect, "Error while performing select query '%s' for '%s'", queryName, dao.getModel().getName())
+	}
+
+	return bObjs, nil
 }
 
 // func dbLoadList(_ DaoContext, model IBusinessObjectModel) (result []IBusinessObject, err error) {

@@ -234,6 +234,7 @@ func buildUtilsValueCases(model IBusinessObjectModel, importsMap map[string]bool
 
 				case propertyTypeDATE:
 					getCase += newline + fmt.Sprintf("\t\treturn core.DateToString(bo.%s)", fieldName)
+					importUtils = true
 					setCase += newline + fmt.Sprintf("\t\tbo.%s = core.StringToDate(valueAsString, \"%s\")", fieldName, fieldName)
 
 				case propertyTypeENUM:
@@ -364,6 +365,12 @@ func buildUtilsModelChecks(model IBusinessObjectModel, importsMap map[string]boo
 			checks = append(checks, check)
 		}
 		if check := buildFloatRangeChecks(field); check != "" {
+			checks = append(checks, check)
+		}
+		if check := buildEnumValueChecks(field); check != "" {
+			checks = append(checks, check)
+		}
+		if check := buildEqualLenChecks(field); check != "" {
 			checks = append(checks, check)
 		}
 	}
