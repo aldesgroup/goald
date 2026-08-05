@@ -150,8 +150,8 @@ func (thisServer *server) generateOneModel(modelDir string, source IBusinessObje
 	context := &modelGenerationContext{propertiesMap: map[string]modelGenPropertyInfo{}}
 
 	// trivial filling of the template
-	content := strings.ReplaceAll(modelTEMPLATE, "$$Upper$$", string(source.getName()))
-	content = strings.ReplaceAll(content, "$$lower$$", core.PascalToCamel(string(source.getName())))
+	content := strings.ReplaceAll(modelTEMPLATE, "$$Upper$$", string(source.GetName()))
+	content = strings.ReplaceAll(content, "$$lower$$", core.PascalToCamel(string(source.GetName())))
 
 	// declaring the properties of the model, wether they are fields or relationships
 	imports := map[string]string{}
@@ -172,9 +172,9 @@ func (thisServer *server) generateOneModel(modelDir string, source IBusinessObje
 	}
 
 	// writing to file
-	core.WriteToFile(content, modelDir, core.PascalToKebab(string(source.getName()))+modelFILExSUFFIX)
+	core.WriteToFile(content, modelDir, core.PascalToKebab(string(source.GetName()))+modelFILExSUFFIX)
 
-	thisServer.Info(fmt.Sprintf("(Re-)generated model %s", source.getName()))
+	thisServer.Info(fmt.Sprintf("(Re-)generated model %s", source.GetName()))
 }
 
 // this function helps declare 1 property (field or relationship) in the declaration of the model type
@@ -186,13 +186,13 @@ func buildPropDecl(source IBusinessObjectModelSource, context *modelGenerationCo
 	superModelField := bObjType.Field(0)
 	if !superModelField.IsAnonymous() || !reflection.PointerTo(superModelField.Type()).Implements(typeIxBUSINESSxOBJECT) {
 		core.PanicMsg("%s: this object's first property should be the BO it inherits from, i.e."+
-			"goald.BusinessObject, or one of its descendants", source.getName())
+			"goald.BusinessObject, or one of its descendants", source.GetName())
 	}
 
 	if context.superType = superModelField.Type(); context.superType.Equals(typeBUSINESSxOBJECT) {
 		result += "g.IBusinessObjectModel"
-	} else if context.superType.Equals(typeQUERYxOBJECT) {
-		result += "g.IQueryParamsObjectModel"
+	} else if context.superType.Equals(typeSEARCHxPARAMxVALUES) {
+		result += "g.ISearchParamValuesModel"
 	} else {
 		result += "" + getImportPkg(imports, source, superModelField.Type().Name()) +
 			superModelField.Type().Name() + modelNAMExSUFFIX
@@ -268,12 +268,12 @@ func getFieldForType(propertyType propertyType) string {
 // This function builds the line that helps initialise a model instance, for 1 property
 func buildPropInit(source IBusinessObjectModelSource, context *modelGenerationContext, imports map[string]string) string {
 	// dealing with the model initialisation
-	modelInit := "thisModel := &" + string(source.getName()) + modelNAMExSUFFIX + "{%s: %s}"
+	modelInit := "thisModel := &" + string(source.GetName()) + modelNAMExSUFFIX + "{%s: %s}"
 	superModelDecl := "IBusinessObjectModel"
 	superModelValue := "g.NewBusinessObjectModel()"
-	if context.superType.Equals(typeQUERYxOBJECT) {
-		superModelDecl = "IQueryParamsObjectModel"
-		superModelValue = "g.NewQueryParamsObjectModel()"
+	if context.superType.Equals(typeSEARCHxPARAMxVALUES) {
+		superModelDecl = "ISearchParamValuesModel"
+		superModelValue = "g.NewSearchParamValuesModel()"
 	} else if !context.superType.Equals(typeBUSINESSxOBJECT) {
 		superModelDecl = context.superType.Name() + modelNAMExSUFFIX
 		superModelValue = "*" + getImportPkg(imports, source, context.superType.Name()) + "New" + context.superType.Name() + "Model()"
@@ -295,17 +295,17 @@ func buildPropInit(source IBusinessObjectModelSource, context *modelGenerationCo
 
 		if propInfo.propType == propertyTypeRELATIONSHIPxMONOM {
 			propLine += fmt.Sprintf("g.AddRelationship(%s, \"%s\", \"%s\", %s, \"%s\")",
-				"thisModel", source.getName(), propName, multiple, propInfo.targetType)
+				"thisModel", source.GetName(), propName, multiple, propInfo.targetType)
 		} else if propInfo.propType == propertyTypeRELATIONSHIPxPOLYM {
 			propLine += fmt.Sprintf("g.AddPolyRelationship(%s, \"%s\", \"%s\", %s)",
-				"thisModel", source.getName(), propName, multiple)
+				"thisModel", source.GetName(), propName, multiple)
 		} else {
 			if propInfo.propType == propertyTypeENUM {
 				propLine += fmt.Sprintf("g.Add%s(%s, \"%s\", \"%s\", %s, %s)",
-					getFieldForType(propInfo.propType), "thisModel", source.getName(), propName, multiple, "\""+propInfo.targetType+"\"")
+					getFieldForType(propInfo.propType), "thisModel", source.GetName(), propName, multiple, "\""+propInfo.targetType+"\"")
 			} else {
 				propLine += fmt.Sprintf("g.Add%s(%s, \"%s\", \"%s\", %s)",
-					getFieldForType(propInfo.propType), "thisModel", source.getName(), propName, multiple)
+					getFieldForType(propInfo.propType), "thisModel", source.GetName(), propName, multiple)
 			}
 		}
 
@@ -339,7 +339,7 @@ func buildAccessors(source IBusinessObjectModelSource, context *modelGenerationC
 	// generating 1 accessor per property
 	for _, propName := range context.propertyNames {
 		propInfo := context.propertiesMap[propName]
-		ownerName := source.getName()
+		ownerName := source.GetName()
 		ownerShort := ownerName[:1]
 		accType := getFieldForType(propInfo.propType)
 		if propInfo.propType.IsRelationship() {

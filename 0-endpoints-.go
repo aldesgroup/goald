@@ -372,11 +372,11 @@ func PostManyGetMany[InputType, ResourceType IBusinessObject](
 	return handleManyForMany(http.MethodPost, handlerFunc, loadingType)
 }
 
-// Declaring an endpoint to return N BO instance from query parameters that are described with 1 QueryParamsObject
-func GetManyWithParams[ResourceType IBusinessObject, QueryParamsObjectType IQueryParamsObject](
-	handlerFunc func(webCtx WebContext, QueryParamsObject QueryParamsObjectType) ([]ResourceType, hstatus.Code, string),
+// Declaring an endpoint to return N BO instance from query parameters that are described with 1 SearchParamValues
+func GetManyWithParams[ResourceType IBusinessObject, SearchParamValuesType ISearchParamValues](
+	handlerFunc func(webCtx WebContext, SearchParamValues SearchParamValuesType) ([]ResourceType, hstatus.Code, string),
 	loadingType LoadingType,
-) *manyForOneEndpoint[QueryParamsObjectType, ResourceType] {
+) *manyForOneEndpoint[SearchParamValuesType, ResourceType] {
 
 	return handleManyForOne(http.MethodGet, handlerFunc, loadingType, false)
 }

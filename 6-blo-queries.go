@@ -7,35 +7,94 @@ import (
 	core "github.com/aldesgroup/corego"
 )
 
+// ------------------------------------------------------------------------------------------------
+// Business objects for containing search parameter values, which are involved in queries
+// ------------------------------------------------------------------------------------------------
+
+// particular business object used for containing search parameter values
+type ISearchParamValues interface {
+	IBusinessObject
+	DoBeforeSearch(bloCtx BloContext) error
+}
+
+// model associated with it
+type ISearchParamValuesModel interface {
+	IBusinessObjectModel
+}
+
+// constructor for this model
+func NewSearchParamValuesModel() ISearchParamValuesModel {
+	model := &struct {
+		businessObjectModel
+	}{
+		businessObjectModel: businessObjectModel{
+			fields:        map[string]IField{},
+			relationships: map[string]*Relationship{},
+			inNoDB:        true,
+		},
+	}
+
+	return model
+}
+
+// default implem for ISearchParamValues
+type SearchParamValues struct {
+	BusinessObject
+}
+
+// default implem
+func (this *SearchParamValues) DoBeforeSearch(bloCtx BloContext) error {
+	// default implementation does nothing
+	return nil
+}
+
 // ----------------------------------------------------------------------------
-// Query definition
+// Query & clause definition
 // ----------------------------------------------------------------------------
 
 type IQuery interface {
 	ToString(pretty bool) string
-	getModel() IBusinessObjectModel
+	getSearchedObjectsModel() IBusinessObjectModel
+	getQueryParamsModel() IBusinessObjectModel
 	withName(queryName queryName) IQuery
 	getName() queryName
-	Where(whereClause ...*clause) IQuery
+	getWhere() IClause
+}
+
+type IClause interface {
+	isValid(forQuery IQuery) error
+	ToString(pretty bool, indentation ...string) string
+	GetSubClauses() []IClause
+	GetType() clauseType
+	Or(clauses ...IClause) IClause
 }
 
 // implementation
-type query struct {
-	model IBusinessObjectModel
-	name  queryName
-	where []*clause
+type query[SEARCHEDBOS IBusinessObject, QUERYPARAMVALUES ISearchParamValues] struct {
+	searchedObjectsModel IBusinessObjectModel
+	queryParamsModel     IBusinessObjectModel
+	name                 queryName
+	where                IClause // combines every clause passed to Where(...) into a single AND-ed clause tree
 }
 
-func (q *query) getModel() IBusinessObjectModel {
-	return q.model
+func (q *query[SEARCHEDBOS, QUERYPARAMVALUES]) getWhere() IClause {
+	return q.where
 }
 
-func (q *query) withName(queryName queryName) IQuery {
+func (q *query[SEARCHEDBOS, QUERYPARAMVALUES]) getSearchedObjectsModel() IBusinessObjectModel {
+	return q.searchedObjectsModel
+}
+
+func (q *query[SEARCHEDBOS, QUERYPARAMVALUES]) getQueryParamsModel() IBusinessObjectModel {
+	return q.queryParamsModel
+}
+
+func (q *query[SEARCHEDBOS, QUERYPARAMVALUES]) withName(queryName queryName) IQuery {
 	q.name = queryName
 	return q
 }
 
-func (q *query) getName() queryName {
+func (q *query[SEARCHEDBOS, QUERYPARAMVALUES]) getName() queryName {
 	return q.name
 }
 
@@ -43,15 +102,37 @@ func (q *query) getName() queryName {
 // Query creation & registration
 // ----------------------------------------------------------------------------
 
-func Find(model IBusinessObjectModel) IQuery {
-	return registerQuery(&query{model: model})
+func Find[SEARCHEDBOS IBusinessObject, QUERYPARAMVALUES ISearchParamValues](queryName ...queryName) *query[SEARCHEDBOS, QUERYPARAMVALUES] {
+	searchedObjectsModel := modelFor((*new(SEARCHEDBOS)).GetModelName())
+	queryParamsModel := modelFor((*new(QUERYPARAMVALUES)).GetModelName())
+	q := &query[SEARCHEDBOS, QUERYPARAMVALUES]{searchedObjectsModel: searchedObjectsModel, queryParamsModel: queryParamsModel}
+	registerQuery(q, queryName...)
+	return q
 }
 
 // ----------------------------------------------------------------------------
 // "WHERE" clause building
 // ----------------------------------------------------------------------------
-func (q *query) Where(whereClause ...*clause) IQuery {
-	q.where = whereClause
+
+func (q *query[SEARCHEDBOS, QUERYPARAMVALUES]) Where(whereClause ...IClause) *query[SEARCHEDBOS, QUERYPARAMVALUES] {
+	if len(whereClause) == 0 {
+		return q
+	}
+
+	// combining all the variadic clauses given here with an implicit AND,
+	// consistent with how Either(...)'s own variadic clauses are AND-ed
+	combined := Either(whereClause...)
+
+	if err := combined.isValid(q); err != nil {
+		core.PanicMsg("Invalid clause for query '%s': %v", q.getName(), err)
+	}
+
+	if q.where == nil {
+		q.where = combined
+	} else {
+		q.where = Either(q.where, combined)
+	}
+
 	return q
 }
 
@@ -73,40 +154,8 @@ type clause struct {
 	ctype      clauseType
 	left       IBusinessObjectProperty
 	right      IBusinessObjectProperty
-	subClauses []*clause
+	subClauses []IClause
 	values     []IEnum
-}
-
-// ----------------------------------------------------------------------------
-// Elemental clause building
-// ----------------------------------------------------------------------------
-
-func (prop *businessObjectProperty) Equals(queryProp IBusinessObjectProperty) *clause {
-	return &clause{left: prop, right: queryProp, ctype: clauseTypeEQUALS}
-}
-
-func (prop *businessObjectProperty) NotEquals(queryProp IBusinessObjectProperty) *clause {
-	return &clause{left: prop, right: queryProp, ctype: clauseTypeNOT_EQUALS}
-}
-
-func (prop *businessObjectProperty) LessThan(queryProp IBusinessObjectProperty) *clause {
-	return &clause{left: prop, right: queryProp, ctype: clauseTypeLESS_THAN}
-}
-
-func (prop *businessObjectProperty) GreaterThan(queryProp IBusinessObjectProperty) *clause {
-	return &clause{left: prop, right: queryProp, ctype: clauseTypeGREATER_THAN}
-}
-
-func (prop *businessObjectProperty) LessThanOrEqual(queryProp IBusinessObjectProperty) *clause {
-	return &clause{left: prop, right: queryProp, ctype: clauseTypeLESS_THAN_OR_EQUAL}
-}
-
-func (prop *businessObjectProperty) GreaterThanOrEqual(queryProp IBusinessObjectProperty) *clause {
-	return &clause{left: prop, right: queryProp, ctype: clauseTypeGREATER_THAN_OR_EQUAL}
-}
-
-func (prop *EnumField) In(values ...IEnum) *clause {
-	return &clause{left: prop, values: values, ctype: clauseTypeIN}
 }
 
 // ----------------------------------------------------------------------------
@@ -115,7 +164,7 @@ func (prop *EnumField) In(values ...IEnum) *clause {
 
 // Either creates a clause that is true if ALL of the provided clauses are true. It is equivalent to an "AND" operation.
 // It's meant to be called with .Or() : Either(clause1 and clause2).Or(clause3 and clause4)
-func Either(clauses ...*clause) *clause {
+func Either(clauses ...IClause) IClause {
 	return &clause{
 		ctype:      clauseTypeAND,
 		subClauses: clauses,
@@ -124,16 +173,50 @@ func Either(clauses ...*clause) *clause {
 
 // Or creates a clause that is true if ANY of the provided clauses are true. It is equivalent to an "AND" operation.
 // It's meant to be called with Either() : Either(clause1 and clause2).Or(clause3 and clause4)
-func (thisClause *clause) Or(clauses ...*clause) *clause {
+func (thisClause *clause) Or(clauses ...IClause) IClause {
 	return &clause{
 		ctype:      clauseTypeOR,
-		subClauses: append([]*clause{thisClause}, Either(clauses...)),
+		subClauses: []IClause{thisClause, Either(clauses...)},
 	}
 }
 
+func (thisClause *clause) isValid(forQuery IQuery) error {
+	if len(thisClause.subClauses) == 0 {
+		if thisClause.left == nil {
+			return Error("Clause is invalid: left property is nil")
+		}
+		if thisClause.right == nil && len(thisClause.values) == 0 {
+			return Error("Clause is invalid: right property is nil and values are empty")
+		}
+		if thisClause.left.ownerModel().GetName() != forQuery.getSearchedObjectsModel().GetName() {
+			return Error("Clause is invalid: left property '%s' does not belong to the query's model '%s'", thisClause.left.GetName(), forQuery.getSearchedObjectsModel().GetName())
+		}
+		if thisClause.right != nil && thisClause.right.ownerModel().GetName() != forQuery.getQueryParamsModel().GetName() {
+			return Error("Clause is invalid: right property '%s' does not belong to the query's 'using' model '%s'", thisClause.right.GetName(), forQuery.getQueryParamsModel().GetName())
+		}
+		return nil
+	}
+
+	for _, subClause := range thisClause.subClauses {
+		if err := subClause.isValid(forQuery); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // ----------------------------------------------------------------------------
-// Utils
+// Clause methods
 // ----------------------------------------------------------------------------
+
+func (c *clause) GetSubClauses() []IClause {
+	return c.subClauses
+}
+
+func (c *clause) GetType() clauseType {
+	return c.ctype
+}
 
 func (c *clause) ToString(pretty bool, indentation ...string) string {
 
@@ -168,13 +251,58 @@ func (c *clause) ToString(pretty bool, indentation ...string) string {
 	}
 }
 
-func (q *query) ToString(pretty bool) string {
-	whereStrings := make([]string, len(q.where))
-	for i, whereClause := range q.where {
-		whereStrings[i] = whereClause.ToString(pretty, "  ")
+func (q *query[SEARCHEDBOS, QUERYPARAMVALUES]) ToString(pretty bool) string {
+	if q.where == nil {
+		return "Find(" + string(q.searchedObjectsModel.GetName()) + ").Where()"
 	}
-	if pretty {
-		return "Find(" + string(q.model.getName()) + ").Where(" + strings.Join(whereStrings, ",\n") + "\n)"
-	}
-	return "Find(" + string(q.model.getName()) + ").Where(" + strings.Join(whereStrings, ", ") + ")"
+	return "Find(" + string(q.searchedObjectsModel.GetName()) + ").Where(" + q.where.ToString(pretty, "  ") + ")"
+}
+
+// ----------------------------------------------------------------------------
+// Elemental clause building
+// ----------------------------------------------------------------------------
+
+func (prop *businessObjectProperty) Equals(queryProp IBusinessObjectProperty) IClause {
+	return &clause{left: prop, right: queryProp, ctype: clauseTypeEQUALS}
+}
+
+func (prop *businessObjectProperty) NotEquals(queryProp IBusinessObjectProperty) IClause {
+	return &clause{left: prop, right: queryProp, ctype: clauseTypeNOT_EQUALS}
+}
+
+func (prop *businessObjectProperty) LessThan(queryProp IBusinessObjectProperty) IClause {
+	return &clause{left: prop, right: queryProp, ctype: clauseTypeLESS_THAN}
+}
+
+func (prop *businessObjectProperty) GreaterThan(queryProp IBusinessObjectProperty) IClause {
+	return &clause{left: prop, right: queryProp, ctype: clauseTypeGREATER_THAN}
+}
+
+func (prop *businessObjectProperty) LessThanOrEqual(queryProp IBusinessObjectProperty) IClause {
+	return &clause{left: prop, right: queryProp, ctype: clauseTypeLESS_THAN_OR_EQUAL}
+}
+
+func (prop *businessObjectProperty) GreaterThanOrEqual(queryProp IBusinessObjectProperty) IClause {
+	return &clause{left: prop, right: queryProp, ctype: clauseTypeGREATER_THAN_OR_EQUAL}
+}
+
+func (prop *EnumField) In(values ...IEnum) IClause {
+	return &clause{left: prop, values: values, ctype: clauseTypeIN}
+}
+
+// ----------------------------------------------------------------------------
+// Mandatory clause builders
+// ----------------------------------------------------------------------------
+
+// Given these two models - one for the searched objects, the other for the search values - is there
+// a mandatory clause to enforce? If so, we should register it, and Goald will AND it to any query
+// that involves the first model, or models inheriting from it
+type MandatoryClauseBuilder func(searchedModel IBusinessObjectModel, searchValuesModel IBusinessObjectModel) IClause
+
+var mandatoryClauseBuilders []MandatoryClauseBuilder
+
+// RegisterMandatoryClauseBuilder lets an applicative library inject a rule that
+// automatically ANDs an extra clause into every query registered against a matching model
+func RegisterMandatoryClauseBuilder(builder MandatoryClauseBuilder) {
+	mandatoryClauseBuilders = append(mandatoryClauseBuilders, builder)
 }

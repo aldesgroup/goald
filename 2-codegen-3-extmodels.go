@@ -82,7 +82,7 @@ func (thisServer *server) generateExternalModel(destdir string, ep iEndpoint, us
 	boFields := core.GetSortedValues(boModel.getFields())
 
 	// the file we're dealing with
-	modelName := core.PascalToCamel(string(boModel.getName()))
+	modelName := core.PascalToCamel(string(boModel.GetName()))
 	filename := modelName + ".ts"
 	filepath := path.Join(destdir, modelsDIRPATH, filename)
 

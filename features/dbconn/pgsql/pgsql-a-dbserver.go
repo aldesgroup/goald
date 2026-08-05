@@ -70,6 +70,16 @@ func (thisAdapter *dbAdapterPGSQL) CreateUserQuery(user dbconn.DbUserName, pass 
 	return fmt.Sprintf("CREATE USER \"%s\" WITH PASSWORD '%s'", user, pass)
 }
 
+// QueryPlaceholder implements [goald.iDBAdapter].
+func (thisAdapter *dbAdapterPGSQL) QueryPlaceholder() string {
+	return "$"
+}
+
+// QueryPlaceholderIndexed implements [goald.iDBAdapter].
+func (thisAdapter *dbAdapterPGSQL) QueryPlaceholderIndexed() bool {
+	return true
+}
+
 // ----------------------------------------------------------------------------
 // DB error parsing
 // ----------------------------------------------------------------------------

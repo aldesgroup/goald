@@ -37,8 +37,9 @@ type iDBAdapter interface {
 	DatabaseType() dbconn.DatabaseType                                                            // the type of DB this adapter is for - should match what's configured in aldev config
 	DriverName() string                                                                           // the name of the driver to use for this DB type
 	ConnectionString(dbConfig *dbconn.DbServerConfig, user dbconn.DbUserName, pass string) string // building the connection string for a given DB config and user/pass
-
-	SupportsReturningID() bool // tells whether INSERT statements can use a 'RETURNING' clause to get the new row's ID
+	SupportsReturningID() bool                                                                    // tells whether INSERT statements can use a 'RETURNING' clause to get the new row's ID
+	QueryPlaceholder() string                                                                     // the placeholder syntax to use in queries for this DB type, e.g. "$" for Postgres, "?" for MySQL, etc.
+	QueryPlaceholderIndexed() bool                                                                // tells whether the query placeholders are indexed, e.g. "$1", "$2", etc. for Postgres, or just "?" for MySQL
 
 	// DB server-related queries
 	SchemaExistsQuery() string                                  // checking if a given schema exists in the DB server

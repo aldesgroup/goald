@@ -53,6 +53,7 @@ type IBusinessObjectModel interface {
 	setUsedInNativeApp()
 	isUsedInWebApp() bool
 	setUsedInWebApp()
+	getIdField() *BigIntField
 
 	// utils
 	getPersistedProperties() []IBusinessObjectProperty
@@ -84,8 +85,7 @@ type businessObjectModel struct {
 	tableName                        string                               // if persisted, the name of the corresponding DB table - should be the same as the model name most of the time
 	persistedProperties              []IBusinessObjectProperty            // all the properties - fields or relationships - persisted on this model
 	uniqueCombinations               map[string][]IBusinessObjectProperty // a combination of properties that must be unique in the DB
-	idField                          IField                               // accessor to the ID field
-	preIDField                       IField                               // accessor to the pre-ID field
+	idField                          *BigIntField                         // accessor to the ID field
 	usedInNativeApp                  bool                                 // true if this model is used in the native app
 	usedInWebApp                     bool                                 // true if this model is used in the web app
 	boType                           *reflection.GoaldType                // the Go type associated with this BO model
@@ -108,10 +108,12 @@ func NewBusinessObjectModel() IBusinessObjectModel {
 
 	// adding the generic fields
 	model.idField = AddBigIntField(model, "BusinessObject", BoFieldID, false)
-	model.preIDField = AddIntField(model, "BusinessObject", boFieldPreID, false)
+	preIDField := AddIntField(model, "BusinessObject", boFieldPreID, false)
+	creationField := AddDateField(model, "BusinessObject", "Creation", false)
 
 	// some tweaking
-	model.preIDField.setTechnical()
+	preIDField.setTechnical()
+	creationField.SetRequiredInDb()
 
 	return model
 }
@@ -169,7 +171,7 @@ func (boModel *businessObjectModel) SetAutoCRUD() {
 // Generic implementation with private methods
 // ------------------------------------------------------------------------------------------------
 
-func (boModel *businessObjectModel) getName() utils.ModelName {
+func (boModel *businessObjectModel) GetName() utils.ModelName {
 	return boModel.name
 }
 
@@ -196,7 +198,7 @@ func (boModel *businessObjectModel) isPersisted() bool {
 func (boModel *businessObjectModel) isPersistedHere() bool {
 	// a bit of control here
 	if boModel.isPersisted() && boModel.db == nil {
-		core.PanicMsg("Model '%s' should be SetNotPersisted, SetAbstract, or associated with a DB", boModel.getName())
+		core.PanicMsg("Model '%s' should be SetNotPersisted, SetAbstract, or associated with a DB", boModel.GetName())
 	}
 
 	return boModel.isPersisted() && boModel.db.schema != nil
@@ -271,6 +273,10 @@ func (boModel *businessObjectModel) isUsedInWebApp() bool {
 
 func (boModel *businessObjectModel) setUsedInWebApp() {
 	boModel.usedInWebApp = true
+}
+
+func (boModel *businessObjectModel) getIdField() *BigIntField {
+	return boModel.idField
 }
 
 // ------------------------------------------------------------------------------------------------

@@ -24,7 +24,7 @@ func buildRequiredRelationshipChecks(relationship *Relationship) []string {
 		checks := []string{
 			fmt.Sprintf(
 				"\tif len(bo.%s) == 0 {\n\t\treturn goald.Error(\"'%s' is required on '%s'\")\n\t}",
-				relName, relName, relationship.owner.getName()),
+				relName, relName, relationship.owner.GetName()),
 		}
 
 		loopBody := []string{
@@ -51,7 +51,7 @@ func buildRequiredRelationshipChecks(relationship *Relationship) []string {
 	checks := []string{
 		fmt.Sprintf(
 			"\tif bo.%s == nil {\n\t\treturn goald.Error(\"'%s' is required on '%s'\")\n\t}",
-			relName, relName, relationship.owner.getName()),
+			relName, relName, relationship.owner.GetName()),
 		fmt.Sprintf(
 			"\tif bo.%s.GetID() <= 0 {\n\t\treturn goald.Error(\"'%s' must reference an existing, persisted business object\")\n\t}",
 			relName, relName),
@@ -101,7 +101,7 @@ func zeroValueLiteral(propType propertyType) string {
 		return "\"\""
 	case propertyTypeINT, propertyTypeBIGINT, propertyTypeREAL, propertyTypeDOUBLE, propertyTypeENUM:
 		return "0"
-	case propertyTypeDATE:
+	case propertyTypeDATE, propertyTypeRELATIONSHIPxMONOM, propertyTypeRELATIONSHIPxPOLYM:
 		return "nil"
 	default:
 		return ""
@@ -263,7 +263,7 @@ func buildEnumValueChecks(field IField) string {
 
 	return fmt.Sprintf(
 		"\tif _, isLegitValue := bo.%[1]s.Values()[bo.%[1]s.Val()]; !isLegitValue {\n\t\treturn goald.Error(\"Invalid value '%%d' for '%[2]s.%[1]s'\", bo.%[1]s.Val())\n\t}",
-		fieldName, field.ownerModel().getName())
+		fieldName, field.ownerModel().GetName())
 }
 
 // removing this package's own qualification from a generated type expression (e.g. turning

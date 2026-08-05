@@ -9,7 +9,7 @@ import (
 
 // static, reflect-free access to the definition of the TranslationQuery model
 type TranslationQueryModel struct {
-	g.IQueryParamsObjectModel
+	g.ISearchParamValuesModel
 	namespace *g.StringField
 	key       *g.StringField
 }
@@ -27,7 +27,7 @@ var (
 
 // fully describing each of this model's properties & relationships
 func NewTranslationQueryModel() *TranslationQueryModel {
-	thisModel := &TranslationQueryModel{IQueryParamsObjectModel: g.NewQueryParamsObjectModel()}
+	thisModel := &TranslationQueryModel{ISearchParamValuesModel: g.NewSearchParamValuesModel()}
 	thisModel.namespace = g.AddStringField(thisModel, "TranslationQuery", "Namespace", false)
 	thisModel.key = g.AddStringField(thisModel, "TranslationQuery", "Key", false)
 

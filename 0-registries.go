@@ -65,7 +65,7 @@ func (m *sourceModuleRegitry) Register(source IBusinessObjectModelSource) *sourc
 	source.setModule(m.module)
 
 	// registering the business object type globally
-	sourceRegistry.items[source.getName()] = source
+	sourceRegistry.items[source.GetName()] = source
 
 	return m
 }
@@ -232,7 +232,7 @@ type queryName string
 
 // QueryName is the exported alias of queryName, letting DAOs implemented outside of this package (e.g.
 // generated DAOs living in an application's own module) reference this type when implementing
-// [IBusinessObjectDAO]'s ExecSelectQuery method.
+// [IBusinessObjectDAO]'s ExecSearchQuery method.
 type QueryName = queryName
 
 var queryRegistry = &struct {
@@ -244,13 +244,21 @@ var queryRegistry = &struct {
 	counter: map[utils.ModelName]int{},
 }
 
-func registerQuery(query IQuery) IQuery {
+func registerQuery(query IQuery, queryNames ...queryName) {
 	queryRegistry.mx.Lock()
-	currentCount := queryRegistry.counter[query.getModel().getName()]
-	currentCount++
-	queryName := queryName(fmt.Sprintf("QueryFor%s%d", query.getModel().getName(), currentCount))
-	queryRegistry.queries[queryName] = query.withName(queryName)
-	queryRegistry.counter[query.getModel().getName()] = currentCount
+
+	var qName queryName
+	if len(queryNames) == 1 {
+		qName = queryNames[0]
+	} else if len(queryNames) > 1 {
+		core.PanicMsg("Too many query names provided: %+v", queryNames)
+	} else {
+		currentCount := queryRegistry.counter[query.getSearchedObjectsModel().GetName()]
+		currentCount++
+		qName = queryName(fmt.Sprintf("SearchFor%s%d", query.getSearchedObjectsModel().GetName(), currentCount))
+		queryRegistry.counter[query.getSearchedObjectsModel().GetName()] = currentCount
+	}
+	queryRegistry.queries[qName] = query.withName(qName)
+
 	queryRegistry.mx.Unlock()
-	return query
 }

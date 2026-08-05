@@ -77,7 +77,7 @@ func (thisServer *server) isWebModelsChanged(docModified time.Time) bool {
 	// going over all the endpoints
 	for _, ep := range restRegistry.endpoints {
 		if ep.getResourceModel().getLastBOMod().After(docModified) {
-			thisServer.Info(fmt.Sprintf("Output model '%s' for endpoint '%s %s' has changed!", ep.getResourceModel(), ep.getMethod(), ep.getLabel()))
+			thisServer.Info(fmt.Sprintf("Output model '%s' for endpoint '%s %s' has changed!", ep.getResourceModel().GetName(), ep.getMethod(), ep.getLabel()))
 			return true
 		}
 		if inputModel := ep.getInputOrParamsModel(); inputModel != nil && inputModel.getLastBOMod().After(docModified) {
@@ -236,9 +236,9 @@ func addEndpointToDoc(doc *openapi3.T, ep iEndpoint) error {
 
 			var description string
 			if ep.isMultipleInput() {
-				description = fmt.Sprintf("An array of %s objects", inModel.getName())
+				description = fmt.Sprintf("An array of %s objects", inModel.GetName())
 			} else {
-				description = fmt.Sprintf("A %s object", inModel.getName())
+				description = fmt.Sprintf("A %s object", inModel.GetName())
 			}
 
 			op.RequestBody = &openapi3.RequestBodyRef{
@@ -341,12 +341,12 @@ func getSchemaRef(doc *openapi3.T, model IBusinessObjectModel) (*openapi3.Schema
 
 	// early caching of a new schema REF for the given model, to avoid cycles
 	ref := &openapi3.SchemaRef{
-		Ref: "#/components/schemas/" + string(model.getName()),
+		Ref: "#/components/schemas/" + string(model.GetName()),
 	}
 	schemaCache[model] = ref
 
 	// adding a schema (not juste a REF) for the given model to the doc's components
-	doc.Components.Schemas[string(model.getName())] = &openapi3.SchemaRef{Value: schemaFromModel(doc, model)}
+	doc.Components.Schemas[string(model.GetName())] = &openapi3.SchemaRef{Value: schemaFromModel(doc, model)}
 
 	return ref, nil
 }
@@ -394,7 +394,7 @@ func schemaFromModel(doc *openapi3.T, model IBusinessObjectModel) *openapi3.Sche
 			// getting the schema REF for the relationship target
 			prop, errRef := getSchemaRef(doc, modelFor(relationship.getUniqueTargetName(), true))
 			core.PanicMsgIfErr(errRef, "Error while getting schema ref for relationship '%s#%s'",
-				model.getName(), relationship.GetName())
+				model.GetName(), relationship.GetName())
 
 			// linking this relationship to the schema
 			if relationship.isPureOutput() {
@@ -421,13 +421,13 @@ func schemaFromModel(doc *openapi3.T, model IBusinessObjectModel) *openapi3.Sche
 			}
 
 			if len(relationship.getTargetModelNames()) == 0 {
-				core.PanicMsg("Polymorphic relationship '%s#%s' does not have any target model", model.getName(), relationship.GetName())
+				core.PanicMsg("Polymorphic relationship '%s#%s' does not have any target model", model.GetName(), relationship.GetName())
 			}
 
 			for _, targetName := range relationship.getTargetModelNames() {
 				prop, errRef := getSchemaRef(doc, modelFor(targetName, true))
 				core.PanicMsgIfErr(errRef, "Error while getting schema ref for relationship '%s#%s'",
-					model.getName(), relationship.GetName())
+					model.GetName(), relationship.GetName())
 				schema.Properties[relationshipJSONName].Value.OneOf = append(schema.Properties[relationshipJSONName].Value.OneOf, prop)
 			}
 
@@ -442,7 +442,7 @@ func schemaFromModel(doc *openapi3.T, model IBusinessObjectModel) *openapi3.Sche
 	return schema
 }
 
-// building URL parameters from the given business object model that's associated with a QueryParamsObject-derived BO
+// building URL parameters from the given business object model that's associated with a SearchParamValues-derived BO
 func paramsFromModel(model IBusinessObjectModel, path string) (openapi3.Parameters, error) {
 	// pathVars := extractPathVars(path)
 	var out openapi3.Parameters
@@ -474,7 +474,7 @@ func schemaFromPrimitiveType(field IField, addDesc bool) *openapi3.SchemaRef {
 	var description string
 	if addDesc {
 		if field.GetName() == BoFieldID {
-			description = "the unique identifier of the " + string(field.ownerModel().getName())
+			description = "the unique identifier of the " + string(field.ownerModel().GetName())
 		} else {
 			description = field.getTag("desc")
 		}

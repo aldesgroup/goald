@@ -148,7 +148,7 @@ func (thisServer *server) getSourceFromFile(srcdir, currentPath, boFileName stri
 }
 
 func (thisServer *server) getModelFromFile(srcdir, currentPath, boFileName string) IBusinessObjectModel {
-	return modelFor(thisServer.getSourceFromFile(srcdir, currentPath, boFileName).getName(), true)
+	return modelFor(thisServer.getSourceFromFile(srcdir, currentPath, boFileName).GetName(), true)
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -216,7 +216,7 @@ func (thisServer *server) genSourceFile(srcdir string, source *baseBusinessObjec
 			getCurrentSourceModule(), // 2
 			toImport,                 // 3
 			asInterface,              // 4
-			source.getName(),         // 5
+			source.GetName(),         // 5
 			path.Base(importPkg),     // 6
 		)
 		core.WriteToFile(content, sourceFilename)

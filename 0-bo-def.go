@@ -5,6 +5,7 @@ package goald
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/aldesgroup/goald/features/utils"
 )
@@ -17,6 +18,8 @@ type IBusinessObject interface {
 	// identification
 	GetID() BObjID
 	setID(BObjID)
+	GetCreation() *time.Time
+	setCreation(*time.Time)
 	GetPreID() int
 	setPreID(int)
 
@@ -49,9 +52,10 @@ type BObjID int64 // probably a UUID here
 
 type BusinessObject struct {
 	// properties common to all business objects
-	ID        BObjID          `json:"id,omitempty"  io:"o*" desc:"The unique identifier of this business object"`
-	ModelName utils.ModelName `json:"mdl,omitempty" io:"in" desc:"The name of the business object's model, sometimes used to resolve polymorphic relationships"`
-	preID     int             `json:"-"             io:"o*" desc:"A temporary identifier in Business Objects lists"`
+	ID        BObjID          `json:"id,omitempty"       io:"o*" desc:"The unique identifier of this business object"`
+	Creation  *time.Time      `json:"creation,omitempty" io:"o*" desc:"The creation timestamp of this business object"`
+	ModelName utils.ModelName `json:"mdl,omitempty"      io:"in" desc:"The name of the business object's model, sometimes used to resolve polymorphic relationships"`
+	preID     int             `json:"-"                  io:"o*" desc:"A temporary identifier in Business Objects lists"`
 
 	// technical stuff
 	model IBusinessObjectModel
@@ -60,10 +64,12 @@ type BusinessObject struct {
 var _ IBusinessObject = (*BusinessObject)(nil)
 
 // Basic accessors
-func (thisBO *BusinessObject) GetID() BObjID      { return thisBO.ID }
-func (thisBO *BusinessObject) setID(id BObjID)    { thisBO.ID = id }
-func (thisBO *BusinessObject) GetPreID() int      { return thisBO.preID }
-func (thisBO *BusinessObject) setPreID(preID int) { thisBO.preID = preID }
+func (thisBO *BusinessObject) GetID() BObjID                   { return thisBO.ID }
+func (thisBO *BusinessObject) setID(id BObjID)                 { thisBO.ID = id }
+func (thisBO *BusinessObject) GetCreation() *time.Time         { return thisBO.Creation }
+func (thisBO *BusinessObject) setCreation(creation *time.Time) { thisBO.Creation = creation }
+func (thisBO *BusinessObject) GetPreID() int                   { return thisBO.preID }
+func (thisBO *BusinessObject) setPreID(preID int)              { thisBO.preID = preID }
 
 // Triggers - default implems
 func (thisBO *BusinessObject) ChangeBeforeInsert(BloContext) error { return nil }

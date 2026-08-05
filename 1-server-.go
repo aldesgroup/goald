@@ -11,6 +11,7 @@ import (
 
 	core "github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald/features/logging"
+	"github.com/aldesgroup/goald/features/utils"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -228,6 +229,6 @@ func (thisServer *server) IsTransactionStarted() bool {
 }
 
 // DaoFor implements [BloContext].
-func (thisServer *server) daoFor(model IBusinessObjectModel) IBusinessObjectDAO {
+func (thisServer *server) daoFor(modelName utils.ModelName) IBusinessObjectDAO {
 	panic("unimplemented")
 }

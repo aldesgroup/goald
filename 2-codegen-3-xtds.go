@@ -148,7 +148,7 @@ func generateObjectXtdForModel(model IBusinessObjectModel, filepath string) {
 
 	// starting the content
 	content := strings.ReplaceAll(utilsFileTEMPLATE, "$$package$$", model.getPackage())
-	content = strings.ReplaceAll(content, "$$Upper$$", string(model.getName()))
+	content = strings.ReplaceAll(content, "$$Upper$$", string(model.GetName()))
 	content = strings.ReplaceAll(content, "$$getcases$$", strings.Join(getCases, newline))
 	content = strings.ReplaceAll(content, "$$setcases$$", strings.Join(setCases, newline))
 	content = strings.ReplaceAll(content, "$$setrelcases$$", strings.Join(setRelCases, newline))
@@ -270,7 +270,7 @@ func buildUtilsRelationshipCases(model IBusinessObjectModel, importsMap map[stri
 		relCase := fmt.Sprintf("\tcase \"%s\":", relName)
 		relCase += newline + fmt.Sprintf("\t\ttargetValue, ok := value.(%s)", targetType)
 		relCase += newline + "\t\tif !ok {"
-		relCase += newline + fmt.Sprintf("\t\t\treturn goald.Error(\"Expected a value of type '%s' for '%s.%s', got %%T\", value)", targetType, model.getName(), relName)
+		relCase += newline + fmt.Sprintf("\t\t\treturn goald.Error(\"Expected a value of type '%s' for '%s.%s', got %%T\", value)", targetType, model.GetName(), relName)
 		relCase += newline + "\t\t}"
 
 		if relationship.IsMultiple() {

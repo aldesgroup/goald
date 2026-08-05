@@ -255,10 +255,10 @@ func retrieveInputData(request *http.Request, webContext *webContextImpl, ep iEn
 	}
 }
 
-// parsing the request's URL to build the expected QueryParamsObject object
+// parsing the request's URL to build the expected SearchParamValues object
 func retrieveURLParams(request *http.Request, _ *webContextImpl, ep iEndpoint) (any, error) {
-	// new QueryParamsObject object
-	urlParams := ep.getInputOrParamsModel().NewObject().(IQueryParamsObject)
+	// new SearchParamValues object
+	urlParams := ep.getInputOrParamsModel().NewObject().(ISearchParamValues)
 
 	// transferring the URL param values from the URL to the object
 	for _, field := range urlParams.getModel(urlParams).getFields() {

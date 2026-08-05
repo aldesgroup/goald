@@ -73,16 +73,16 @@ func (thisServer *server) migrateDBs() {
 	for _, model := range modelRegistry.items {
 		if !model.isAbstract() && !model.isNotPersisted() {
 			if model.getDB() == nil {
-				core.PanicMsg("Model '%s' is persisted and yet it's not associated with a DB", model.getName())
+				core.PanicMsg("Model '%s' is persisted and yet it's not associated with a DB", model.GetName())
 			}
 			if model.getDB().do == nil {
-				core.PanicMsg("Model '%s' is persisted and yet it's DB '%s' is not initialized", model.getName(), model.getDB().name)
+				core.PanicMsg("Model '%s' is persisted and yet it's DB '%s' is not initialized", model.GetName(), model.getDB().name)
 			}
 
 			if modelsInAnyDB[model.getDB().schema.Name] == nil {
 				modelsInAnyDB[model.getDB().schema.Name] = map[utils.ModelName]IBusinessObjectModel{}
 			}
-			modelsInAnyDB[model.getDB().schema.Name][model.getName()] = model
+			modelsInAnyDB[model.getDB().schema.Name][model.GetName()] = model
 		}
 	}
 

@@ -151,20 +151,20 @@ func (thisServer *server) genericPropertyCodeCheck(property IBusinessObjectPrope
 	jsonName := jsonTags[0]
 	if jsonName == "" || jsonName != "-" && jsonName != core.PascalToCamel(property.GetName()) {
 		core.PanicMsg("Property '%s.%s' should be ignored with \"-\", or have a json tag set to '%s', not '%s'",
-			property.ownerModel().getName(), property.GetName(), core.PascalToCamel(property.GetName()), jsonName)
+			property.ownerModel().GetName(), property.GetName(), core.PascalToCamel(property.GetName()), jsonName)
 	}
 
 	// Valid I/O tag
 	ioTag := property.getTag("io")
 	if _, ok := ioTagsMap[ioTag]; !ok {
 		core.PanicMsg("Property '%s.%s' has an 'io' tag equals to '%s' but should have one of these values: \n%s",
-			property.ownerModel().getName(), property.GetName(), ioTag, ioTagsStr)
+			property.ownerModel().GetName(), property.GetName(), ioTag, ioTagsStr)
 	}
 
 	// Non-empty description in the "desc" tag
 	desc := property.getTag("desc")
 	if desc == "" {
-		core.PanicMsg("Property '%s.%s' should have a non-empty description in the 'desc' tag", property.ownerModel().getName(), property.GetName())
+		core.PanicMsg("Property '%s.%s' should have a non-empty description in the 'desc' tag", property.ownerModel().GetName(), property.GetName())
 	}
 }
 

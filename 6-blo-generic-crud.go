@@ -4,7 +4,12 @@
 // ------------------------------------------------------------------------------------------------
 package goald
 
-import "github.com/aldesgroup/goald/features/utils"
+import (
+	"slices"
+
+	core "github.com/aldesgroup/corego"
+	"github.com/aldesgroup/goald/features/utils"
+)
 
 // CreateBusinessObjects creates a new business object in the database, and all the other business objects
 // that are linked exclusively to it (children) if any, in a single transaction/
@@ -79,21 +84,21 @@ func doCreateBusinessObjects[BOTYPE IBusinessObject](bloCtx BloContext, model IB
 			return ErrorC(err, "Could not create object since it is not valid")
 		}
 
-		// let's also keep track of the BO number in the given slice, so that we can use it later on for DB ID consolidation
-		bObj.setPreID(i + 1)
+		// let's also keep track of the BO number in the given slice, so that we can
+
+		// setting some tracking info
+		bObj.setPreID(i + 1) // used later on for DB ID consolidation
+		bObj.setCreation(core.Now())
+		// // bObj.SetCreatedByID(biContext.GetCurrentUser().GetID())
+		// // bObj.SetCreatedBy(biContext.GetCurrentUser().GetLabel())
+		// // bObj.Set__BOBJ__Status(__BOBJ__StatusCREATED)
 
 		// adding the business object to the interface slice
 		iBObjs[i] = bObj
 	}
 
-	// // setting some tracking info
-	// // bObj.SetCreatedByID(biContext.GetCurrentUser().GetID())
-	// // bObj.SetCreatedBy(biContext.GetCurrentUser().GetLabel())
-	// // bObj.SetCreation(core.Now())
-	// // bObj.Set__BOBJ__Status(__BOBJ__StatusCREATED)
-
 	// pushing to the DB ! We're going to add a new line within the __BOBJ__'s table
-	if err := dbInsert(bloCtx.daoFor(model), iBObjs...); err != nil {
+	if err := dbInsert(bloCtx.daoFor(model.GetName()), iBObjs...); err != nil {
 		return err
 	}
 
@@ -136,7 +141,7 @@ func doCreateDependentBusinessObjects(bloCtx BloContext, model IBusinessObjectMo
 		for childType, children := range childrenByType {
 			childModel := modelFor(childType, true)
 			if err := doCreateBusinessObjects(bloCtx, childModel, children...); err != nil {
-				return ErrorC(err, "Could not create child objects for relationship '%s.%s'", model.getName(), relationship.name)
+				return ErrorC(err, "Could not create child objects for relationship '%s.%s'", model.GetName(), relationship.name)
 			}
 		}
 	}
@@ -144,7 +149,7 @@ func doCreateDependentBusinessObjects(bloCtx BloContext, model IBusinessObjectMo
 	return nil
 }
 
-func SearchBusinessObjects(bloCtx BloContext, query IQuery, values IQueryParamsObject) ([]IBusinessObject, error) {
+func SearchBusinessObjects(bloCtx BloContext, query IQuery, values ISearchParamValues) ([]IBusinessObject, error) {
 	// performing some actions on the query params values before searching
 	if err := values.DoBeforeSearch(bloCtx); err != nil {
 		return nil, ErrorC(err, "Could not search for business objects since the query params values got an error")
@@ -155,13 +160,13 @@ func SearchBusinessObjects(bloCtx BloContext, query IQuery, values IQueryParamsO
 		return nil, ErrorC(err, "Could not search for business objects since the query is not valid")
 	}
 
-	// doing the selection of the business objects from the database
-	results, err := dbSelect(bloCtx.daoFor(query.getModel()), query.getName(), values)
+	// doing the search for the business objects in the database
+	results, err := dbSearch(bloCtx.daoFor(query.getSearchedObjectsModel().GetName()), query.getName(), values)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO access control
+	// TODO access control - put in common with the ReadBusinessObjects function maybe
 	// // we check that this entity can be read, given the context
 	// if err = loadedEntity.CanBeRead(biContext, loadingID); err != nil {
 	// 	return nil, NewErrC(err, "Could not read entity '%s' given the context", fullReference)
@@ -176,50 +181,46 @@ func SearchBusinessObjects(bloCtx BloContext, query IQuery, values IQueryParamsO
 	return results, nil
 }
 
-// func ReadBO(bloCtx BloContext, idProp IField, idPropVal string, loadingType LoadingType) (IBusinessObject, error) {
-// 	loadedBOs, errLoad := dbLoadOne(bloCtx.GetDaoContext(), idProp, idPropVal)
+// var boSortFunc = func(a, b IBusinessObject) int { return core.IfThenElse(a.GetID() < b.GetID(), -1, 1) }
 
-// 	if errLoad != nil {
-// 		return nil, ErrorC(errLoad, "error while loading one instance of '%s' (%s)", idProp.ownerModel().base().name, idPropVal)
-// 	}
+func ReadBusinessObjects(bloCtx BloContext, bObjs ...IBusinessObject) error {
+	// first, building maps of business objects of the same model
+	businessObjectsByModel := make(map[utils.ModelName]map[BObjID]IBusinessObject)
+	businessObjectsIDs := make(map[utils.ModelName][]any)
+	for _, bObj := range bObjs {
+		if businessObjectsByModel[bObj.GetModelName()] == nil {
+			businessObjectsByModel[bObj.GetModelName()] = make(map[BObjID]IBusinessObject)
+		}
+		businessObjectsByModel[bObj.GetModelName()][bObj.GetID()] = bObj
+		businessObjectsIDs[bObj.GetModelName()] = append(businessObjectsIDs[bObj.GetModelName()], bObj.GetID())
+	}
 
-// 	// TODO add post read
+	// then dealing with all the business objects of the same model
+	for modelName, unreadBusinessObjects := range businessObjectsByModel {
+		// getting their IDs
+		unreadBusinessObjectsIDs := businessObjectsIDs[modelName]
 
-// 	return loadedBOs, nil
-// }
+		// sorting these IDs, that should help the queries to be more efficient
+		slices.SortFunc(unreadBusinessObjectsIDs, func(a, b any) int {
+			return core.IfThenElse(a.(BObjID) < b.(BObjID), -1, 1)
+		})
 
-// func LoadBOs[ResourceType IBusinessObject](bloCtx BloContext, model IBusinessObjectModel, loadingType LoadingType) ([]ResourceType, error) {
-// 	// func LoadBOs(bloCtx BloContext, model IBusinessObjectModel, loadingType LoadingType) ([]ResourceType, error) {
-// 	loadedBOs, errLoad := dbLoadList[ResourceType](bloCtx.GetDaoContext(), model)
-// 	// loadedBOs, errLoad := dbLoadList(bloCtx.GetDaoContext(), model)
+		// reading the business objects from the database
+		if err := dbRead(bloCtx.daoFor(modelName), unreadBusinessObjects, unreadBusinessObjectsIDs); err != nil {
+			return err
+		}
+	}
 
-// 	if errLoad != nil {
-// 		return nil, ErrorC(errLoad, "error while loading a list of '%s'", model.base().name)
-// 	}
+	// TODO access control - put in common with the SearchBusinessObjects function maybe
+	// // we check that this entity can be read, given the context
+	// if err = loadedEntity.CanBeRead(biContext, loadingID); err != nil {
+	// 	return nil, NewErrC(err, "Could not read entity '%s' given the context", fullReference)
+	// }
 
-// 	// TODO add post read, i.e.:
-// 	// - reading the links, using the LoadingType
-// 	// - on each BO: setting the loadingID + check if reading is ok, then do after read changes
+	// // now that we're okey with our loading, me might have to perform some specific actions
+	// if err = loadedEntity.DoAfterRead(biContext, loadingID); err != nil {
+	// 	return nil, NewErrC(err, "Error occurring after reading entity '%s'", referenceOrID)
+	// }
 
-// 	return loadedBOs, nil
-// }
-
-// func DeleteBO(bloCtx BloContext, idProp IField, idPropVal string) (IBusinessObject, error) {
-// 	loadedBOs, errLoad := dbRemoveOne(bloCtx.GetDaoContext(), idProp, idPropVal)
-
-// 	if errLoad != nil {
-// 		return nil, ErrorC(errLoad, "error while deleting one instance of '%s' (%s)", idProp.ownerModel().base().name, idPropVal)
-// 	}
-
-// 	// TODO add post read
-
-// 	return loadedBOs, nil
-// }
-
-// func UpdateBO(bloCtx BloContext, input IBusinessObject, loadingType LoadingType) error {
-// 	if errUpd := dbUpdate(bloCtx.GetDaoContext(), input); errUpd != nil {
-// 		return ErrorC(errUpd, "error while updating one instance of '%T' (ID = %d)", input, input.GetID())
-// 	}
-
-// 	return nil
-// }
+	return nil
+}

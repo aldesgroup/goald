@@ -20,7 +20,7 @@ import (
 // - instantiating new business objects of a given model
 type IBusinessObjectModelSource interface {
 	// technical properties
-	getName() utils.ModelName          // the name of the model
+	GetName() utils.ModelName          // the name of the model
 	getLastBOMod() time.Time           // last modification of the associated Business Object
 	getModule() sourceModuleName       // the application or library in which the associated BO is developed
 	setModule(module sourceModuleName) // setting the module
@@ -63,7 +63,7 @@ func NewBusinessObjectModelSource(srcPath string, modelName utils.ModelName, las
 // Private methods
 // ------------------------------------------------------------------------------------------------
 
-func (this *baseBusinessObjectModelSource) getName() utils.ModelName {
+func (this *baseBusinessObjectModelSource) GetName() utils.ModelName {
 	return this.modelName
 }
 

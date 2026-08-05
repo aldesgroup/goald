@@ -9,6 +9,6 @@ import (
 
 func init() {
 	g.In("goald").
-		Register(source.ForTranslation("features/i18n", "2026-08-03T16:37:24+02:00")).
-		Register(source.ForTranslationQuery("features/i18n", "2026-08-03T16:37:24+02:00"))
+		Register(source.ForTranslation("features/i18n", "2026-08-03T16:50:33+02:00")).
+		Register(source.ForTranslationQuery("features/i18n", "2026-08-05T10:50:57+02:00"))
 }

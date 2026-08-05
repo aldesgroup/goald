@@ -7,13 +7,15 @@ package goald
 import (
 	"database/sql"
 	"sync"
+
+	"github.com/aldesgroup/goald/features/utils"
 )
 
 type BloContext interface {
 	AppContext                                                 // a particular AppContext dedicated to Business LOgic processing
 	BeginTransaction(model IBusinessObjectModel) (bool, error) // starts a new transaction if none is already started; returns true if a new transaction was started, false if there was already one
 	EndTransaction(err error) error                            // ends the current transaction if it was started by this BloContext, and commits or rollbacks depending on the given error
-	daoFor(model IBusinessObjectModel) IBusinessObjectDAO      // returns a new DAO from a given business object
+	daoFor(modelName utils.ModelName) IBusinessObjectDAO       // returns a new DAO from a given business object
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -124,10 +126,10 @@ func newHttpBloContextFromWebCtx(thisWebCtx *webContextImpl) *httpBloContextImpl
 }
 
 // daoFor implements [BloContext].
-func (httpBloCtx *httpBloContextImpl) daoFor(model IBusinessObjectModel) IBusinessObjectDAO {
-	newDAO := newDaoFor(model.getName())
+func (httpBloCtx *httpBloContextImpl) daoFor(modelName utils.ModelName) IBusinessObjectDAO {
+	newDAO := newDaoFor(modelName)
 	newDAO.setLogger(httpBloCtx)
-	newDAO.setModel(model)
+	newDAO.setModel(modelFor(modelName, true))
 	newDAO.setTx(httpBloCtx.currentTx)
 	return newDAO
 }

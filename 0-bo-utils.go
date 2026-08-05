@@ -12,10 +12,10 @@ import (
 )
 
 var (
-	typeBUSINESSxOBJECT   = reflection.TypeOf((*BusinessObject)(nil), true)
-	typeQUERYxOBJECT      = reflection.TypeOf((*QueryParamsObject)(nil), true)
-	typeIxBUSINESSxOBJECT = reflection.TypeOf((*IBusinessObject)(nil), true)
-	typeIxENUM            = reflection.TypeOf((*IEnum)(nil), true)
+	typeBUSINESSxOBJECT     = reflection.TypeOf((*BusinessObject)(nil), true)
+	typeSEARCHxPARAMxVALUES = reflection.TypeOf((*SearchParamValues)(nil), true)
+	typeIxBUSINESSxOBJECT   = reflection.TypeOf((*IBusinessObject)(nil), true)
+	typeIxENUM              = reflection.TypeOf((*IEnum)(nil), true)
 )
 
 // ------------------------------------------------------------------------------------------------

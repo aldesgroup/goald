@@ -213,7 +213,7 @@ func (r *Relationship) getTargetModelNames() []utils.ModelName {
 func (r *Relationship) getUniqueTargetName() utils.ModelName {
 	targetModelNames := r.getTargetModelNames()
 	if len(targetModelNames) != 1 {
-		return utils.ModelName("- no unique target for relationship " + r.name + " on " + string(r.owner.getName()) + "! -")
+		return utils.ModelName("- no unique target for relationship " + r.name + " on " + string(r.owner.GetName()) + "! -")
 	}
 
 	return targetModelNames[0]
@@ -233,7 +233,7 @@ func (r *Relationship) resolveTargetNames() []utils.ModelName {
 	sourceObjTyp := reflection.TypeOf(sourceObject, true) // e.g. Type SourceObj
 
 	// only doing this once, and caching the result for later use
-	if len(interfaceImplementations[r.owner.getName()]) == 0 {
+	if len(interfaceImplementations[r.owner.GetName()]) == 0 {
 
 		// we're going to look for the types implementing this one, which should be an interface
 		targetFldTyp := sourceObjTyp.FieldByName(r.GetName()).Type() // e.g. Type ITargetObj or []ITargetObj
@@ -245,13 +245,13 @@ func (r *Relationship) resolveTargetNames() []utils.ModelName {
 		for _, model := range core.GetSortedValues(modelRegistry.items) {
 			if !model.isInterface() && !model.isAbstract() {
 				if boType := reflection.TypeOf(model.NewObject(), false); boType.Implements(targetFldTyp) {
-					interfaceImplementations[r.owner.getName()] = append(interfaceImplementations[r.owner.getName()], model.getName())
+					interfaceImplementations[r.owner.GetName()] = append(interfaceImplementations[r.owner.GetName()], model.GetName())
 				}
 			}
 		}
 	}
 
-	return interfaceImplementations[r.owner.getName()]
+	return interfaceImplementations[r.owner.GetName()]
 }
 
 // returns the name of the foreign key constraint for this relationship, if it is persisted in the database
