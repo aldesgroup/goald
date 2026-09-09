@@ -18,14 +18,14 @@ type oneForNoneEndpoint[ResourceType IBusinessObject] struct {
 func handleOne[ResourceType IBusinessObject](
 	method string,
 	handlerFunc func(webCtx WebContext) (ResourceType, hstatus.Code, string),
-	loadingType LoadingType,
+	loadingConf ILoadingConfig,
 ) *oneForNoneEndpoint[ResourceType] {
 
 	return registerEndpoint(&oneForNoneEndpoint[ResourceType]{
 		endpoint: newEndpoint[ResourceType, ResourceType](
 			false,
 			method,
-			loadingType,
+			loadingConf,
 			false,
 			false,
 			false),
@@ -49,7 +49,7 @@ func (ep *oneForNoneEndpoint[ResourceType]) returnOne(webCtx WebContext) (any, h
 // func handleMany[ResourceType IBusinessObject](
 // 	method string,
 // 	handlerFunc func(webCtx WebContext) ([]ResourceType, hstatus.Code, string),
-// 	loadingType LoadingType,
+// 	loadingConf ILoadingConfig,
 // ) *manyForNoneEndpoint[ResourceType] {
 
 // 	return registerEndpoint(&manyForNoneEndpoint[ResourceType]{
@@ -82,14 +82,14 @@ type oneForOneEndpoint[InputType, ResourceType IBusinessObject] struct {
 func handleOneForOne[InputType, ResourceType IBusinessObject](
 	method string,
 	handlerFunc func(webCtx WebContext, input InputType) (ResourceType, hstatus.Code, string),
-	loadingType LoadingType,
+	loadingConf ILoadingConfig,
 ) *oneForOneEndpoint[InputType, ResourceType] {
 
 	return registerEndpoint(&oneForOneEndpoint[InputType, ResourceType]{
 		endpoint: newEndpoint[InputType, ResourceType](
 			false,
 			method,
-			loadingType,
+			loadingConf,
 			true,
 			false,
 			false),
@@ -114,7 +114,7 @@ func (ep *oneForOneEndpoint[InputType, ResourceType]) returnOneForOne(webCtx Web
 // func handleOneForMany[InputType, ResourceType IBusinessObject](
 // 	method string,
 // 	handlerFunc func(webCtx WebContext, input []InputType) (ResourceType, hstatus.Code, string),
-// 	loadingType LoadingType,
+// 	loadingConf ILoadingConfig,
 // ) *oneForManyEndpoint[InputType, ResourceType] {
 
 // 	return registerEndpoint(&oneForManyEndpoint[InputType, ResourceType]{
@@ -140,7 +140,7 @@ type manyForOneEndpoint[InputOrParamsType, ResourceType IBusinessObject] struct 
 func handleManyForOne[InputOrParamsType, ResourceType IBusinessObject](
 	method string,
 	handlerFunc func(webCtx WebContext, input InputOrParamsType) ([]ResourceType, hstatus.Code, string),
-	loadingType LoadingType,
+	loadingConf ILoadingConfig,
 	withBodyInput bool,
 ) *manyForOneEndpoint[InputOrParamsType, ResourceType] {
 
@@ -148,7 +148,7 @@ func handleManyForOne[InputOrParamsType, ResourceType IBusinessObject](
 		endpoint: newEndpoint[InputOrParamsType, ResourceType](
 			true,
 			method,
-			loadingType,
+			loadingConf,
 			withBodyInput,
 			false,
 			!withBodyInput),
@@ -173,14 +173,14 @@ type manyForManyEndpoint[InputType, ResourceType IBusinessObject] struct {
 func handleManyForMany[InputType, ResourceType IBusinessObject](
 	method string,
 	handlerFunc func(webCtx WebContext, input []InputType) ([]ResourceType, hstatus.Code, string),
-	loadingType LoadingType,
+	loadingConf ILoadingConfig,
 ) *manyForManyEndpoint[InputType, ResourceType] {
 
 	return registerEndpoint(&manyForManyEndpoint[InputType, ResourceType]{
 		endpoint: newEndpoint[InputType, ResourceType](
 			true,
 			method,
-			loadingType,
+			loadingConf,
 			true,
 			true,
 			false),

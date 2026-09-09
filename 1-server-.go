@@ -232,3 +232,8 @@ func (thisServer *server) IsTransactionStarted() bool {
 func (thisServer *server) daoFor(modelName utils.ModelName) IBusinessObjectDAO {
 	panic("unimplemented")
 }
+
+// bObjCache implements [BloContext].
+func (thisServer *server) bObjCache() *BObjCache {
+	panic("unimplemented")
+}

@@ -31,10 +31,11 @@ type IBusinessObjectDAO interface {
 	HandleDbError(err error) error
 
 	// these are the generic queries any DAO should be able to perform for its associated business object ModelName
-	ExecCreateQuery(bObjs ...IBusinessObject) (map[int]int64, error)                           // executes the insert query for the given BOs, returning a map of the BO's rowID to the DB's ID
-	ExecCreateLinksQueries(bObjs ...IBusinessObject) error                                     // executes the insert links queries for the given business objects
-	ExecSearchQuery(queryName queryName, values ISearchParamValues) ([]IBusinessObject, error) // executes the select query for the given query name and values, returning the resulting business objects
-	ExecReadQuery(bObjs map[BObjID]IBusinessObject, bObjIDs []any) error                       // executes the read query for the given business objects
+	ExecCreateQuery(bObjs ...IBusinessObject) (map[int]int64, error)                                             // executes the insert query for the given BOs, returning a map of the BO's rowID to the DB's ID
+	ExecCreateLinksQueries(bObjs ...IBusinessObject) error                                                       // executes the insert links queries for the given business objects
+	ExecReadQuery(bObjIDs []any, cache *BObjCache) error                                                         // executes the read query for the given business objects
+	ExecReadRelationshipQuery(bObjIDs []any, relName string, cache *BObjCache) ([]IBusinessObject, error)        // executes the read relationship query for the given business objects and a given relationship name
+	ExecSearchQuery(queryName queryName, values ISearchParamValues, cache *BObjCache) ([]IBusinessObject, error) // executes the select query for the given query name and values, returning the resulting business objects
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -105,13 +106,18 @@ func (baseDAO *BusinessObjectDAO) ExecCreateLinksQueries(bObjs ...IBusinessObjec
 	panic("unimplemented")
 }
 
-// ExecSearchQuery implements [IBusinessObjectDAO].
-func (baseDAO *BusinessObjectDAO) ExecSearchQuery(queryName queryName, values ISearchParamValues) ([]IBusinessObject, error) {
+// ExecReadQuery implements [IBusinessObjectDAO].
+func (baseDAO *BusinessObjectDAO) ExecReadQuery(bObjIDs []any, cache *BObjCache) error {
 	panic("unimplemented")
 }
 
-// ExecReadQuery implements [IBusinessObjectDAO].
-func (baseDAO *BusinessObjectDAO) ExecReadQuery(bObjs map[BObjID]IBusinessObject, bObjIDs []any) error {
+// ExecReadRelationshipQuery implements [IBusinessObjectDAO].
+func (baseDAO *BusinessObjectDAO) ExecReadRelationshipQuery(bObjIDs []any, relName string, cache *BObjCache) ([]IBusinessObject, error) {
+	panic("unimplemented")
+}
+
+// ExecSearchQuery implements [IBusinessObjectDAO].
+func (baseDAO *BusinessObjectDAO) ExecSearchQuery(queryName queryName, values ISearchParamValues, cache *BObjCache) ([]IBusinessObject, error) {
 	panic("unimplemented")
 }
 
@@ -168,7 +174,7 @@ func (baseDAO *BusinessObjectDAO) HandleDbError(err error) error {
 }
 
 // ------------------------------------------------------------------------------------------------
-// Utils
+// Utils - handling IDs and model names for potentially nil BOs
 // ------------------------------------------------------------------------------------------------
 
 // GetIDOrNilPlm returns nil if bo is nil, otherwise bo.GetID() - use this for relationship fields that
@@ -178,6 +184,7 @@ func GetIDOrNilPlm(bo IBusinessObject) any {
 	if bo == nil {
 		return nil
 	}
+
 	return bo.GetID()
 }
 
@@ -186,6 +193,7 @@ func GetModelOrNil(bo IBusinessObject) any {
 	if bo == nil {
 		return nil
 	}
+
 	return bo.GetModelName()
 }
 
@@ -205,5 +213,6 @@ func GetIDOrNil[T any, PT businessObjectPtr[T]](bo PT) any {
 	if bo == nil {
 		return nil
 	}
-	return bo.GetID() //
+
+	return bo.GetID()
 }

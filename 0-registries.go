@@ -244,20 +244,18 @@ var queryRegistry = &struct {
 	counter: map[utils.ModelName]int{},
 }
 
-func registerQuery(query IQuery, queryNames ...queryName) {
+func registerQuery(query IQuery) {
 	queryRegistry.mx.Lock()
 
-	var qName queryName
-	if len(queryNames) == 1 {
-		qName = queryNames[0]
-	} else if len(queryNames) > 1 {
-		core.PanicMsg("Too many query names provided: %+v", queryNames)
-	} else {
-		currentCount := queryRegistry.counter[query.getSearchedObjectsModel().GetName()]
-		currentCount++
-		qName = queryName(fmt.Sprintf("SearchFor%s%d", query.getSearchedObjectsModel().GetName(), currentCount))
-		queryRegistry.counter[query.getSearchedObjectsModel().GetName()] = currentCount
-	}
+	// new query for the model being searched here
+	currentCount := queryRegistry.counter[query.getSearchedObjectsModel().GetName()]
+	currentCount++
+
+	// let's give it a little name
+	qName := queryName(fmt.Sprintf("SearchFor%s%d", query.getSearchedObjectsModel().GetName(), currentCount))
+
+	// registering the query, and its index
+	queryRegistry.counter[query.getSearchedObjectsModel().GetName()] = currentCount
 	queryRegistry.queries[qName] = query.withName(qName)
 
 	queryRegistry.mx.Unlock()

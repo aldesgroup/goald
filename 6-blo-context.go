@@ -16,6 +16,7 @@ type BloContext interface {
 	BeginTransaction(model IBusinessObjectModel) (bool, error) // starts a new transaction if none is already started; returns true if a new transaction was started, false if there was already one
 	EndTransaction(err error) error                            // ends the current transaction if it was started by this BloContext, and commits or rollbacks depending on the given error
 	daoFor(modelName utils.ModelName) IBusinessObjectDAO       // returns a new DAO from a given business object
+	bObjCache() *BObjCache                                     // returns a cache of business objects associated with this context
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -26,6 +27,7 @@ type baseBloContextImpl struct {
 	currentTx          *sql.Tx    // the transaction currently bearing all the changes that we want to bring to the DB
 	currentTxClientsNb int        // the current number of "clients" currently relyong on the current transaction
 	mx                 sync.Mutex // safely handling the changes on the current transaction
+	boCache            *BObjCache // the cache of business objects associated with this context
 }
 
 // BeginTransaction implements [BloContext].
@@ -102,6 +104,14 @@ func (baseBloCtx *baseBloContextImpl) EndTransaction(previousErr error) error {
 	return nil
 }
 
+// bObjCache implements [BloContext].
+func (baseBloCtx *baseBloContextImpl) bObjCache() *BObjCache {
+	if baseBloCtx.boCache == nil {
+		baseBloCtx.boCache = NewBObjCache()
+	}
+	return baseBloCtx.boCache
+}
+
 // ------------------------------------------------------------------------------------------------
 // BLO context associated with a HTTP request
 // ------------------------------------------------------------------------------------------------
@@ -132,4 +142,93 @@ func (httpBloCtx *httpBloContextImpl) daoFor(modelName utils.ModelName) IBusines
 	newDAO.setModel(modelFor(modelName, true))
 	newDAO.setTx(httpBloCtx.currentTx)
 	return newDAO
+}
+
+// ------------------------------------------------------------------------------------------------
+// Utils - business object cache, used for consistency and efficiency in reading objects
+// ------------------------------------------------------------------------------------------------
+
+// BObjCache is a cache for business objects, keyed by their model name and ID.
+type BObjCache struct {
+	content map[utils.ModelName]map[BObjID]IBusinessObject
+}
+
+func NewBObjCache() *BObjCache {
+	return &BObjCache{
+		content: make(map[utils.ModelName]map[BObjID]IBusinessObject),
+	}
+}
+
+// Get retrieves a business object from the cache by its model name and ID. Returns nil if not found.
+func (thisCache *BObjCache) Get(modelName utils.ModelName, id BObjID) IBusinessObject {
+	if _, modelExists := thisCache.content[modelName]; !modelExists {
+		return nil
+	}
+
+	if _, objectExists := thisCache.content[modelName][id]; !objectExists {
+		return nil
+	}
+
+	return thisCache.content[modelName][id]
+}
+
+// CachedOrNewBusinessObject retrieves a business object from the cache if it exists, or creates a new one and adds it to the cache if it doesn't.
+func (thisCache *BObjCache) CachedOrNewBusinessObject(modelName utils.ModelName, id BObjID) IBusinessObject {
+	if cachedBObj := thisCache.Get(modelName, id); cachedBObj != nil {
+		return cachedBObj
+	}
+
+	return thisCache.Set(NewBusinessObject(modelName, id))
+}
+
+// CachedOrNewBusinessObjectRaw retrieves a business object from the cache if it exists, or creates a new one
+// and adds it to the cache if it doesn't, using raw string and int64 types for the model name and ID.
+func (thisCache *BObjCache) CachedOrNewBusinessObjectRaw(modelName string, id int64) IBusinessObject {
+	return thisCache.CachedOrNewBusinessObject(utils.ModelName(modelName), BObjID(id))
+}
+
+// GetObj retrieves a business object from the cache using the business object itself to determine the model name and ID. Returns nil if not found.
+func (thisCache *BObjCache) GetObj(bObj IBusinessObject) IBusinessObject {
+	if bObj == nil {
+		return nil
+	}
+
+	return thisCache.Get(bObj.GetModelName(), bObj.GetID())
+}
+
+// GetObjsFor retrieves all business objects of a specific model from the cache. Returns a map of IDs to business objects.
+func (thisCache *BObjCache) GetObjsFor(modelName utils.ModelName) map[BObjID]IBusinessObject {
+	return thisCache.content[modelName]
+}
+
+// Set adds a business object to the cache. If an object with the same model name and ID already exists, it returns the zero value of the type.
+func (thisCache *BObjCache) Set[BOTYPE IBusinessObject](bObj BOTYPE) BOTYPE {
+	if thisCache.content[bObj.GetModelName()] == nil {
+		thisCache.content[bObj.GetModelName()] = map[BObjID]IBusinessObject{}
+	}
+
+	if _, alreadyThere := thisCache.content[bObj.GetModelName()][bObj.GetID()]; alreadyThere {
+		var zero BOTYPE
+		return zero
+	}
+
+	thisCache.content[bObj.GetModelName()][bObj.GetID()] = bObj
+
+	return bObj
+}
+
+// AddAll adds all the given business objects to the cache and returns a map of all their IDs grouped by model name.
+func (thisCache *BObjCache) AddAll(bObjs []IBusinessObject) (allBObjIDs map[utils.ModelName][]any) {
+	allBObjIDs = make(map[utils.ModelName][]any)
+
+	// iterating to build the result
+	for _, bObj := range bObjs {
+		// caching the object
+		thisCache.Set(bObj)
+
+		// gathering its ID along with the IDs of the objects of the same model
+		allBObjIDs[bObj.GetModelName()] = append(allBObjIDs[bObj.GetModelName()], bObj.GetID())
+	}
+
+	return
 }

@@ -10,13 +10,13 @@ import (
 var IoTBackend = g.NewEndpointGroup("IoT Backend", "Endpoints to manage IoT devices and their data")
 
 func init() {
-	g.PostOneGetOne(handleLinkDevice, "").
+	g.PostOneGetOne(handleLinkDevice, nil).
 		InGroup(IoTBackend).
 		At("link").
 		Label("Link a device").
 		Description("Allows a user to link to a device, bootstrapping it if it's not enrolled yet")
 
-	g.GetOne(handleGetDevice, "").
+	g.GetOne(handleGetDevice, nil).
 		InGroup(IoTBackend).
 		TargetWith(model.Device().Serial()).
 		Label("Read a device").

@@ -26,6 +26,10 @@ func (thisLogger *jsonLogger) IsVerbose() bool {
 	return thisLogger.level < slog.LevelInfo
 }
 
+func (thisLogger *jsonLogger) IsTraceEnabled() bool {
+	return thisLogger.level <= LevelTrace
+}
+
 func (thisLogger *jsonLogger) Trace(msg string, args ...any) {
 	thisLogger.Logger.Log(context.Background(), LevelTrace, msg, args...)
 }

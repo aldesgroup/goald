@@ -8,14 +8,52 @@ import (
 	"github.com/aldesgroup/goald/features/utils"
 )
 
+// ------------------------------------------------------------------------------------------------
+// Instantiation / cache retrieval
+// ------------------------------------------------------------------------------------------------
+
+func NewDeviceLinkRequest(id goald.BObjID) *DeviceLinkRequest {
+	// TODO use sync.Pool?
+	newDeviceLinkRequest := &DeviceLinkRequest{}
+	newDeviceLinkRequest.ID = id
+
+	return newDeviceLinkRequest
+}
+
+func GetDeviceLinkRequestFrom(cache *goald.BObjCache, id goald.BObjID) *DeviceLinkRequest {
+	if cachedDeviceLinkRequest := cache.Get("DeviceLinkRequest", id); cachedDeviceLinkRequest != nil {
+		return cachedDeviceLinkRequest.(*DeviceLinkRequest)
+	}
+
+	return nil
+}
+
+func CachedOrNewDeviceLinkRequest(cache *goald.BObjCache, id goald.BObjID) *DeviceLinkRequest {
+	if cachedDeviceLinkRequest := GetDeviceLinkRequestFrom(cache, id); cachedDeviceLinkRequest != nil {
+		return cachedDeviceLinkRequest
+	}
+
+	return cache.Set(NewDeviceLinkRequest(id))
+}
+
+// ------------------------------------------------------------------------------------------------
+// Identification
+// ------------------------------------------------------------------------------------------------
+
 // getting the name of the model for a DeviceLinkRequest, without using reflection
 func (bo *DeviceLinkRequest) GetModelName() utils.ModelName {
 	return "DeviceLinkRequest"
 }
 
+// ------------------------------------------------------------------------------------------------
+// Property values <-> string conversion
+// ------------------------------------------------------------------------------------------------
+
 // getting a property's value as a string, without using reflection
 func (bo *DeviceLinkRequest) GetValueAsString(propertyName string) string {
 	switch propertyName {
+	case "Creation":
+		return core.DateToString(bo.Creation)
 	case "ID":
 		return core.Int64ToString(int64(bo.ID))
 	case "Model":
@@ -36,6 +74,8 @@ func (bo *DeviceLinkRequest) GetValueAsString(propertyName string) string {
 // setting a property's value with a given string value, without using reflection
 func (bo *DeviceLinkRequest) SetValueAsString(propertyName string, valueAsString string) error {
 	switch propertyName {
+	case "Creation":
+		bo.Creation = core.StringToDate(valueAsString, "Creation")
 	case "ID":
 		bo.ID = goald.BObjID(core.StringToInt64(valueAsString, "ID"))
 	case "Model":
@@ -52,6 +92,19 @@ func (bo *DeviceLinkRequest) SetValueAsString(propertyName string, valueAsString
 
 	return goald.Error("Unknown property: %T.%s", bo, propertyName)
 }
+
+// ------------------------------------------------------------------------------------------------
+// Explicit relationship access
+// ------------------------------------------------------------------------------------------------
+
+func (bo *DeviceLinkRequest) WithAddedUsers(added goald.IUser) goald.IUser {
+	bo.Users = append(bo.Users, added)
+	return added
+}
+
+// ------------------------------------------------------------------------------------------------
+// Generic relationship access
+// ------------------------------------------------------------------------------------------------
 
 // setting a single-valued relationship's target, given the relationship's name, without using reflection
 func (bo *DeviceLinkRequest) SetRelationshipValue(relationshipName string, value goald.IBusinessObject) error {
@@ -108,6 +161,20 @@ func (bo *DeviceLinkRequest) ClearRelationshipValue(relationshipName string) err
 	return goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
 }
 
+// getting a single-valued relationship's target, given the relationship's name, without using reflection
+func (bo *DeviceLinkRequest) GetSingleRelationshipValue(relationshipName string) (goald.IBusinessObject, error) {
+	switch relationshipName {
+	case "ENTranslation":
+		return bo.ENTranslation, nil
+	case "ForWho":
+		return bo.ForWho, nil
+	case "MainContact":
+		return bo.MainContact, nil
+	}
+
+	return nil, goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+}
+
 // getting a multi-valued relationship's targets, given the relationship's name, without using reflection
 func (bo *DeviceLinkRequest) GetMultipleRelationshipValue(relationshipName string) ([]goald.IBusinessObject, error) {
 	switch relationshipName {
@@ -121,6 +188,10 @@ func (bo *DeviceLinkRequest) GetMultipleRelationshipValue(relationshipName strin
 
 	return nil, goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
 }
+
+// ------------------------------------------------------------------------------------------------
+// Model validity check
+// ------------------------------------------------------------------------------------------------
 
 // checking a business object's general validity, without using reflection
 func (bo *DeviceLinkRequest) IsModelValid() error {
@@ -159,6 +230,10 @@ func (bo *DeviceLinkRequest) IsModelValid() error {
 
 	return nil
 }
+
+// ------------------------------------------------------------------------------------------------
+// Misc utils
+// ------------------------------------------------------------------------------------------------
 
 // removing any cycles from the business object, without using reflection
 func (bo *DeviceLinkRequest) RemoveCycles() {

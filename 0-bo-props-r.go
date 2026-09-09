@@ -48,41 +48,6 @@ type Relationship struct {
 	linkTableTargetModelColumn string            // the name of the column in the link table that holds the model name of the target entity, if this relationship is polymorphic
 }
 
-// TODO DEPRECATED: Allows to declare a new monomorphic relationship on a given business object model
-func NewRelationship(owner IBusinessObjectModel, name string, multiple bool, targetName utils.ModelName) *Relationship {
-	relationship := &Relationship{
-		businessObjectProperty: businessObjectProperty{
-			owner:    owner,
-			name:     name,
-			multiple: multiple,
-			propType: propertyTypeRELATIONSHIPxMONOM,
-		},
-		targetModelNames: []utils.ModelName{targetName},
-		// polymorphic: false,
-	}
-
-	owner.setRelationship(name, relationship)
-
-	return relationship
-}
-
-// TODO DEPRECATED: Allows to declare a new polymorphic relationship on a given business object model
-func NewPolyRelationship(owner IBusinessObjectModel, name string, multiple bool) *Relationship {
-	relationship := &Relationship{
-		businessObjectProperty: businessObjectProperty{
-			owner:    owner,
-			name:     name,
-			multiple: multiple,
-			propType: propertyTypeRELATIONSHIPxPOLYM,
-		},
-		// polymorphic: true,
-	}
-
-	owner.setRelationship(name, relationship)
-
-	return relationship
-}
-
 // Allows to declare a new monomorphic relationship on a given business object model
 func AddRelationship(owner IBusinessObjectModel, declaringBO utils.ModelName, name string, multiple bool, targetName utils.ModelName) *Relationship {
 	relationship := &Relationship{

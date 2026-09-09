@@ -67,6 +67,10 @@ type IBusinessObjectModel interface {
 
 	// this makes each model aware of its source, and capable of instantiating new business objects of its type
 	IBusinessObjectModelSource
+
+	// defining special load configurations for this model
+	ReadNoRelationship() ILoadingConfig // returns a loading config that loads only the model's own properties, and no relationships
+	ReadWithFirstLayer() ILoadingConfig // returns a loading config that loads only the direct relationships of this business object type
 }
 
 // ------------------------------------------------------------------------------------------------

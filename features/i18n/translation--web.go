@@ -12,7 +12,7 @@ import (
 var GenericEPs = g.NewEndpointGroup("General", "Generic endpoints for common behaviors")
 
 func init() {
-	g.GetManyWithParams[*Translation, *TranslationQuery](listTranslations, "").
+	g.GetManyWithParams(listTranslations, nil).
 		InGroup(GenericEPs).
 		TargetWith(model.Translation().Lang()).
 		Label("List translations").

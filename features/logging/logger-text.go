@@ -27,6 +27,10 @@ func (thisLogger *textLogger) IsVerbose() bool {
 	return thisLogger.level < slog.LevelInfo
 }
 
+func (thisLogger *textLogger) IsTraceEnabled() bool {
+	return thisLogger.level <= LevelTrace
+}
+
 func (thisLogger *textLogger) Trace(msg string, args ...any) {
 	thisLogger.Logger.Log(context.Background(), LevelTrace, thisLogger.makePrefix()+msg, args...)
 }

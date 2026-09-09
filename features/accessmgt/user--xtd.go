@@ -7,14 +7,52 @@ import (
 	"github.com/aldesgroup/goald/features/utils"
 )
 
+// ------------------------------------------------------------------------------------------------
+// Instantiation / cache retrieval
+// ------------------------------------------------------------------------------------------------
+
+func NewUser(id goald.BObjID) *User {
+	// TODO use sync.Pool?
+	newUser := &User{}
+	newUser.ID = id
+
+	return newUser
+}
+
+func GetUserFrom(cache *goald.BObjCache, id goald.BObjID) *User {
+	if cachedUser := cache.Get("User", id); cachedUser != nil {
+		return cachedUser.(*User)
+	}
+
+	return nil
+}
+
+func CachedOrNewUser(cache *goald.BObjCache, id goald.BObjID) *User {
+	if cachedUser := GetUserFrom(cache, id); cachedUser != nil {
+		return cachedUser
+	}
+
+	return cache.Set(NewUser(id))
+}
+
+// ------------------------------------------------------------------------------------------------
+// Identification
+// ------------------------------------------------------------------------------------------------
+
 // getting the name of the model for a User, without using reflection
 func (bo *User) GetModelName() utils.ModelName {
 	return "User"
 }
 
+// ------------------------------------------------------------------------------------------------
+// Property values <-> string conversion
+// ------------------------------------------------------------------------------------------------
+
 // getting a property's value as a string, without using reflection
 func (bo *User) GetValueAsString(propertyName string) string {
 	switch propertyName {
+	case "Creation":
+		return core.DateToString(bo.Creation)
 	case "Email":
 		return bo.Email
 	case "FirstName":
@@ -33,6 +71,8 @@ func (bo *User) GetValueAsString(propertyName string) string {
 // setting a property's value with a given string value, without using reflection
 func (bo *User) SetValueAsString(propertyName string, valueAsString string) error {
 	switch propertyName {
+	case "Creation":
+		bo.Creation = core.StringToDate(valueAsString, "Creation")
 	case "Email":
 		bo.Email = valueAsString
 	case "FirstName":
@@ -47,6 +87,19 @@ func (bo *User) SetValueAsString(propertyName string, valueAsString string) erro
 
 	return goald.Error("Unknown property: %T.%s", bo, propertyName)
 }
+
+// ------------------------------------------------------------------------------------------------
+// Explicit relationship access
+// ------------------------------------------------------------------------------------------------
+
+func (bo *User) WithAddedMemberOf(added goald.IUserGroup) goald.IUserGroup {
+	bo.MemberOf = append(bo.MemberOf, added)
+	return added
+}
+
+// ------------------------------------------------------------------------------------------------
+// Generic relationship access
+// ------------------------------------------------------------------------------------------------
 
 // setting a single-valued relationship's target, given the relationship's name, without using reflection
 func (bo *User) SetRelationshipValue(relationshipName string, value goald.IBusinessObject) error {
@@ -83,6 +136,15 @@ func (bo *User) ClearRelationshipValue(relationshipName string) error {
 	return goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
 }
 
+// getting a single-valued relationship's target, given the relationship's name, without using reflection
+func (bo *User) GetSingleRelationshipValue(relationshipName string) (goald.IBusinessObject, error) {
+	switch relationshipName {
+
+	}
+
+	return nil, goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+}
+
 // getting a multi-valued relationship's targets, given the relationship's name, without using reflection
 func (bo *User) GetMultipleRelationshipValue(relationshipName string) ([]goald.IBusinessObject, error) {
 	switch relationshipName {
@@ -96,6 +158,10 @@ func (bo *User) GetMultipleRelationshipValue(relationshipName string) ([]goald.I
 
 	return nil, goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
 }
+
+// ------------------------------------------------------------------------------------------------
+// Model validity check
+// ------------------------------------------------------------------------------------------------
 
 // checking a business object's general validity, without using reflection
 func (bo *User) IsModelValid() error {
@@ -126,6 +192,10 @@ func (bo *User) IsModelValid() error {
 
 	return nil
 }
+
+// ------------------------------------------------------------------------------------------------
+// Misc utils
+// ------------------------------------------------------------------------------------------------
 
 // removing any cycles from the business object, without using reflection
 func (bo *User) RemoveCycles() {

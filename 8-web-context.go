@@ -8,7 +8,6 @@ type WebContext interface {
 	restContext
 	GetBloContext() BloContext
 	GetResourceRefOrID() string
-	GetResourceLoadingType() LoadingType // returns the loading type of the current main resources (BOs) being worked on
 }
 
 // default implementation for web context
@@ -51,8 +50,4 @@ func (thisWebCtx *webContextImpl) getResourceModel() IBusinessObjectModel {
 
 func (thisWebCtx *webContextImpl) GetResourceRefOrID() string {
 	return thisWebCtx.resourceRefOrID
-}
-
-func (thisWebCtx *webContextImpl) GetResourceLoadingType() LoadingType {
-	return thisWebCtx.ep.getLoadingType()
 }

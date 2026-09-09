@@ -7,7 +7,7 @@ import (
 )
 
 func init() {
-	g.PostOneGetOne(handleDeviceBootstrap, "").
+	g.PostOneGetOne(handleDeviceBootstrap, nil).
 		InGroup(IoTBackend).
 		Label("Bootstrap a device").
 		Description("Allows a device to retrieve its bootstrapping info").TrimBodyLogging(45)

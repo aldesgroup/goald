@@ -7,14 +7,52 @@ import (
 	"github.com/aldesgroup/goald/features/utils"
 )
 
+// ------------------------------------------------------------------------------------------------
+// Instantiation / cache retrieval
+// ------------------------------------------------------------------------------------------------
+
+func NewDevice(id goald.BObjID) *Device {
+	// TODO use sync.Pool?
+	newDevice := &Device{}
+	newDevice.ID = id
+
+	return newDevice
+}
+
+func GetDeviceFrom(cache *goald.BObjCache, id goald.BObjID) *Device {
+	if cachedDevice := cache.Get("Device", id); cachedDevice != nil {
+		return cachedDevice.(*Device)
+	}
+
+	return nil
+}
+
+func CachedOrNewDevice(cache *goald.BObjCache, id goald.BObjID) *Device {
+	if cachedDevice := GetDeviceFrom(cache, id); cachedDevice != nil {
+		return cachedDevice
+	}
+
+	return cache.Set(NewDevice(id))
+}
+
+// ------------------------------------------------------------------------------------------------
+// Identification
+// ------------------------------------------------------------------------------------------------
+
 // getting the name of the model for a Device, without using reflection
 func (bo *Device) GetModelName() utils.ModelName {
 	return "Device"
 }
 
+// ------------------------------------------------------------------------------------------------
+// Property values <-> string conversion
+// ------------------------------------------------------------------------------------------------
+
 // getting a property's value as a string, without using reflection
 func (bo *Device) GetValueAsString(propertyName string) string {
 	switch propertyName {
+	case "Creation":
+		return core.DateToString(bo.Creation)
 	case "ID":
 		return core.Int64ToString(int64(bo.ID))
 	case "Model":
@@ -33,6 +71,8 @@ func (bo *Device) GetValueAsString(propertyName string) string {
 // setting a property's value with a given string value, without using reflection
 func (bo *Device) SetValueAsString(propertyName string, valueAsString string) error {
 	switch propertyName {
+	case "Creation":
+		bo.Creation = core.StringToDate(valueAsString, "Creation")
 	case "ID":
 		bo.ID = goald.BObjID(core.StringToInt64(valueAsString, "ID"))
 	case "Model":
@@ -48,6 +88,19 @@ func (bo *Device) SetValueAsString(propertyName string, valueAsString string) er
 
 	return goald.Error("Unknown property: %T.%s", bo, propertyName)
 }
+
+// ------------------------------------------------------------------------------------------------
+// Explicit relationship access
+// ------------------------------------------------------------------------------------------------
+
+func (bo *Device) WithAddedAssociatedUsers(added goald.IUser) goald.IUser {
+	bo.AssociatedUsers = append(bo.AssociatedUsers, added)
+	return added
+}
+
+// ------------------------------------------------------------------------------------------------
+// Generic relationship access
+// ------------------------------------------------------------------------------------------------
 
 // setting a single-valued relationship's target, given the relationship's name, without using reflection
 func (bo *Device) SetRelationshipValue(relationshipName string, value goald.IBusinessObject) error {
@@ -84,6 +137,15 @@ func (bo *Device) ClearRelationshipValue(relationshipName string) error {
 	return goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
 }
 
+// getting a single-valued relationship's target, given the relationship's name, without using reflection
+func (bo *Device) GetSingleRelationshipValue(relationshipName string) (goald.IBusinessObject, error) {
+	switch relationshipName {
+
+	}
+
+	return nil, goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+}
+
 // getting a multi-valued relationship's targets, given the relationship's name, without using reflection
 func (bo *Device) GetMultipleRelationshipValue(relationshipName string) ([]goald.IBusinessObject, error) {
 	switch relationshipName {
@@ -98,6 +160,10 @@ func (bo *Device) GetMultipleRelationshipValue(relationshipName string) ([]goald
 	return nil, goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
 }
 
+// ------------------------------------------------------------------------------------------------
+// Model validity check
+// ------------------------------------------------------------------------------------------------
+
 // checking a business object's general validity, without using reflection
 func (bo *Device) IsModelValid() error {
 	if _, isLegitValue := bo.Status.Values()[bo.Status.Val()]; !isLegitValue {
@@ -106,6 +172,10 @@ func (bo *Device) IsModelValid() error {
 
 	return nil
 }
+
+// ------------------------------------------------------------------------------------------------
+// Misc utils
+// ------------------------------------------------------------------------------------------------
 
 // removing any cycles from the business object, without using reflection
 func (bo *Device) RemoveCycles() {

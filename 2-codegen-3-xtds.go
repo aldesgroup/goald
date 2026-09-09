@@ -15,10 +15,46 @@ import (
 	$$otherimports$$
 )
 
+// ------------------------------------------------------------------------------------------------
+// Instantiation / cache retrieval
+// ------------------------------------------------------------------------------------------------
+
+func New$$Upper$$(id goald.BObjID) *$$Upper$$ {
+	// TODO use sync.Pool?
+	new$$Upper$$ := &$$Upper$${}
+	new$$Upper$$.ID = id
+
+	return new$$Upper$$
+}
+
+func Get$$Upper$$From(cache *goald.BObjCache, id goald.BObjID) *$$Upper$$ {
+	if cached$$Upper$$ := cache.Get("$$Upper$$", id); cached$$Upper$$ != nil {
+		return cached$$Upper$$.(*$$Upper$$)
+	}
+
+	return nil
+}
+
+func CachedOrNew$$Upper$$(cache *goald.BObjCache, id goald.BObjID) *$$Upper$$ {
+	if cached$$Upper$$ := Get$$Upper$$From(cache, id); cached$$Upper$$ != nil {
+		return cached$$Upper$$
+	}
+
+	return cache.Set(New$$Upper$$(id))
+}
+
+// ------------------------------------------------------------------------------------------------
+// Identification
+// ------------------------------------------------------------------------------------------------
+
 // getting the name of the model for a $$Upper$$, without using reflection
 func (bo *$$Upper$$) GetModelName() utils.ModelName {
 	return "$$Upper$$"
 }
+
+// ------------------------------------------------------------------------------------------------
+// Property values <-> string conversion
+// ------------------------------------------------------------------------------------------------
 
 // getting a property's value as a string, without using reflection
 func (bo *$$Upper$$) GetValueAsString(propertyName string) string {
@@ -37,6 +73,15 @@ $$setcases$$
 
 	return goald.Error("Unknown property: %T.%s", bo, propertyName)
 }
+
+// ------------------------------------------------------------------------------------------------
+// Explicit relationship access
+// ------------------------------------------------------------------------------------------------
+$$withaddedmethods$$
+
+// ------------------------------------------------------------------------------------------------
+// Generic relationship access
+// ------------------------------------------------------------------------------------------------
 
 // setting a single-valued relationship's target, given the relationship's name, without using reflection
 func (bo *$$Upper$$) SetRelationshipValue(relationshipName string, value goald.IBusinessObject) error {
@@ -65,6 +110,15 @@ $$clearrelcases$$
 	return goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
 }
 
+// getting a single-valued relationship's target, given the relationship's name, without using reflection
+func (bo *$$Upper$$) GetSingleRelationshipValue(relationshipName string) (goald.IBusinessObject, error) {
+	switch relationshipName {
+$$getsinglerelcases$$
+	}
+
+	return nil, goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+}
+
 // getting a multi-valued relationship's targets, given the relationship's name, without using reflection
 func (bo *$$Upper$$) GetMultipleRelationshipValue(relationshipName string) ([]goald.IBusinessObject, error) {
 	switch relationshipName {
@@ -74,11 +128,19 @@ $$getmultiplerelcases$$
 	return nil, goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
 }
 
+// ------------------------------------------------------------------------------------------------
+// Model validity check
+// ------------------------------------------------------------------------------------------------
+
 // checking a business object's general validity, without using reflection
 func (bo *$$Upper$$) IsModelValid() error {
 $$modelchecks$$
 	return nil
 }
+
+// ------------------------------------------------------------------------------------------------
+// Misc utils
+// ------------------------------------------------------------------------------------------------
 
 // removing any cycles from the business object, without using reflection
 func (bo *$$Upper$$) RemoveCycles() {
@@ -135,7 +197,8 @@ func generateObjectXtdForModel(model IBusinessObjectModel, filepath string) {
 
 	// building the get/set cases, the relationship cases, and the validity checks
 	getCases, setCases, importUtils := buildUtilsValueCases(model, importsMap)
-	setRelCases, addRelCases, clearRelCases, getMultiRelCases := buildUtilsRelationshipCases(model, importsMap)
+	withAddedMethods := buildUtilsWithAddedMethods(model, importsMap)
+	setRelCases, addRelCases, clearRelCases, getSingleRelCases, getMultiRelCases := buildUtilsRelationshipCases(model, importsMap)
 	modelChecks := buildUtilsModelChecks(model, importsMap)
 	removeCyclesStatements := buildUtilsRemoveCyclesStatements(model)
 
@@ -146,14 +209,16 @@ func generateObjectXtdForModel(model IBusinessObjectModel, filepath string) {
 	// this file lives within the BO's own package: it must never import that same package
 	delete(importsMap, path.Join(getCurrentSourceModule(), model.getSrcPath()))
 
-	// starting the content
+	// filling up the content
 	content := strings.ReplaceAll(utilsFileTEMPLATE, "$$package$$", model.getPackage())
 	content = strings.ReplaceAll(content, "$$Upper$$", string(model.GetName()))
 	content = strings.ReplaceAll(content, "$$getcases$$", strings.Join(getCases, newline))
 	content = strings.ReplaceAll(content, "$$setcases$$", strings.Join(setCases, newline))
+	content = strings.ReplaceAll(content, "$$withaddedmethods$$", strings.Join(withAddedMethods, newline))
 	content = strings.ReplaceAll(content, "$$setrelcases$$", strings.Join(setRelCases, newline))
 	content = strings.ReplaceAll(content, "$$addrelcases$$", strings.Join(addRelCases, newline))
 	content = strings.ReplaceAll(content, "$$clearrelcases$$", strings.Join(clearRelCases, newline))
+	content = strings.ReplaceAll(content, "$$getsinglerelcases$$", strings.Join(getSingleRelCases, newline))
 	content = strings.ReplaceAll(content, "$$getmultiplerelcases$$", strings.Join(getMultiRelCases, newline))
 
 	checksBody := ""
@@ -255,9 +320,29 @@ func buildUtilsValueCases(model IBusinessObjectModel, importsMap map[string]bool
 	return getCases, setCases, importUtils
 }
 
+// building the WithAdded* methods
+func buildUtilsWithAddedMethods(model IBusinessObjectModel, importsMap map[string]bool) (withAddedMethods []string) {
+	// browsing the entity's relationships to fill the set / add cases for the relationship setters
+	for _, relationship := range core.GetSortedValues(model.getRelationships()) {
+		if relationship.IsMultiple() {
+			withAddedMethods = append(withAddedMethods, fmt.Sprintf(`
+func (bo *%[1]s) WithAdded%[2]s(added %[3]s) %[3]s {
+	bo.%[2]s = append(bo.%[2]s, added)
+	return added
+}`,
+				model.GetName(),
+				relationship.GetName(),
+				stripSelfPackage(getRelationshipFieldType(model.getType(), relationship.GetName(), importsMap), model.getPackage()),
+			))
+		}
+	}
+
+	return
+}
+
 // building the cases for the relationship setters/getters, reusing the same logic as the value
 // mapper generator, but without any casting, since these methods are now attached to the BO itself
-func buildUtilsRelationshipCases(model IBusinessObjectModel, importsMap map[string]bool) (setRelCases, addRelCases, clearRelCases, getMultiRelCases []string) {
+func buildUtilsRelationshipCases(model IBusinessObjectModel, importsMap map[string]bool) (setRelCases, addRelCases, clearRelCases, getSingleRelCases, getMultiRelCases []string) {
 
 	// browsing the entity's relationships to fill the set / add cases for the relationship setters
 	for _, relationship := range core.GetSortedValues(model.getRelationships()) {
@@ -283,22 +368,31 @@ func buildUtilsRelationshipCases(model IBusinessObjectModel, importsMap map[stri
 			clearCase += newline + "\t\treturn nil"
 			clearRelCases = append(clearRelCases, clearCase)
 
-			getMultiRelCases = append(getMultiRelCases, buildGetMultiRelCase(relationship, relName))
+			getMultiRelCases = append(getMultiRelCases, buildGetMultiRelCase(relName, relationship))
 		} else {
 			relCase += newline + fmt.Sprintf("\t\tbo.%s = targetValue", relName)
 			relCase += newline + "\t\treturn nil"
 			setRelCases = append(setRelCases, relCase)
+
+			getSingleRelCases = append(getSingleRelCases, buildGetSingleRelCase(relName))
 		}
 	}
 
-	return setRelCases, addRelCases, clearRelCases, getMultiRelCases
+	return setRelCases, addRelCases, clearRelCases, getSingleRelCases, getMultiRelCases
+}
+
+// building the corresponding GetSingleRelationshipValue case
+func buildGetSingleRelCase(relName string) string {
+	getSingleCase := fmt.Sprintf("\tcase \"%s\":", relName)
+	getSingleCase += newline + fmt.Sprintf("\t\treturn bo.%s, nil", relName)
+	return getSingleCase
 }
 
 // building the corresponding GetMultipleRelationshipValue case; if there's a backref relationship
 // on the target side that's single-valued (i.e. each target uniquely points back to us), we
 // also make sure it's (re)set, since it might not have been loaded/set that way already - no
 // casting is needed here anymore, since "bo" is already of the right, concrete type
-func buildGetMultiRelCase(relationship *Relationship, relName string) string {
+func buildGetMultiRelCase(relName string, relationship *Relationship) string {
 	resultVar := core.PascalToCamel(relName)
 	getMultiCase := fmt.Sprintf("\tcase \"%s\":", relName)
 	getMultiCase += newline + fmt.Sprintf("\t\t%s := make([]goald.IBusinessObject, len(bo.%s))", resultVar, relName)

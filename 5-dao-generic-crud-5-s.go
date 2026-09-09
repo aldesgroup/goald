@@ -12,12 +12,13 @@ import (
 
 // SearchContext gathers everything that's specific to one business object model's search query
 type SearchContext struct {
-	Table         string                                                                          // the table to search into (including its schema), e.g. "mydb.purchase_order"
-	Columns       string                                                                          // the comma-separated column list, as it should appear in the SELECT statement
-	QueryName     QueryName                                                                       // the name of the search query, e.g. "byClientRef"
-	QueryValues   ISearchParamValues                                                              // the values of the search query's parameters, e.g. a struct with a ClientRef field
-	MakeQueryArgs func(queryName QueryName, values ISearchParamValues) *QueryArgs                 // builds the WHERE clause's condition clauses, its args, and their secret mask, for the given query & param values
-	ScanRow       func(rows *sql.Rows, bObjs map[BObjID]IBusinessObject) (IBusinessObject, error) // instantiates & fills in one business object, from the current row
+	Table         string                                                          // the table to search into (including its schema), e.g. "mydb.purchase_order"
+	Columns       string                                                          // the comma-separated column list, as it should appear in the SELECT statement
+	QueryName     QueryName                                                       // the name of the search query, e.g. "byClientRef"
+	QueryValues   ISearchParamValues                                              // the values of the search query's parameters, e.g. a struct with a ClientRef field
+	MakeQueryArgs func(queryName QueryName, values ISearchParamValues) *QueryArgs // builds the WHERE clause's condition clauses, its args, and their secret mask, for the given query & param values
+	BoCache       *BObjCache                                                      // the cache for all the objects being read along the way
+	ScanRow       func(rows *sql.Rows, cache *BObjCache) (IBusinessObject, error) // instantiates & fills in one business object, from the current row
 }
 
 // ExecSearch performs the search query described by the given context and returns the resulting business objects.
@@ -43,7 +44,7 @@ func (baseDAO *BusinessObjectDAO) ExecSearch(ctx *SearchContext) (result []IBusi
 
 	// scanning each row into a business object, and returning the list of them
 	for rows.Next() {
-		bObj, errScan := ctx.ScanRow(rows, nil)
+		bObj, errScan := ctx.ScanRow(rows, ctx.BoCache)
 		if errScan != nil {
 			return nil, ErrorC(errScan, "Could not scan the row into a business object")
 		}
@@ -85,6 +86,23 @@ func NewQueryArgs(capacity int, placeholder string, placeholderIndexed bool) *Qu
 		placeholder:        placeholder,
 		placeholderIndexed: placeholderIndexed,
 	}
+}
+
+// NewQueryArgsWithINClause creates a QueryArgs and a corresponding "IN" clause for the given column and values.
+func NewQueryArgsWithINClause(placeholder string, placeholderIndexed bool, values []any) (string, *QueryArgs) {
+	queryArgs := NewQueryArgs(len(values), placeholder, placeholderIndexed)
+
+	var clause strings.Builder
+	clause.WriteString(" IN (")
+	for i, value := range values {
+		if i > 0 {
+			clause.WriteString(", ")
+		}
+		clause.WriteString(queryArgs.AddSingleClause("", value, false))
+	}
+	clause.WriteString(")")
+
+	return clause.String(), queryArgs
 }
 
 // addSingleClause registers 1 arg value (and whether it's secret) and returns the resulting condition

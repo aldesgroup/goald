@@ -31,9 +31,9 @@ func modelFor(modelName utils.ModelName, failIfNil ...bool) IBusinessObjectModel
 	return modelRegistry.items[modelName]
 }
 
-func NewBusinessObject(modelName string, id int64) any {
-	bObj := modelFor(utils.ModelName(modelName), true).NewObject()
-	bObj.(IBusinessObject).setID(BObjID(id))
+func NewBusinessObject(modelName utils.ModelName, id BObjID) IBusinessObject {
+	bObj := modelFor(modelName, true).NewObject().(IBusinessObject)
+	bObj.setID(BObjID(id))
 	return bObj
 }
 

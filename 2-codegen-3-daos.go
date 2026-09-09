@@ -14,6 +14,10 @@ import (
 	"github.com/aldesgroup/goald/features/utils"
 )
 
+// ------------------------------------------------------------------------------------------------
+// Useful structs & constants
+// ------------------------------------------------------------------------------------------------
+
 const daoINITxTEMPLATE = `// Generated file, do not edit!
 package %[1]s
 
@@ -22,33 +26,32 @@ import (
 	"fmt"
 	"sync"
 
-	"%[2]s"
-	"github.com/aldesgroup/goald"%[7]s
+	$$extraimports$$
 )
 
 // ------------------------------------------------------------------------------------------------
-// %[3]sDAO declaration and registration
+// %[2]sDAO declaration and registration
 // ------------------------------------------------------------------------------------------------
 
-type %[3]sDAO struct {
+type %[2]sDAO struct {
 	goald.BusinessObjectDAO
 }
 
 // type check
-var _ goald.IBusinessObjectDAO = (*%[3]sDAO)(nil)
+var _ goald.IBusinessObjectDAO = (*%[2]sDAO)(nil)
 
 // registration
 func init() {
-	goald.RegisterDAO("%[3]s", &%[3]sDAO{})
+	goald.RegisterDAO("%[2]s", &%[2]sDAO{})
 }
 
 // NewDAO implements [goald.IBusinessObjectDAO].
-func (thisDAO *%[3]sDAO) NewDAO() goald.IBusinessObjectDAO {
-	%[4]sDBOnce.Do(func() {
-		%[4]sDB = string(goald.GetDB("%[5]s").Name())
+func (thisDAO *%[2]sDAO) NewDAO() goald.IBusinessObjectDAO {
+	%[3]sDBOnce.Do(func() {
+		%[3]sDB = string(goald.GetDB("%[4]s").Name())
 	})
 
-	return &%[3]sDAO{}
+	return &%[2]sDAO{}
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -56,15 +59,10 @@ func (thisDAO *%[3]sDAO) NewDAO() goald.IBusinessObjectDAO {
 // ------------------------------------------------------------------------------------------------
 
 var (
-	%[4]sDB     string
-	%[4]sDBOnce sync.Once
-	%[4]sMask   = []bool{%[6]s}
+	%[3]sDB     string
+	%[3]sDBOnce sync.Once
+	%[3]sMask   = []bool{%[5]s}
 )
-
-// ------------------------------------------------------------------------------------------------
-// Insertion
-// ------------------------------------------------------------------------------------------------
-
 `
 
 // used to insert a literal backtick inside a raw string template, since raw strings can't escape backticks
@@ -72,6 +70,11 @@ const bq = "`"
 
 const daoFILExSUFFIX = "--dao.go"
 const daoFILExSUFFIXxLEN = len(daoFILExSUFFIX)
+
+// daoGenerator is responsible for generating DAO files for all the business objects.
+type daoGenerator struct {
+	*server
+}
 
 // ------------------------------------------------------------------------------------------------
 // Main DAO files generation methods
@@ -116,6 +119,11 @@ func (thisServer *server) generateAllObjectDAOs(srcdir string, regen bool) (code
 		}
 	}
 
+	// the generator we instantiate to benefit from its methods
+	daoGen := &daoGenerator{
+		server: thisServer,
+	}
+
 	// let's now generate all the DAOs we need in these DB folders
 	for name, boModel := range modelRegistry.items {
 		// we only consider the concrete business objects that are persisted in this project
@@ -128,7 +136,7 @@ func (thisServer *server) generateAllObjectDAOs(srcdir string, regen bool) (code
 				existingDAO == nil || existingDAO.modTime.Before(boModel.getLastBOMod()) {
 
 				// generating the missing or outdated DAO
-				thisServer.generateOneDAO(srcdir, string(dbType), boModel)
+				daoGen.generateOneDAO(srcdir, string(dbType), boModel)
 
 				// code has been changed
 				codeChanged = true
@@ -160,7 +168,7 @@ func (thisServer *server) generateAllObjectDAOs(srcdir string, regen bool) (code
 
 	// 	// removing the unneeded DAOs
 	// 	for _, unneededDAO := range existingDAOFiles {
-	// 		thisServer.Info(fmt.Sprintf("removing %s", unneededDAO.filename))
+	// 		thisGen.Info(fmt.Sprintf("removing %s", unneededDAO.filename))
 	// 		if errRem := os.Remove(path.Join(daoDir, unneededDAO.filename)); errRem != nil {
 	// 			core.PanicMsgIfErr(errRem, "Could not delete DAO file '%s'", unneededDAO.filename)
 	// 		}
@@ -169,73 +177,61 @@ func (thisServer *server) generateAllObjectDAOs(srcdir string, regen bool) (code
 	return
 }
 
-func (thisServer *server) generateOneDAO(srcdir string, dbType string, model IBusinessObjectModel) bool {
+func (thisGen *daoGenerator) generateOneDAO(srcdir string, dbType string, model IBusinessObjectModel) bool {
 	// where the DAO should end up
 	daoDir := core.EnsureDir(srcdir, includePATH, dbFOLDERNAME, dbType)
 
 	// trivial filling of the template
 	modelNameCamel := core.PascalToCamel(string(model.GetName()))
-	importForBOModel := getImportPackageLine(model)
-	_, _, maskPattern, _ := thisServer.getColumnsAndInsertData(model, "\t\t\t")
+	_, _, maskPattern, _ := thisGen.getColumnsAndInsertData(model, "\t\t\t")
 
-	// gathering the extra imports needed by the select-query-building/scanning code below (e.g. a
-	// relationship's target package, or the query params' package if it's not this model's own) -
-	// this model's own package is always already imported, so it's never added twice
+	// dealing with extra imports, and making sure the model at least is imported
 	extraImports := map[string]bool{}
-	selectQueryCode := thisServer.generateExecSearchQuery(model, extraImports)
-	delete(extraImports, importForBOModel)
+	extraImports["github.com/aldesgroup/goald"] = true
+	extraImports[getImportPackageLine(model)] = true
 
-	content := fmt.Sprintf(daoINITxTEMPLATE, dbType, importForBOModel, model.GetName(), modelNameCamel,
-		model.getDB().name, maskPattern, buildExtraImportsBlock(extraImports))
+	// init of the content
+	content := fmt.Sprintf(daoINITxTEMPLATE,
+		dbType,
+		model.GetName(),
+		modelNameCamel,
+		model.getDB().name,
+		maskPattern)
 
 	// adding all the needed DAO methods
-	content += thisServer.generateExecCreateQuery(model)
+	content += thisGen.generateExecCreateQuery(model)
 	content += "\n\n"
-	content += thisServer.generateExecCreateLinksQueries(model)
+	content += thisGen.generateExecCreateLinksQueries(model)
 	content += "\n\n"
-	content += thisServer.generateExecReadQuery(model)
+	content += thisGen.generateExecReadQuery(model)
 	content += "\n\n"
-	content += selectQueryCode
+	content += thisGen.generateExecReadRelationshipQuery(model, extraImports)
+	content += "\n"
+	content += thisGen.generateExecSearchQuery(model, extraImports)
+	content += "\n\n"
+	content += thisGen.generateScanRowFunc(model, extraImports)
+
+	// adding the imports
+	extraImportsString := ""
+	for _, importPath := range core.GetSortedKeys(extraImports) {
+		extraImportsString += fmt.Sprintf("\n\t%q", importPath)
+	}
+	content = strings.Replace(content, "$$extraimports$$", extraImportsString, 1)
 
 	// writing to file
 	core.WriteToFile(content, daoDir, core.PascalToKebab(string(model.GetName()))+daoFILExSUFFIX)
 
-	thisServer.Info(fmt.Sprintf("(Re-)generated DAO for %s", model.GetName()))
+	thisGen.Info(fmt.Sprintf("(Re-)generated DAO for %s", model.GetName()))
 
 	return true
 }
 
-// buildExtraImportsBlock turns a set of extra import paths (gathered while generating a DAO's
-// select-query-building/scanning code) into the source snippet to splice right after the standard
-// imports in daoINITxTEMPLATE, e.g. "\n\t\"git-ext.aldes.com/.../domain\"".
-func buildExtraImportsBlock(extraImports map[string]bool) string {
-	if len(extraImports) == 0 {
-		return ""
-	}
-
-	paths := make([]string, 0, len(extraImports))
-	for importPath := range extraImports {
-		paths = append(paths, importPath)
-	}
-	sort.Strings(paths)
-
-	var block strings.Builder
-	for _, importPath := range paths {
-		block.WriteString(fmt.Sprintf("\n\t%q", importPath))
-	}
-
-	return block.String()
-}
-
 // ------------------------------------------------------------------------------------------------
-//  DAO utils
+// Utils
 // ------------------------------------------------------------------------------------------------
 
-// getColumnsAndInsertData gathers everything needed to generate a batched, multi-row insert for the given
-// model: the column list, the per-row 'args[base+N] = ...' assignment statements (for use inside a
-// ExecCreateContext.FillRow closure), the masked-column pattern (for hiding secret values from the logs),
-// and the total number of columns involved.
-func (thisServer *server) getColumnsAndInsertData(model IBusinessObjectModel, space string) (columns, argAssignments, maskPattern string, nbCols int) {
+// getColumnsAndInsertData gathers the necessary information for generating an insert statement for the given model.
+func (thisGen *daoGenerator) getColumnsAndInsertData(model IBusinessObjectModel, space string) (columns, argAssignments, maskPattern string, nbCols int) {
 	varName := core.PascalToCamel(string(model.GetName()))
 
 	for _, prop := range model.getPersistedProperties() {
@@ -294,15 +290,20 @@ func (thisServer *server) getColumnsAndInsertData(model IBusinessObjectModel, sp
 }
 
 // ------------------------------------------------------------------------------------------------
-//  DAO methods generation
+// Generating the CRUD(S) methods - the CREATION part
 // ------------------------------------------------------------------------------------------------
 
-func (thisServer *server) generateExecCreateQuery(model IBusinessObjectModel) string {
+func (thisGen *daoGenerator) generateExecCreateQuery(model IBusinessObjectModel) string {
 
-	columns, argAssignments, _, nbCols := thisServer.getColumnsAndInsertData(model, "\t\t\t")
+	columns, argAssignments, _, nbCols := thisGen.getColumnsAndInsertData(model, "\t\t\t")
 	varName := core.PascalToCamel(string(model.GetName()))
 
-	return fmt.Sprintf(`// ExecCreateQuery implements [goald.IBusinessObjectDAO].
+	return fmt.Sprintf(`
+// ------------------------------------------------------------------------------------------------
+// Insertion
+// ------------------------------------------------------------------------------------------------
+
+// ExecCreateQuery implements [goald.IBusinessObjectDAO].
 func (thisDAO *%[1]sDAO) ExecCreateQuery(bObjs ...goald.IBusinessObject) (map[int]int64, error) {
 	return thisDAO.ExecBatchCreate(&goald.ExecCreateContext{
 		Table:       %[2]sDB + `+bq+`.%[4]s`+bq+`,
@@ -327,27 +328,14 @@ func (thisDAO *%[1]sDAO) ExecCreateQuery(bObjs ...goald.IBusinessObject) (map[in
 	)
 }
 
-// generateExecCreateLinksQueries builds the ExecCreateLinksQueries method for the given model: one
-// ExecBatchCreateLink call for every relationship of this model that's persisted through a link table -
-// whether this model is on the "source" side (it owns the relationship, e.g. User.MemberOf) or on the
-// "target" side (it only has the back-reference, e.g. UserGroup.Members).
-//
-// Direction matters: the link table's actual column layout (source__..., target__...) is always defined
-// by the owning ("source") relationship. So when generating for the target side (e.g. UserGroup), we
-// still use the source relationship's table/column names, but flip which side supplies "this business
-// object" vs. "each element of the relationship's slice" when building the rows to insert.
-//
-// Every model gets its own ExecCreateLinksQueries, even if it ends up being just 'return nil' - this
-// method is never left to fall back on BusinessObjectDAO's default (which panics), matching how
-// ExecCreateQuery is always generated too.
-func (thisServer *server) generateExecCreateLinksQueries(model IBusinessObjectModel) string {
+// generateExecCreateLinksQueries builds the ExecCreateLinksQueries method for the given model
+func (thisGen *daoGenerator) generateExecCreateLinksQueries(model IBusinessObjectModel) string {
 	varName := core.PascalToCamel(string(model.GetName()))
 	pkg := model.getPackage()
 
 	var blocks string
 	for _, relationship := range core.GetSortedValues(model.getRelationships()) {
-		// the relationship that actually owns the link table, i.e. the "source" side; and whether we're
-		// looking at it from the "target" side (reversed) instead
+		// the relationship that actually owns the link table
 		linkRel := relationship
 		reversed := false
 
@@ -429,8 +417,8 @@ func (thisServer *server) generateExecCreateLinksQueries(model IBusinessObjectMo
 			model.GetName(),            // 1
 			varName,                    // 2
 			pkg,                        // 3
-			relationship.GetName(),     // 4 - the field to iterate, on THIS model
-			linkRel.getLinkTableName(), // 5 - the actual link table, always defined by the source side
+			relationship.GetName(),     // 4
+			linkRel.getLinkTableName(), // 5
 			columns,                    // 6
 			nbCols,                     // 7
 			addRowArgs,                 // 8
@@ -446,8 +434,12 @@ func (thisDAO *%[1]sDAO) ExecCreateLinksQueries(bObjs ...goald.IBusinessObject) 
 	)
 }
 
+// ------------------------------------------------------------------------------------------------
+// Generating the CRUD(S) methods - the READING part
+// ------------------------------------------------------------------------------------------------
+
 // generateExecReadQuery builds the ExecSearchQuery method
-func (thisServer *server) generateExecReadQuery(model IBusinessObjectModel) string {
+func (thisGen *daoGenerator) generateExecReadQuery(model IBusinessObjectModel) string {
 	varName := core.PascalToCamel(string(model.GetName()))
 	columns := getColumnsForSelect(model)
 
@@ -456,12 +448,12 @@ func (thisServer *server) generateExecReadQuery(model IBusinessObjectModel) stri
 // ------------------------------------------------------------------------------------------------
 
 // ExecReadQuery implements [goald.IBusinessObjectDAO].
-func (thisDAO *%[1]sDAO) ExecReadQuery(bObjs map[goald.BObjID]goald.IBusinessObject, bObjIDs []any) error {
+func (thisDAO *%[1]sDAO) ExecReadQuery(bObjIDs []any, cache *goald.BObjCache) error {
 	return thisDAO.ExecRead(&goald.ReadContext{
 		Table:     %[2]sDB + `+bq+`.%[3]s`+bq+`,
 		Columns:   `+bq+`%[4]s`+bq+`,
-		Objects:   bObjs,
 		ObjectIDs: bObjIDs,
+		BoCache:   cache,
 		ScanRow:   scan%[1]sRow,
 	})
 }`,
@@ -470,65 +462,6 @@ func (thisDAO *%[1]sDAO) ExecReadQuery(bObjs map[goald.BObjID]goald.IBusinessObj
 		model.getTableName(false), // 3
 		columns,                   // 4
 	)
-}
-
-// ------------------------------------------------------------------------------------------------
-//  ExecSearchQuery generation: the WHERE-building code mirrors, for every query registered against
-//  this model (via Find(...).Where(...) in a *--blo.go file), the OR-ed/AND-ed clause tree built with
-//  Either/Or - flattened into its equivalent DNF (a flat list of AND-ed clauses, OR-ed together, by
-//  OR's associativity) - plus the row-scanning code for all of the model's persisted columns.
-// ------------------------------------------------------------------------------------------------
-
-// generateExecSearchQuery builds the ExecSearchQuery method, the query-args dispatcher + 1 builder
-// function per query registered against this model, and the row-scanning function - registering, in
-// extraImports, any package (other than this model's own) that this generated code ends up needing.
-func (thisServer *server) generateExecSearchQuery(model IBusinessObjectModel, extraImports map[string]bool) string {
-	varName := core.PascalToCamel(string(model.GetName()))
-	columns := getColumnsForSelect(model)
-	queries := getQueriesForModel(model)
-
-	execSelect := fmt.Sprintf(`// ------------------------------------------------------------------------------------------------
-// Searching
-// ------------------------------------------------------------------------------------------------
-
-// ExecSearchQuery implements [goald.IBusinessObjectDAO].
-func (thisDAO *%[1]sDAO) ExecSearchQuery(queryName goald.QueryName, values goald.ISearchParamValues) ([]goald.IBusinessObject, error) {
-	return thisDAO.ExecSearch(&goald.SearchContext{
-		Table:         %[2]sDB + `+bq+`.%[3]s`+bq+`,
-		Columns:       `+bq+`%[4]s`+bq+`,
-		QueryName:     queryName,
-		QueryValues:   values,
-		MakeQueryArgs: build%[1]sQueryArgs,
-		ScanRow:       scan%[1]sRow,
-	})
-}`,
-		model.GetName(),           // 1
-		varName,                   // 2
-		model.getTableName(false), // 3
-		columns,                   // 4
-	)
-
-	var dispatchCases string
-	var builders string
-
-	for i, q := range queries {
-		funcName := fmt.Sprintf("build%sQueryArgs%d", model.GetName(), i+1)
-		dispatchCases += fmt.Sprintf("\tcase %q:\n\t\treturn %s(values)\n\n", q.getName(), funcName)
-		builders += "\n\n" + thisServer.generateQueryArgsBuilder(model, q, funcName, extraImports)
-	}
-
-	dispatcher := fmt.Sprintf(`// build%[1]sQueryArgs builds the query args for whichever of %[1]s's registered queries is being run
-func build%[1]sQueryArgs(queryName goald.QueryName, values goald.ISearchParamValues) *goald.QueryArgs {
-	switch queryName {
-%[2]s	default:
-		panic(fmt.Sprintf("build%[1]sQueryArgs: unhandled query name '%%s'", queryName))
-	}
-}`,
-		model.GetName(), // 1
-		dispatchCases,   // 2
-	)
-
-	return execSelect + "\n\n" + dispatcher + builders + "\n\n" + thisServer.generateScanRowFunc(model, extraImports)
 }
 
 // getColumnsForSelect returns the comma-separated column list to SELECT for the given model: every
@@ -560,6 +493,191 @@ func getColumnsForSelect(model IBusinessObjectModel) string {
 	return columns
 }
 
+// ------------------------------------------------------------------------------------------------
+// Generating the CRUD(S) methods - the READING RELATIONSHIPS part
+// ------------------------------------------------------------------------------------------------
+
+const execReadRelationshipQueryTpl = `// ------------------------------------------------------------------------------------------------
+// Reading relationships
+// ------------------------------------------------------------------------------------------------
+
+// ExecReadRelationshipQuery implements [goald.IBusinessObjectDAO].
+func (thisDAO *%[1]sDAO) ExecReadRelationshipQuery(bObjIDs []any, relName string, cache *goald.BObjCache) ([]goald.IBusinessObject, error) {
+	switch relName {
+%[2]s
+	default:
+		panic(fmt.Sprintf("%[1]sDAO.ExecReadRelationshipQuery: unhandled relationship name '%%s'", relName))
+	}
+}
+%[3]s`
+
+const execReadOneRelationshipTpl = `
+// execRead%[2]s reads the "%[2]s" relationship
+func (thisDAO *%[1]sDAO) execRead%[2]s(bObjIDs []any, cache *goald.BObjCache) ([]goald.IBusinessObject, error) {
+	inClause, queryArgs := goald.NewQueryArgsWithINClause("%[3]s", %[4]t, bObjIDs)
+
+	return thisDAO.ExecReadRelationship(&goald.ReadRelationshipContext{
+		Query: "SELECT %[5]s" +
+			" FROM " + %[6]sDB + ".%[7]s" +
+			" WHERE %[8]s" + inClause,
+		Args: queryArgs.Args,
+		AttachRow: func(rows *sql.Rows) (goald.IBusinessObject, error) {
+			var sourceID, targetID goald.BObjID%[9]s
+			if errScan := rows.Scan(%[10]s); errScan != nil {
+				return nil, errScan
+			}
+			return %[11]s.Get%[1]sFrom(cache, sourceID).WithAdded%[2]s(%[12]s.CachedOrNew%[13]s(%[14]s, targetID)%[15]s), nil
+		},
+	})
+}
+`
+
+// Implement the logic to generate read relationship cases and functions
+func (thisGen *daoGenerator) generateExecReadRelationshipQuery(model IBusinessObjectModel, extraImports map[string]bool) string {
+	var readRelCases, readRelFuncs string
+
+	// iterating over the relationships...
+	for i, rel := range core.GetSortedValues(model.getRelationships()) {
+		// ... but only the multiple ones, since the single-valued ones are read through the main ExecReadQuery method
+		if rel.IsMultiple() {
+			// name of the model in camel case
+			modelNameCamel := core.PascalToCamel(string(model.GetName()))
+
+			// declaring some variables that will be used in the template
+			var sourceColName, targetColName, targetMdlColName, selTable string
+
+			// is this link indirectly persisted, from this model's perspective?
+			if rel.isDirectlyPersisted() {
+				sourceColName, _ = rel.getLinkTableSourceColumn()
+				targetColName, targetMdlColName = rel.getLinkTableTargetColumn()
+				selTable = rel.getLinkTableName()
+			} else {
+				// in this case, the backref is the directly persisted one, so things are a bit reversed here
+				if dirRel := rel.backRef; dirRel.IsMultiple() {
+					sourceColName, _ = dirRel.getLinkTableTargetColumn() // the backref's target is this model, so it's the source for the link table
+					targetColName, _ = dirRel.getLinkTableSourceColumn() // the backref's source is the other model, so it's the target for the link table
+					selTable = dirRel.getLinkTableName()
+				} else {
+					sourceColName = dirRel.getColumnName() // the backref's target is this model, so it's the source for this relationship
+					targetColName = "id"                   // the backref's source is the other model, so it's the target for this relationship
+					selTable = dirRel.owner.getTableName(false)
+				}
+			}
+
+			// aggregating the SELECT and the scanning parts
+			selColNames := sourceColName + ", " + targetColName
+			if targetMdlColName != "" {
+				selColNames += ", " + targetMdlColName
+			}
+			selColVars := "&sourceID, &targetID"
+			if rel.IsPolymorphic() {
+				selColVars += ", &targetMdl"
+			}
+
+			// declaring iother variables that will be used in the template
+			var mdlColScan, cacheOrNewReceiver, cacheOrNewObject, cacheOrNewArg, cacheOrNewType string
+
+			// Is the model concrete, or an interface?
+			if rel.IsPolymorphic() { // let's say it's an interface
+				mdlColScan = newline + `			var targetMdl utils.ModelName`
+				cacheOrNewReceiver = "cache"
+				cacheOrNewObject = "BusinessObject"
+				cacheOrNewArg = "targetMdl"
+				cacheOrNewType = fmt.Sprintf(".(%s)", getRelationshipFieldType(model.getType(), rel.GetName(), extraImports))
+
+				// let's not forget this then:
+				extraImports["github.com/aldesgroup/goald/features/utils"] = true
+			} else { // or if it's a concrete model
+				cacheOrNewReceiver = rel.getUniqueTargetModel().getPackage()
+				cacheOrNewObject = string(rel.getUniqueTargetName())
+				cacheOrNewArg = "cache"
+			}
+
+			// Adding the function:
+			readRelFuncs += fmt.Sprintf(execReadOneRelationshipTpl,
+				model.GetName(),                            //  1: func (thisDAO *%[1]sDAO)
+				rel.GetName(),                              //  2: execRead%[2]s reads the "%[2]s" relationship
+				model.getDB().get.QueryPlaceholder(),       //  3: NewQueryArgsWithINClause("%[3]s", %[4]s, bObjIDs)
+				model.getDB().is.QueryPlaceholderIndexed(), //  4: NewQueryArgsWithINClause("%[3]s", %[4]s, bObjIDs)
+				selColNames,                                //  5: SELECT %[5]s
+				modelNameCamel,                             //  6: FROM ` + bq + ` + %[6]s + ` + bq + `.%[7]s
+				selTable,                                   //  7: FROM ` + bq + ` + %[6]s + ` + bq + `.%[7]s
+				sourceColName,                              //  8: WHERE %[8]s` + bq + ` + inClause
+				mdlColScan,                                 //  9: var sourceID, targetID goald.BObjID%[9]s
+				selColVars,                                 // 10: if errScan := rows.Scan(%[10]s); errScan != nil {
+				model.getPackage(),                         // 11: return %[11]s.Get%[1]sFrom(cache, sourceID)
+				cacheOrNewReceiver,                         // 12: .WithAdded%[2]s(%[12]s.CachedOrNew%[13]s(%[14]s, targetID)%[15]s)
+				cacheOrNewObject,                           // 13: .WithAdded%[2]s(%[12]s.CachedOrNew%[13]s(%[14]s, targetID)%[15]s)
+				cacheOrNewArg,                              // 14: .WithAdded%[2]s(%[12]s.CachedOrNew%[13]s(%[14]s, targetID)%[15]s)
+				cacheOrNewType,                             // 15: .WithAdded%[2]s(%[12]s.CachedOrNew%[13]s(%[14]s, targetID)%[15]s)
+			)
+
+			// Adding the case:
+			readRelCases += fmt.Sprintf(`	case "%[1]s":
+		return thisDAO.execRead%[1]s(bObjIDs, cache)
+`+core.IfThenElse(i+1 == len(model.getRelationships()), "", newline), rel.GetName())
+		}
+	}
+
+	return fmt.Sprintf(execReadRelationshipQueryTpl, model.GetName(), readRelCases, readRelFuncs)
+}
+
+// ------------------------------------------------------------------------------------------------
+// Generating the CRUD(S) methods - the SEARCH part
+// ------------------------------------------------------------------------------------------------
+
+// generateExecSearchQuery builds the ExecSearchQuery method, the query-args dispatcher
+// + 1 builder function per query registered against this model
+func (thisGen *daoGenerator) generateExecSearchQuery(model IBusinessObjectModel, extraImports map[string]bool) string {
+	varName := core.PascalToCamel(string(model.GetName()))
+	columns := getColumnsForSelect(model)
+	queries := getQueriesForModel(model)
+
+	execSelect := fmt.Sprintf(`// ------------------------------------------------------------------------------------------------
+// Searching
+// ------------------------------------------------------------------------------------------------
+
+// ExecSearchQuery implements [goald.IBusinessObjectDAO].
+func (thisDAO *%[1]sDAO) ExecSearchQuery(queryName goald.QueryName, values goald.ISearchParamValues, cache *goald.BObjCache) ([]goald.IBusinessObject, error) {
+	return thisDAO.ExecSearch(&goald.SearchContext{
+		Table:         %[2]sDB + `+bq+`.%[3]s`+bq+`,
+		Columns:       `+bq+`%[4]s`+bq+`,
+		QueryName:     queryName,
+		QueryValues:   values,
+		MakeQueryArgs: build%[1]sQueryArgs,
+		BoCache:       cache,
+		ScanRow:       scan%[1]sRow,
+	})
+}`,
+		model.GetName(),           // 1
+		varName,                   // 2
+		model.getTableName(false), // 3
+		columns,                   // 4
+	)
+
+	var dispatchCases string
+	var builders string
+
+	for i, q := range queries {
+		funcName := fmt.Sprintf("build%sQueryArgs%d", model.GetName(), i+1)
+		dispatchCases += fmt.Sprintf("\tcase %q:\n\t\treturn %s(values)\n\n", q.getName(), funcName)
+		builders += "\n\n" + thisGen.generateQueryArgsBuilder(model, q, funcName, extraImports)
+	}
+
+	dispatcher := fmt.Sprintf(`// build%[1]sQueryArgs builds the query args for whichever of %[1]s's registered queries is being run
+func build%[1]sQueryArgs(queryName goald.QueryName, values goald.ISearchParamValues) *goald.QueryArgs {
+	switch queryName {
+%[2]s	default:
+		panic(fmt.Sprintf("build%[1]sQueryArgs: unhandled query name '%%s'", queryName))
+	}
+}`,
+		model.GetName(), // 1
+		dispatchCases,   // 2
+	)
+
+	return execSelect + "\n\n" + dispatcher + builders
+}
+
 // getQueriesForModel returns every query registered (via Find(...).Where(...)) against the given
 // model, sorted by (dynamically generated) name, for deterministic codegen output.
 func getQueriesForModel(model IBusinessObjectModel) []IQuery {
@@ -578,62 +696,13 @@ func getQueriesForModel(model IBusinessObjectModel) []IQuery {
 	return queries
 }
 
-// flatten turns a clause tree (built with Either/Or/comparisons in a *--blo.go file) into its
-// equivalent flat list of AND-ed clauses (leaves), OR-ed together.
-func flatten(c IClause) [][]IClause {
-	switch c.GetType() {
-	case clauseTypeOR:
-		var result [][]IClause
-		for _, sub := range c.GetSubClauses() {
-			result = append(result, flatten(sub)...)
-		}
-		return result
-
-	case clauseTypeAND:
-		product := [][]IClause{{}}
-		for _, sub := range c.GetSubClauses() {
-			var newProduct [][]IClause
-			for _, existingGroup := range product {
-				for _, subGroup := range flatten(sub) {
-					combined := make([]IClause, 0, len(existingGroup)+len(subGroup))
-					combined = append(combined, existingGroup...)
-					combined = append(combined, subGroup...)
-					newProduct = append(newProduct, combined)
-				}
-			}
-			product = newProduct
-		}
-		return product
-
-	default:
-		// a leaf clause (a comparison, or an IN)
-		return [][]IClause{{c}}
-	}
-}
-
-// findQueryParamsModel returns the query params model (e.g. PurchaseOrderQuery) that a query's clauses
-// compare against, found via any comparison leaf's right-hand side - the left-hand side is always the
-// business object's own property (e.g. order.OrderRef()), the right-hand side the query param being
-// compared against it (e.g. query.OrderRefExact()); an IN clause has no right-hand side (its values are
-// literal constants), hence looking across every leaf until one is found.
-func findQueryParamsModel(dnf [][]IClause) IBusinessObjectModel {
-	for _, group := range dnf {
-		for _, leaf := range group {
-			if concreteLeaf, ok := leaf.(*clause); ok && concreteLeaf.right != nil {
-				return concreteLeaf.right.ownerModel()
-			}
-		}
-	}
-
-	return nil
-}
-
 // generateQueryArgsBuilder builds the function computing 1 registered query's *goald.QueryArgs (its
 // OR-ed/AND-ed condition clauses, args, and secret mask) from that query's param values.
-func (thisServer *server) generateQueryArgsBuilder(model IBusinessObjectModel, q IQuery, funcName string, extraImports map[string]bool) string {
+func (thisGen *daoGenerator) generateQueryArgsBuilder(model IBusinessObjectModel, q IQuery, funcName string, extraImports map[string]bool) string {
+	// flatten the WHERE clause into disjunctive normal form (DNF)
 	var dnf [][]IClause
 	if q.getWhere() != nil {
-		dnf = flatten(q.getWhere())
+		dnf = q.getWhere().toDNF()
 	}
 
 	// applying any registered mandatory clauses so they can never be bypassed - unlike the clauses
@@ -658,10 +727,16 @@ func (thisServer *server) generateQueryArgsBuilder(model IBusinessObjectModel, q
 		}
 	}
 
-	queryParamsModel := findQueryParamsModel(dnf)
+	// which query params model this query is using
+	queryParamsModel := thisGen.findQueryParamsModel(dnf)
+
+	// making sure we import the package for the query params model
 	extraImports[getImportPackageLine(queryParamsModel)] = true
+
+	// making a string representing the query params type
 	queryParamsType := fmt.Sprintf("*%s.%s", queryParamsModel.getPackage(), queryParamsModel.GetName())
 
+	// building the clauses
 	var body strings.Builder
 	nbArgs := 0
 
@@ -671,7 +746,7 @@ func (thisServer *server) generateQueryArgsBuilder(model IBusinessObjectModel, q
 		}
 
 		for _, leaf := range group {
-			line, argCount := thisServer.generateLeafClauseCode(leaf, model, extraImports, mandatory[leaf])
+			line, argCount := thisGen.generateLeafClauseCode(leaf, model, extraImports, mandatory[leaf])
 			body.WriteString("\t")
 			body.WriteString(line)
 			body.WriteString("\n")
@@ -700,13 +775,30 @@ func %[1]s(values goald.ISearchParamValues) *goald.QueryArgs {
 	)
 }
 
+// findQueryParamsModel returns the query params model that a query's clause is comparing against.
+// found via any comparison leaf's right-hand side - the left-hand side is always the
+// business object's own property (e.g. order.OrderRef()), the right-hand side the query param being
+// compared against it (e.g. query.OrderRefExact()); an IN clause has no right-hand side (its values are
+// literal constants), hence looking across every leaf until one is found.
+func (thisGen *daoGenerator) findQueryParamsModel(dnf [][]IClause) IBusinessObjectModel {
+	for _, group := range dnf {
+		for _, leaf := range group {
+			if concreteLeaf, ok := leaf.(*clause); ok && concreteLeaf.right != nil {
+				return concreteLeaf.right.ownerModel()
+			}
+		}
+	}
+
+	return nil
+}
+
 // generateLeafClauseCode builds the single statement appending 1 leaf clause (a comparison, or an IN)
 // to the AND-clause currently being built, and returns how many query args it consumes. isMandatory
 // tells it whether this leaf came from a registered mandatory-clause builder (see
 // RegisterMandatoryClauseBuilder), rather than from the *--blo.go file's own Where(...) clauses: unlike
 // those, a mandatory clause must always be applied unconditionally (never skipped for lacking a query
 // param value) - it's enforced regardless of what the caller did or didn't provide.
-func (thisServer *server) generateLeafClauseCode(cl IClause, model IBusinessObjectModel, extraImports map[string]bool, isMandatory bool) (string, int) {
+func (thisGen *daoGenerator) generateLeafClauseCode(cl IClause, model IBusinessObjectModel, extraImports map[string]bool, isMandatory bool) (string, int) {
 	c := cl.(*clause)
 	if c.ctype == clauseTypeIN {
 		enumTypeExpr := getNonBuiltInFieldType(model.getType(), c.left.GetName(), extraImports)
@@ -742,9 +834,13 @@ func (thisServer *server) generateLeafClauseCode(cl IClause, model IBusinessObje
 	return fmt.Sprintf("queryArgs.AppendAndClause(%s, %q, %s, %t)", condition, columnName+" "+operator+" ", valueExpr, secret), 1
 }
 
+// ------------------------------------------------------------------------------------------------
+// Generating the CRUD(S) methods - the main row scanning function
+// ------------------------------------------------------------------------------------------------
+
 // generateScanRowFunc builds the function instantiating and filling in 1 business object from a
 // *sql.Rows, in the same column order given to ExecSearchQuery above.
-func (thisServer *server) generateScanRowFunc(model IBusinessObjectModel, extraImports map[string]bool) string {
+func (thisGen *daoGenerator) generateScanRowFunc(model IBusinessObjectModel, extraImports map[string]bool) string {
 	varName := core.PascalToCamel(string(model.GetName()))
 	pkg := model.getPackage()
 
@@ -754,13 +850,6 @@ func (thisServer *server) generateScanRowFunc(model IBusinessObjectModel, extraI
 
 	for _, prop := range model.getPersistedProperties() {
 		if prop.GetName() == boFieldPreID {
-			continue
-		}
-
-		if prop.GetName() == BoFieldID {
-			declarations = append(declarations, "id int64")
-			scanTargets = append(scanTargets, "&id")
-			assignments = append(assignments, fmt.Sprintf("%s.ID = goald.BObjID(id)", varName))
 			continue
 		}
 
@@ -778,14 +867,18 @@ func (thisServer *server) generateScanRowFunc(model IBusinessObjectModel, extraI
 				scanTargets = append(scanTargets, "&"+mdlVar)
 
 				targetTypeExpr := getRelationshipFieldType(model.getType(), fieldName, extraImports)
-				assignments = append(assignments, fmt.Sprintf(
-					"if %[1]s.Valid && %[2]s.Valid {\n\t\t%[3]s.%[4]s = goald.NewBusinessObject(%[2]s.String, %[1]s.Int64).(%[5]s)\n\t}",
+				assignments = append(assignments, fmt.Sprintf(`		if %[1]s.Valid && %[2]s.Valid {
+			%[3]s.%[4]s = cache.CachedOrNewBusinessObjectRaw(%[2]s.String, %[1]s.Int64).(%[5]s)
+		}`,
 					idVar, mdlVar, varName, fieldName, targetTypeExpr))
 			} else {
-				targetTypeExpr := strings.TrimPrefix(getRelationshipFieldType(model.getType(), fieldName, extraImports), "*")
-				assignments = append(assignments, fmt.Sprintf(
-					"if %[1]s.Valid {\n\t\t%[2]s.%[3]s = &%[4]s{}\n\t\t%[2]s.%[3]s.ID = goald.BObjID(%[1]s.Int64)\n\t}",
-					idVar, varName, fieldName, targetTypeExpr))
+				targetTypeExprParts := strings.Split(strings.TrimPrefix(getRelationshipFieldType(model.getType(), fieldName, extraImports), "*"), ".")
+				pkg := targetTypeExprParts[0]
+				targetType := targetTypeExprParts[1]
+				assignments = append(assignments, fmt.Sprintf(`		if %[1]s.Valid {
+			%[3]s.%[4]s = %[2]s.CachedOrNew%[5]s(cache, goald.BObjID(%[1]s.Int64))
+		}`,
+					idVar, pkg, varName, fieldName, targetType))
 			}
 
 			continue
@@ -808,9 +901,14 @@ func (thisServer *server) generateScanRowFunc(model IBusinessObjectModel, extraI
 			assignments = append(assignments, fmt.Sprintf("%s.%s = %s", varName, fieldName, propVarName))
 
 		case propertyTypeBIGINT:
-			declarations = append(declarations, propVarName+" int64")
+			if fieldName == BoFieldID {
+				declarations = append(declarations, propVarName+" goald.BObjID")
+				// no assignment for the ID
+			} else {
+				declarations = append(declarations, propVarName+" int64")
+				assignments = append(assignments, fmt.Sprintf("%s.%s = %s", varName, fieldName, propVarName))
+			}
 			scanTargets = append(scanTargets, "&"+propVarName)
-			assignments = append(assignments, fmt.Sprintf("%s.%s = %s", varName, fieldName, propVarName))
 
 		case propertyTypeREAL:
 			declarations = append(declarations, propVarName+" float32")
@@ -840,7 +938,7 @@ func (thisServer *server) generateScanRowFunc(model IBusinessObjectModel, extraI
 // ------------------------------------------------------------------------------------------------
 
 // scan%[1]sRow instantiates and fills in one %[1]s from the current row
-func scan%[1]sRow(rows *sql.Rows, bObjs map[goald.BObjID]goald.IBusinessObject) (goald.IBusinessObject, error) {
+func scan%[1]sRow(rows *sql.Rows, cache *goald.BObjCache) (goald.IBusinessObject, error) {
 	var (
 		%[3]s
 	)
@@ -850,17 +948,13 @@ func scan%[1]sRow(rows *sql.Rows, bObjs map[goald.BObjID]goald.IBusinessObject) 
 		return nil, errScan
 	}
 
-	// instantiating the business object, either from the provided map or as a new one
-	var %[2]s *%[5]s.%[1]s
-	if bObjs != nil {
-		%[2]s = bObjs[goald.BObjID(id)].(*%[5]s.%[1]s)
-	} else {
-		%[2]s := &%[5]s.%[1]s{}
-		%[2]s.ID = goald.BObjID(id)
-	}
+	// retrieving the object from the cache or creating a new one
+	%[2]s := %[5]s.CachedOrNew%[1]s(cache, id)
 
-	// filling in the business object with the scanned values
+	// filling in the business object with the scanned values, if it was newly created
+	if %[2]s.Creation == nil {
 	%[6]s
+    }
 
 	// returning the filled-in business object
 	return %[2]s, nil

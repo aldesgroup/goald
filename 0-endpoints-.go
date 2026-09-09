@@ -49,7 +49,7 @@ type iEndpoint interface {
 	getPathAsString() string                         // e.g. GET /rest/document/reduce/:id
 	getLabel() string
 	getDescription() string
-	getLoadingType() LoadingType
+	getLoadingConfig() ILoadingConfig
 	isMultipleOutput() bool
 	hasBodyOrParamsInput() bool
 	isBodyInputRequired() bool
@@ -80,7 +80,7 @@ type endpoint[ResourceType IBusinessObject] struct {
 	label                  string               // short label to describe the endpoint
 	description            string               // a bit longer text to describe the endpoint
 	multipleOutput         bool                 // if true, then the endpoint delivers arrays of BOs, rather than a single one
-	loadingType            LoadingType          // how the returned resource(s) are loaded
+	loadingConf            ILoadingConfig       // how the returned resource(s) are loaded
 	bodyInputRequired      bool                 // if true, then we expect something in the request body
 	multipleInput          bool                 // if true, then we expect an array of BOs in the body, rather than a single one
 	inputOrParamsModelName utils.ModelName      // if bodyInputRequired = true, then this is the type of the input
@@ -146,8 +146,8 @@ func (ep *endpoint[ResourceType]) getDescription() string {
 	return ep.description
 }
 
-func (ep *endpoint[ResourceType]) getLoadingType() LoadingType {
-	return ep.loadingType
+func (ep *endpoint[ResourceType]) getLoadingConfig() ILoadingConfig {
+	return ep.loadingConf
 }
 
 func (ep *endpoint[ResourceType]) isMultipleOutput() bool {
@@ -221,7 +221,7 @@ func (ep *endpoint[ResourceType]) returnManyForMany(webCtx WebContext, inputs an
 func newEndpoint[InputOrParamsType, ResourceType IBusinessObject](
 	multipleOutput bool,
 	method string,
-	loadingType LoadingType,
+	loadingConf ILoadingConfig,
 	bodyInputRequired bool,
 	multipleInput bool,
 	withURLParams bool,
@@ -238,7 +238,7 @@ func newEndpoint[InputOrParamsType, ResourceType IBusinessObject](
 		resourceModelName:      resourceModelName,
 		basePath:               strings.ToLower(string(resourceModelName)),
 		multipleOutput:         multipleOutput,
-		loadingType:            loadingType,
+		loadingConf:            loadingConf,
 		bodyInputRequired:      bodyInputRequired,
 		multipleInput:          multipleInput,
 		inputOrParamsModelName: inputOrParamsModelName,
@@ -322,10 +322,10 @@ func (thisEndpoint *endpoint[ResourceType]) InGroup(group *EndpointGroup) *endpo
 // Declaring an endpoint to return 1 BO instance from a GET request
 func GetOne[ResourceType IBusinessObject](
 	handlerFunc func(webCtx WebContext) (ResourceType, hstatus.Code, string),
-	loadingType LoadingType,
+	loadingConf ILoadingConfig,
 ) *oneForNoneEndpoint[ResourceType] {
 
-	return handleOne(http.MethodGet, handlerFunc, loadingType)
+	return handleOne(http.MethodGet, handlerFunc, loadingConf)
 }
 
 // Declaring an endpoint to delete 1 BO instance with a DELETE request
@@ -333,50 +333,50 @@ func DeleteOne[ResourceType IBusinessObject](
 	handlerFunc func(webCtx WebContext) (ResourceType, hstatus.Code, string),
 ) *oneForNoneEndpoint[ResourceType] {
 
-	return handleOne(http.MethodDelete, handlerFunc, "")
+	return handleOne(http.MethodDelete, handlerFunc, nil)
 }
 
 // // Declaring an endpoint to return N BO instances from a GET request
 // func GetMany[ResourceType IBusinessObject](
 // 	handlerFunc func(webCtx WebContext) ([]ResourceType, hstatus.Code, string),
-// 	loadingType LoadingType,
+// 	loadingConf ILoadingConfig,
 // ) *manyForNoneEndpoint[ResourceType] {
 
-// 	return handleMany(http.MethodGet, handlerFunc, loadingType)
+// 	return handleMany(http.MethodGet, handlerFunc, loadingConf)
 // }
 
 // Declaring an endpoint to return 1 BO instance from 1 POSTed BO instance
 func PostOneGetOne[InputType, ResourceType IBusinessObject](
 	handlerFunc func(webCtx WebContext, input InputType) (ResourceType, hstatus.Code, string),
-	loadingType LoadingType,
+	loadingConf ILoadingConfig,
 ) *oneForOneEndpoint[InputType, ResourceType] {
 
-	return handleOneForOne(http.MethodPost, handlerFunc, loadingType)
+	return handleOneForOne(http.MethodPost, handlerFunc, loadingConf)
 }
 
 // Declaring an endpoint to return 1 BO instance from 1 PUT BO instance
 func PutOne[InputType, ResourceType IBusinessObject](
 	handlerFunc func(webCtx WebContext, input ResourceType) (ResourceType, hstatus.Code, string),
-	loadingType LoadingType,
+	loadingConf ILoadingConfig,
 ) *oneForOneEndpoint[ResourceType, ResourceType] {
 
-	return handleOneForOne(http.MethodPut, handlerFunc, loadingType)
+	return handleOneForOne(http.MethodPut, handlerFunc, loadingConf)
 }
 
 // Declaring an endpoint to return N BO instance from N POSTed BO instances
 func PostManyGetMany[InputType, ResourceType IBusinessObject](
 	handlerFunc func(webCtx WebContext, input []InputType) ([]ResourceType, hstatus.Code, string),
-	loadingType LoadingType,
+	loadingConf ILoadingConfig,
 ) *manyForManyEndpoint[InputType, ResourceType] {
 
-	return handleManyForMany(http.MethodPost, handlerFunc, loadingType)
+	return handleManyForMany(http.MethodPost, handlerFunc, loadingConf)
 }
 
 // Declaring an endpoint to return N BO instance from query parameters that are described with 1 SearchParamValues
 func GetManyWithParams[ResourceType IBusinessObject, SearchParamValuesType ISearchParamValues](
 	handlerFunc func(webCtx WebContext, SearchParamValues SearchParamValuesType) ([]ResourceType, hstatus.Code, string),
-	loadingType LoadingType,
+	loadingConf ILoadingConfig,
 ) *manyForOneEndpoint[SearchParamValuesType, ResourceType] {
 
-	return handleManyForOne(http.MethodGet, handlerFunc, loadingType, false)
+	return handleManyForOne(http.MethodGet, handlerFunc, loadingConf, false)
 }

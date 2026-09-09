@@ -5,6 +5,7 @@ package goald
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/aldesgroup/goald/features/utils"
@@ -22,11 +23,15 @@ type IBusinessObject interface {
 	setCreation(*time.Time)
 	GetPreID() int
 	setPreID(int)
+	getKey() string
+	setKey(string)
 
 	// business logic
 	ChangeBeforeInsert(BloContext) error
 	IsValid(BloContext) error
 	ChangeAfterInsert(BloContext) error
+	CanBeRead(bloCtx BloContext) error
+	ChangeAfterRead(bloCtx BloContext) error
 
 	// utilities for accessing properties and relationships without using reflection
 	GetModelName() utils.ModelName                                          // returning the name of the business object's model
@@ -35,6 +40,7 @@ type IBusinessObject interface {
 	SetRelationshipValue(relName string, value IBusinessObject) error       // setting a single-valued relationship's target, given the relationship's name - without using reflection
 	AddRelationshipValue(relName string, value IBusinessObject) error       // appending a target to a multi-valued relationship, given the relationship's name - without using reflection
 	ClearRelationshipValue(relName string) error                            // resetting a multi-valued relationship to an empty slice, given the relationship's name - without using reflection
+	GetSingleRelationshipValue(relName string) (IBusinessObject, error)     // returning the target of a single-valued relationship, given the relationship's name - without using reflection
 	GetMultipleRelationshipValue(relName string) ([]IBusinessObject, error) // returning the targets of a multi-valued relationship, given the relationship's name - without using reflection
 	IsModelValid() error                                                    // checking a business object's general validity - without using reflection
 	RemoveCycles()                                                          // removing any cycles from the business object, without using reflection
@@ -59,6 +65,7 @@ type BusinessObject struct {
 
 	// technical stuff
 	model IBusinessObjectModel
+	key   string
 }
 
 var _ IBusinessObject = (*BusinessObject)(nil)
@@ -70,11 +77,15 @@ func (thisBO *BusinessObject) GetCreation() *time.Time         { return thisBO.C
 func (thisBO *BusinessObject) setCreation(creation *time.Time) { thisBO.Creation = creation }
 func (thisBO *BusinessObject) GetPreID() int                   { return thisBO.preID }
 func (thisBO *BusinessObject) setPreID(preID int)              { thisBO.preID = preID }
+func (thisBO *BusinessObject) getKey() string                  { return thisBO.key }
+func (thisBO *BusinessObject) setKey(key string)               { thisBO.key = key }
 
 // Triggers - default implems
-func (thisBO *BusinessObject) ChangeBeforeInsert(BloContext) error { return nil }
-func (thisBO *BusinessObject) IsValid(BloContext) error            { return nil }
-func (thisBO *BusinessObject) ChangeAfterInsert(BloContext) error  { return nil }
+func (thisBO *BusinessObject) ChangeBeforeInsert(BloContext) error     { return nil }
+func (thisBO *BusinessObject) IsValid(BloContext) error                { return nil }
+func (thisBO *BusinessObject) ChangeAfterInsert(BloContext) error      { return nil }
+func (thisBO *BusinessObject) CanBeRead(bloCtx BloContext) error       { return nil }
+func (thisBO *BusinessObject) ChangeAfterRead(bloCtx BloContext) error { return nil }
 
 // Utilities - default implems
 func (thisBO *BusinessObject) GetModelName() utils.ModelName         { panic("unimplemented") }
@@ -87,6 +98,9 @@ func (thisBO *BusinessObject) AddRelationshipValue(relName string, value IBusine
 	panic("unimplemented")
 }
 func (thisBO *BusinessObject) ClearRelationshipValue(relName string) error { panic("unimplemented") }
+func (thisBO *BusinessObject) GetSingleRelationshipValue(relName string) (IBusinessObject, error) {
+	panic("unimplemented")
+}
 func (thisBO *BusinessObject) GetMultipleRelationshipValue(relName string) ([]IBusinessObject, error) {
 	panic("unimplemented")
 }
@@ -101,6 +115,7 @@ func (thisBO *BusinessObject) getModel(this IBusinessObject) IBusinessObjectMode
 	if thisBO.model == nil {
 		thisBO.model = modelFor(this.GetModelName(), true)
 	}
+
 	return thisBO.model
 }
 
@@ -113,4 +128,20 @@ type IEnum interface {
 	fmt.Stringer            // each enum value has a default label
 	Val() int               // each enum value has an integer value
 	Values() map[int]string // each enum has a set of values associated with labels
+}
+
+// ------------------------------------------------------------------------------------------------
+// Utils
+// ------------------------------------------------------------------------------------------------
+
+func KeyFor(bo IBusinessObject) string {
+	if bo.getKey() == "" {
+		if bo.GetID() == 0 {
+			panic("cannot generate key for business object with no ID")
+		}
+
+		bo.setKey(string(bo.GetModelName()) + "-" + strconv.FormatInt(int64(bo.GetID()), 10))
+	}
+
+	return bo.getKey()
 }
