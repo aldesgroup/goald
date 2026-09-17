@@ -19,5 +19,11 @@ func (this *DeviceLinkRequestModelSource) NewObject() any {
 }
 
 func (this *DeviceLinkRequestModelSource) NewSlice() any {
-	return []*iot.DeviceLinkRequest{}
+	return &[]*iot.DeviceLinkRequest{}
+}
+
+func (this *DeviceLinkRequestModelSource) AppendToSlice(slicePtr any, bObj any) any {
+	s := slicePtr.(*[]*iot.DeviceLinkRequest)
+	*s = append(*s, bObj.(*iot.DeviceLinkRequest))
+	return s
 }

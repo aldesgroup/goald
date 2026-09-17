@@ -44,6 +44,26 @@ func CachedOrNew$$Upper$$(cache *goald.BObjCache, id goald.BObjID) *$$Upper$$ {
 }
 
 // ------------------------------------------------------------------------------------------------
+// Cloning
+// ------------------------------------------------------------------------------------------------
+
+// getting the name of the model for a $$Upper$$, without using reflection
+func (bo *$$Upper$$) Clone(withFields, withRelationships bool) goald.IBusinessObject {
+	clone := &$$Upper$${}
+	clone.ID = bo.ID
+
+	if withFields {
+$$copyfields$$
+	}
+
+	if withRelationships {
+$$copyrelationships$$
+	}
+
+	return clone
+}
+
+// ------------------------------------------------------------------------------------------------
 // Identification
 // ------------------------------------------------------------------------------------------------
 
@@ -139,6 +159,18 @@ $$modelchecks$$
 }
 
 // ------------------------------------------------------------------------------------------------
+// Diffing
+// ------------------------------------------------------------------------------------------------
+
+// Creates 2 synthetic instances gathering the added and removed relationships
+func (bo *$$Upper$$) DiffWith(other goald.IBusinessObject, forLinks map[string]bool) (goald.IBusinessObject, goald.IBusinessObject) {
+	added := New$$Upper$$(bo.ID)
+	removed := New$$Upper$$(bo.ID)
+$$diffedlinks$$
+	return added, removed
+}
+
+// ------------------------------------------------------------------------------------------------
 // Misc utils
 // ------------------------------------------------------------------------------------------------
 
@@ -148,6 +180,8 @@ $$removecycles$$}
 `
 
 const utilsFILExSUFFIX = "--xtd.go"
+
+type xtdGenerator struct{}
 
 func (thisServer *server) generateAllObjectXTDs(srcdir, currentPath string, regen bool) (codeChanged bool) {
 	// the path we're currently reading at e.g. go/pkg1/pkg2
@@ -176,7 +210,7 @@ func (thisServer *server) generateAllObjectXTDs(srcdir, currentPath string, rege
 
 					// generating the xtd file, if not existing yet, or too old
 					if regen || !core.FileExists(utilsFilepath) || core.EnsureModTime(utilsFilepath).Before(model.getLastBOMod()) {
-						generateObjectXtdForModel(model, utilsFilepath)
+						(&xtdGenerator{}).generateObjectXtdForModel(model, utilsFilepath)
 						codeChanged = true
 					}
 				}
@@ -188,7 +222,7 @@ func (thisServer *server) generateAllObjectXTDs(srcdir, currentPath string, rege
 }
 
 // generating the xtd file for a given model, at the given path
-func generateObjectXtdForModel(model IBusinessObjectModel, filepath string) {
+func (thisGen *xtdGenerator) generateObjectXtdForModel(model IBusinessObjectModel, filepath string) {
 	// need for some imports - goald & utils are always needed
 	importsMap := map[string]bool{
 		"github.com/aldesgroup/goald":                true,
@@ -196,11 +230,13 @@ func generateObjectXtdForModel(model IBusinessObjectModel, filepath string) {
 	}
 
 	// building the get/set cases, the relationship cases, and the validity checks
-	getCases, setCases, importUtils := buildUtilsValueCases(model, importsMap)
-	withAddedMethods := buildUtilsWithAddedMethods(model, importsMap)
-	setRelCases, addRelCases, clearRelCases, getSingleRelCases, getMultiRelCases := buildUtilsRelationshipCases(model, importsMap)
-	modelChecks := buildUtilsModelChecks(model, importsMap)
-	removeCyclesStatements := buildUtilsRemoveCyclesStatements(model)
+	copyFields, copyRelationships := thisGen.buildUtilsCopyProperties(model)
+	getCases, setCases, importUtils := thisGen.buildUtilsValueCases(model, importsMap)
+	withAddedMethods := thisGen.buildUtilsWithAddedMethods(model, importsMap)
+	setRelCases, addRelCases, clearRelCases, getSingleRelCases, getMultiRelCases := thisGen.buildUtilsRelationshipCases(model, importsMap)
+	modelChecks := thisGen.buildUtilsModelChecks(model, importsMap)
+	removeCyclesStatements := thisGen.buildUtilsRemoveCyclesStatements(model)
+	diffedLinks := thisGen.buildUtilsDiffedLinks(model)
 
 	if importUtils {
 		importsMap["github.com/aldesgroup/corego"] = true
@@ -212,6 +248,8 @@ func generateObjectXtdForModel(model IBusinessObjectModel, filepath string) {
 	// filling up the content
 	content := strings.ReplaceAll(utilsFileTEMPLATE, "$$package$$", model.getPackage())
 	content = strings.ReplaceAll(content, "$$Upper$$", string(model.GetName()))
+	content = strings.ReplaceAll(content, "$$copyfields$$", strings.Join(copyFields, newline))
+	content = strings.ReplaceAll(content, "$$copyrelationships$$", strings.Join(copyRelationships, newline))
 	content = strings.ReplaceAll(content, "$$getcases$$", strings.Join(getCases, newline))
 	content = strings.ReplaceAll(content, "$$setcases$$", strings.Join(setCases, newline))
 	content = strings.ReplaceAll(content, "$$withaddedmethods$$", strings.Join(withAddedMethods, newline))
@@ -220,6 +258,7 @@ func generateObjectXtdForModel(model IBusinessObjectModel, filepath string) {
 	content = strings.ReplaceAll(content, "$$clearrelcases$$", strings.Join(clearRelCases, newline))
 	content = strings.ReplaceAll(content, "$$getsinglerelcases$$", strings.Join(getSingleRelCases, newline))
 	content = strings.ReplaceAll(content, "$$getmultiplerelcases$$", strings.Join(getMultiRelCases, newline))
+	content = strings.ReplaceAll(content, "$$diffedlinks$$", strings.Join(diffedLinks, newline))
 
 	checksBody := ""
 	if len(modelChecks) > 0 {
@@ -243,10 +282,25 @@ func generateObjectXtdForModel(model IBusinessObjectModel, filepath string) {
 	core.WriteToFile(content, filepath)
 }
 
+func (thisGen *xtdGenerator) buildUtilsCopyProperties(model IBusinessObjectModel) (copyFields []string, copyRelationships []string) {
+	for _, field := range core.GetSortedValues(model.getFields()) {
+		if field.isExported() && field.GetName() != BoFieldID {
+			copyFields = append(copyFields, fmt.Sprintf("\t\tclone.%[1]s = bo.%[1]s", field.GetName()))
+		}
+	}
+	for _, relationship := range core.GetSortedValues(model.getRelationships()) {
+		if relationship.isExported() {
+			copyRelationships = append(copyRelationships, fmt.Sprintf("\t\tclone.%[1]s = bo.%[1]s", relationship.GetName()))
+		}
+	}
+
+	return
+}
+
 // building the get/set cases for GetValueAsString() / SetValueAsString(), reusing the same
 // per-property-type logic as the value mapper generator, but accessing fields directly on the
 // receiver (named "bo" in the generated code), since no casting is needed anymore
-func buildUtilsValueCases(model IBusinessObjectModel, importsMap map[string]bool) (getCases []string, setCases []string, importUtils bool) {
+func (thisGen *xtdGenerator) buildUtilsValueCases(model IBusinessObjectModel, importsMap map[string]bool) (getCases []string, setCases []string, importUtils bool) {
 	// browsing the entity's properties to fill the get / set cases in the 2 switch
 	for _, field := range core.GetSortedValues(model.getFields()) {
 		// adding to the context, and the model file content
@@ -321,7 +375,7 @@ func buildUtilsValueCases(model IBusinessObjectModel, importsMap map[string]bool
 }
 
 // building the WithAdded* methods
-func buildUtilsWithAddedMethods(model IBusinessObjectModel, importsMap map[string]bool) (withAddedMethods []string) {
+func (thisGen *xtdGenerator) buildUtilsWithAddedMethods(model IBusinessObjectModel, importsMap map[string]bool) (withAddedMethods []string) {
 	// browsing the entity's relationships to fill the set / add cases for the relationship setters
 	for _, relationship := range core.GetSortedValues(model.getRelationships()) {
 		if relationship.IsMultiple() {
@@ -342,7 +396,7 @@ func (bo *%[1]s) WithAdded%[2]s(added %[3]s) %[3]s {
 
 // building the cases for the relationship setters/getters, reusing the same logic as the value
 // mapper generator, but without any casting, since these methods are now attached to the BO itself
-func buildUtilsRelationshipCases(model IBusinessObjectModel, importsMap map[string]bool) (setRelCases, addRelCases, clearRelCases, getSingleRelCases, getMultiRelCases []string) {
+func (thisGen *xtdGenerator) buildUtilsRelationshipCases(model IBusinessObjectModel, importsMap map[string]bool) (setRelCases, addRelCases, clearRelCases, getSingleRelCases, getMultiRelCases []string) {
 
 	// browsing the entity's relationships to fill the set / add cases for the relationship setters
 	for _, relationship := range core.GetSortedValues(model.getRelationships()) {
@@ -368,13 +422,13 @@ func buildUtilsRelationshipCases(model IBusinessObjectModel, importsMap map[stri
 			clearCase += newline + "\t\treturn nil"
 			clearRelCases = append(clearRelCases, clearCase)
 
-			getMultiRelCases = append(getMultiRelCases, buildGetMultiRelCase(relName, relationship))
+			getMultiRelCases = append(getMultiRelCases, thisGen.buildGetMultiRelCase(relName, relationship))
 		} else {
 			relCase += newline + fmt.Sprintf("\t\tbo.%s = targetValue", relName)
 			relCase += newline + "\t\treturn nil"
 			setRelCases = append(setRelCases, relCase)
 
-			getSingleRelCases = append(getSingleRelCases, buildGetSingleRelCase(relName))
+			getSingleRelCases = append(getSingleRelCases, thisGen.buildGetSingleRelCase(relName))
 		}
 	}
 
@@ -382,7 +436,7 @@ func buildUtilsRelationshipCases(model IBusinessObjectModel, importsMap map[stri
 }
 
 // building the corresponding GetSingleRelationshipValue case
-func buildGetSingleRelCase(relName string) string {
+func (thisGen *xtdGenerator) buildGetSingleRelCase(relName string) string {
 	getSingleCase := fmt.Sprintf("\tcase \"%s\":", relName)
 	getSingleCase += newline + fmt.Sprintf("\t\treturn bo.%s, nil", relName)
 	return getSingleCase
@@ -392,7 +446,7 @@ func buildGetSingleRelCase(relName string) string {
 // on the target side that's single-valued (i.e. each target uniquely points back to us), we
 // also make sure it's (re)set, since it might not have been loaded/set that way already - no
 // casting is needed here anymore, since "bo" is already of the right, concrete type
-func buildGetMultiRelCase(relName string, relationship *Relationship) string {
+func (thisGen *xtdGenerator) buildGetMultiRelCase(relName string, relationship *Relationship) string {
 	resultVar := core.PascalToCamel(relName)
 	getMultiCase := fmt.Sprintf("\tcase \"%s\":", relName)
 	getMultiCase += newline + fmt.Sprintf("\t\t%s := make([]goald.IBusinessObject, len(bo.%s))", resultVar, relName)
@@ -410,7 +464,7 @@ func buildGetMultiRelCase(relName string, relationship *Relationship) string {
 // single-valued backref pointing back to us (e.g. a PurchaseOrder's Items pointing back via OrderItem.PurchaseOrder),
 // we nil out that backref on each target, so that marshaling this BO to JSON doesn't loop forever; polymorphic
 // relationships are skipped, since the backref field then lives on an interface, not on a concrete type
-func buildUtilsRemoveCyclesStatements(model IBusinessObjectModel) []string {
+func (thisGen *xtdGenerator) buildUtilsRemoveCyclesStatements(model IBusinessObjectModel) []string {
 	statements := []string{}
 
 	for _, relationship := range core.GetSortedValues(model.getRelationships()) {
@@ -430,7 +484,7 @@ func buildUtilsRemoveCyclesStatements(model IBusinessObjectModel) []string {
 // building the checks for IsModelValid(), simply reusing - unchanged - the check builders from the
 // checks (--chk.go) generator: they already produce code referring to a "bo" variable, which is
 // exactly the name we're using for this method's receiver, so no adaptation is needed there
-func buildUtilsModelChecks(model IBusinessObjectModel, importsMap map[string]bool) []string {
+func (thisGen *xtdGenerator) buildUtilsModelChecks(model IBusinessObjectModel, importsMap map[string]bool) []string {
 	checks := []string{}
 
 	// checking that every required relationship is properly set on the BO
@@ -470,4 +524,21 @@ func buildUtilsModelChecks(model IBusinessObjectModel, importsMap map[string]boo
 	}
 
 	return checks
+}
+
+// building the diffed links for the given model's relationships that require link tables
+func (thisGen *xtdGenerator) buildUtilsDiffedLinks(model IBusinessObjectModel) (result []string) {
+	for _, relationship := range core.GetSortedValues(model.getRelationships()) {
+		if relationship.needsLinkTable() || relationship.backRef != nil && relationship.backRef.needsLinkTable() {
+			result = append(result, fmt.Sprintf("	if forLinks[%q] {", relationship.GetName()))
+			result = append(result, fmt.Sprintf("		added.%[1]s, removed.%[1]s = goald.DiffBusinessObjectSlices(otherBo.%[1]s, bo.%[1]s, %t)",
+				relationship.GetName(), relationship.IsPolymorphic()))
+			result = append(result, "	}")
+		}
+	}
+	if len(result) > 0 {
+		result = append([]string{fmt.Sprintf("\n	otherBo := other.(*%s)\n", model.GetName())}, result...)
+		result = append(result, "")
+	}
+	return
 }

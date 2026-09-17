@@ -36,6 +36,31 @@ func CachedOrNewTranslation(cache *goald.BObjCache, id goald.BObjID) *Translatio
 }
 
 // ------------------------------------------------------------------------------------------------
+// Cloning
+// ------------------------------------------------------------------------------------------------
+
+// getting the name of the model for a Translation, without using reflection
+func (bo *Translation) Clone(withFields, withRelationships bool) goald.IBusinessObject {
+	clone := &Translation{}
+	clone.ID = bo.ID
+
+	if withFields {
+		clone.Creation = bo.Creation
+		clone.Key = bo.Key
+		clone.Lang = bo.Lang
+		clone.Modification = bo.Modification
+		clone.Namespace = bo.Namespace
+		clone.Value = bo.Value
+	}
+
+	if withRelationships {
+
+	}
+
+	return clone
+}
+
+// ------------------------------------------------------------------------------------------------
 // Identification
 // ------------------------------------------------------------------------------------------------
 
@@ -59,6 +84,8 @@ func (bo *Translation) GetValueAsString(propertyName string) string {
 		return bo.Key
 	case "Lang":
 		return bo.Lang
+	case "Modification":
+		return core.DateToString(bo.Modification)
 	case "Namespace":
 		return bo.Namespace
 	case "Value":
@@ -79,6 +106,8 @@ func (bo *Translation) SetValueAsString(propertyName string, valueAsString strin
 		bo.Key = valueAsString
 	case "Lang":
 		bo.Lang = valueAsString
+	case "Modification":
+		bo.Modification = core.StringToDate(valueAsString, "Modification")
 	case "Namespace":
 		bo.Namespace = valueAsString
 	case "Value":
@@ -153,6 +182,18 @@ func (bo *Translation) IsModelValid() error {
 	}
 
 	return nil
+}
+
+// ------------------------------------------------------------------------------------------------
+// Diffing
+// ------------------------------------------------------------------------------------------------
+
+// Creates 2 synthetic instances gathering the added and removed relationships
+func (bo *Translation) DiffWith(other goald.IBusinessObject, forLinks map[string]bool) (goald.IBusinessObject, goald.IBusinessObject) {
+	added := NewTranslation(bo.ID)
+	removed := NewTranslation(bo.ID)
+
+	return added, removed
 }
 
 // ------------------------------------------------------------------------------------------------

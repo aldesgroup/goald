@@ -13,57 +13,44 @@ import (
 	"github.com/aldesgroup/goald/features/hstatus"
 )
 
-// SetAutoCRUD sets up the generic CRUD endpoints for the given business object type (BOTYPE).
-func SetAutoCRUD[BOTYPE IBusinessObject](group *EndpointGroup, loadReadBobjWith ...ILoadingConfig) {
+// doSetAutoCRUD sets up the generic CRUD endpoints for the given business object type (BOTYPE).
+func doSetAutoCRUD[BOTYPE IBusinessObject, QUERYPARAMVALUES ISearchParamValues](addHandleList bool, group *EndpointGroup, loadReadBObjWith ...ILoadingConfig) {
 
 	// dealing with the optinal loading config for reading business objects
-	var loadingCfg ILoadingConfig
-	if len(loadReadBobjWith) > 1 {
-		core.PanicMsg("SetAutoCRUD: only 1 default loading config for read business objects is allowed, but %d were provided", len(loadReadBobjWith))
+	var readLoadingCfg ILoadingConfig
+	if len(loadReadBObjWith) > 1 {
+		core.PanicMsg("SetAutoCRUD: only 1 default loading config for read business objects is allowed, but %d were provided", len(loadReadBObjWith))
 	}
-	if len(loadReadBobjWith) > 0 {
-		loadingCfg = loadReadBobjWith[0]
+	if len(loadReadBObjWith) > 0 {
+		readLoadingCfg = loadReadBObjWith[0]
 	} else {
-		loadingCfg = modelFor((*new(BOTYPE)).GetModelName(), true).ReadWithFirstLayer()
+		readLoadingCfg = modelFor((*new(BOTYPE)).GetModelName(), true).ReadWithFirstLayer()
 	}
 
 	GenericHandleCreate[BOTYPE](group)
-	GenericHandleRead[BOTYPE](group, loadingCfg)
+	GenericHandleRead[BOTYPE](group, readLoadingCfg)
+	GenericHandleUpdate[BOTYPE](group)
+	if addHandleList {
+		GenericHandleList[BOTYPE, QUERYPARAMVALUES](group)
+	}
+}
+
+// SetAutoCRUD sets up the generic CRUD endpoints for the given business object type (BOTYPE),
+// plus a basic list endpoint with pagination parameters
+func SetAutoCRUD[BOTYPE IBusinessObject](group *EndpointGroup, loadReadBObjWith ...ILoadingConfig) {
+	doSetAutoCRUD[BOTYPE, *SearchParamValues](true, group, loadReadBObjWith...)
+}
+
+// SetAutoCRUDL sets up the generic CRUD endpoints for the given business object type (BOTYPE),
+// plus a basic list endpoint with a specific query parameter type
+func SetAutoCRUDL[BOTYPE IBusinessObject, QV ISearchParamValues](group *EndpointGroup, loadReadBObjWith ...ILoadingConfig) {
+	doSetAutoCRUD[BOTYPE, QV](true, group, loadReadBObjWith...)
 }
 
 // SetAutoCRUDS sets up the generic CRUDS endpoints for the given business object type (BOTYPE)
-func SetAutoCRUDS[BO IBusinessObject, QV ISearchParamValues](group *EndpointGroup, searchQuery *query[BO, QV], loadReadBobjWith ...ILoadingConfig) {
-	SetAutoCRUD[BO](group, loadReadBobjWith...)
+func SetAutoCRUDS[BO IBusinessObject, QV ISearchParamValues](group *EndpointGroup, searchQuery *query[BO, QV], loadReadBObjWith ...ILoadingConfig) {
+	doSetAutoCRUD[BO, QV](false, group, loadReadBObjWith...)
 	GenericHandleSearch[BO, QV](group, searchQuery)
-}
-
-// GenericHandleCreate creates a new endpoint for creating a new instance of the given business object type (BOTYPE).
-func GenericHandleCreate[BOTYPE IBusinessObject](group *EndpointGroup) *oneForOneEndpoint[BOTYPE, BOTYPE] {
-	ep := PostOneGetOne(
-		// new (anonym) handler function here
-		func(webCtx WebContext, input BOTYPE) (BOTYPE, hstatus.Code, string) {
-			// checking the input first
-			if errValidate := input.IsModelValid(); errValidate != nil {
-				return cleaned(input), hstatus.BadRequest, fmt.Sprintf("Invalid input for creating a new '%T' instance: %s", input, errValidate)
-			}
-
-			// calling the Business LOgic (BLO) for business object creation
-			if errCreate := CreateBusinessObjects(webCtx.GetBloContext(), input); errCreate != nil {
-				return cleaned(input), hstatus.InternalServerError,
-					fmt.Sprintf("Failed creating a new '%T' instance: %s", input, errCreate)
-			}
-
-			// return the created instance
-			return cleaned(input), hstatus.Created, fmt.Sprintf("Created a new '%T' instance", input)
-		},
-		// not loading anything in this
-		nil)
-
-	ep.Label(fmt.Sprintf("Create a new %s", ep.getResourceModel().GetName()))
-	ep.Description(fmt.Sprintf("Performs controls and saves the given %s instance in the database", ep.getResourceModel().GetName()))
-	ep.InGroup(group)
-
-	return ep
 }
 
 // GenericHandleSearch creates a new endpoint for searching for instances of the given business object type (BOTYPE).
@@ -84,7 +71,7 @@ func GenericHandleSearch[BOTYPE IBusinessObject, QUERYPARAMVALUES ISearchParamVa
 			}
 
 			// return the found instances
-			return allCleaned[BOTYPE](results), hstatus.OK, fmt.Sprintf("Found '%d' '%T' instances", len(results), queryParamValues)
+			return allCleaned[BOTYPE](results), hstatus.OK, fmt.Sprintf("Found %d '%s' instances", len(results), query.getSearchedObjectsModel().GetName())
 		},
 		// passing the loading type
 		query.getLoadingConfig())
@@ -96,8 +83,48 @@ func GenericHandleSearch[BOTYPE IBusinessObject, QUERYPARAMVALUES ISearchParamVa
 	return ep
 }
 
+// GenericHandleCreate creates a new endpoint for creating new instances of the given business object type (BOTYPE).
+func GenericHandleCreate[BOTYPE IBusinessObject](group *EndpointGroup) *manyForManyEndpoint[BOTYPE, BOTYPE] {
+	ep := PostManyGetMany(
+		// new (anonym) handler function here
+		func(webCtx WebContext, inputs []BOTYPE) ([]BOTYPE, hstatus.Code, string) {
+			// early return if no inputs were provided
+			if len(inputs) == 0 {
+				return inputs, hstatus.BadRequest, "No input provided for creating new instances"
+			}
+
+			// checking the input first
+			for _, input := range inputs {
+				if errValidate := input.IsModelValid(); errValidate != nil {
+					return inputs, hstatus.BadRequest, fmt.Sprintf("Invalid input for creating a new '%T' instance: %s", inputs[0], errValidate)
+				}
+			}
+
+			// calling the Business LOgic (BLO) for business object creation
+			if errCreate := CreateBusinessObjects(webCtx.GetBloContext(), inputs...); errCreate != nil {
+				return inputs, hstatus.InternalServerError, fmt.Sprintf("Failed creating new '%T' instances: %s", inputs[0], errCreate)
+			}
+
+			// cleaning the created instances from cycles, and returning them
+			for _, input := range inputs {
+				input.RemoveCycles()
+			}
+
+			// return the created instance
+			return inputs, hstatus.Created, fmt.Sprintf("Created %d new '%T' instances", len(inputs), inputs[0])
+		},
+		// not loading anything in this
+		nil)
+
+	ep.Label(fmt.Sprintf("Create a new %s", ep.getResourceModel().GetName()))
+	ep.Description(fmt.Sprintf("Performs controls and saves the given %s instance in the database", ep.getResourceModel().GetName()))
+	ep.InGroup(group)
+
+	return ep
+}
+
 // GenericHandleRead creates a new endpoint for reading one instance of the given business object type (BOTYPE).
-func GenericHandleRead[BOTYPE IBusinessObject](group *EndpointGroup, loadReadBobjWith ILoadingConfig) *oneForNoneEndpoint[BOTYPE] {
+func GenericHandleRead[BOTYPE IBusinessObject](group *EndpointGroup, loadReadBObjWith ILoadingConfig) *oneForNoneEndpoint[BOTYPE] {
 
 	boModelName := (*new(BOTYPE)).GetModelName()
 	boModel := modelFor(boModelName, true)
@@ -122,7 +149,7 @@ func GenericHandleRead[BOTYPE IBusinessObject](group *EndpointGroup, loadReadBob
 			output := NewBusinessObject(boModelName, BObjID(id)).(BOTYPE)
 
 			// calling the Business LOgic (BLO) for business object reading
-			if errRead := ReadBusinessObjects(webCtx.GetBloContext(), loadReadBobjWith, output); errRead != nil {
+			if errRead := ReadBusinessObjects(webCtx.GetBloContext(), loadReadBObjWith, output); errRead != nil {
 				if errors.Is(errRead, ErrBoNotFound) {
 					return zero, hstatus.NotFound, fmt.Sprintf("Could not find a '%s' instance with ID '%d'", boModelName, id)
 				}
@@ -133,11 +160,86 @@ func GenericHandleRead[BOTYPE IBusinessObject](group *EndpointGroup, loadReadBob
 			return cleaned(output), hstatus.OK, fmt.Sprintf("Read a '%s' instance with ID '%d'", boModelName, id)
 		},
 		// passing the loading config
-		loadReadBobjWith)
+		loadReadBObjWith)
 
 	ep.TargetWith(boModel.getIdField())
 	ep.Label(fmt.Sprintf("Read a %s instance", ep.getResourceModel().GetName()))
 	ep.Description(fmt.Sprintf("Reads a %s instance from the database using its ID", ep.getResourceModel().GetName()))
+	ep.InGroup(group)
+
+	return ep
+}
+
+// GenericHandleUpdate creates a new endpoint for updating existing instances of the given business object type (BOTYPE).
+func GenericHandleUpdate[BOTYPE IBusinessObject](group *EndpointGroup) *manyForManyEndpoint[BOTYPE, BOTYPE] {
+	ep := PutManyGetMany(
+		// new (anonym) handler function here
+		func(webCtx WebContext, inputs []BOTYPE) ([]BOTYPE, hstatus.Code, string) {
+			// early return if no inputs were provided
+			if len(inputs) == 0 {
+				return inputs, hstatus.BadRequest, "No input provided for updating instances"
+			}
+
+			// checking the input first
+			for _, input := range inputs {
+				if errValidate := input.IsModelValid(); errValidate != nil {
+					return inputs, hstatus.BadRequest, fmt.Sprintf("Invalid input for creating a new '%T' instance: %s", input, errValidate)
+				}
+			}
+
+			// calling the Business LOgic (BLO) for business object update
+			if errUpdate := UpdateBusinessObjects(webCtx.GetBloContext(), inputs...); errUpdate != nil {
+				return inputs, hstatus.InternalServerError, fmt.Sprintf("Failed updating '%T' instances: %s", inputs[0], errUpdate)
+			}
+
+			// cleaning the created instances from cycles, and returning them
+			for _, input := range inputs {
+				input.RemoveCycles()
+			}
+
+			// return the created instance
+			return inputs, hstatus.OK, fmt.Sprintf("Updated %d '%T' instances", len(inputs), inputs[0])
+		},
+		// not loading anything in this
+		nil)
+
+	ep.Label(fmt.Sprintf("Update existing %s instances", ep.getResourceModel().GetName()))
+	ep.Description(fmt.Sprintf("Performs controls and updates the given %s instances in the database", ep.getResourceModel().GetName()))
+	ep.InGroup(group)
+
+	return ep
+}
+
+// GenericHandleList creates a new endpoint for searching for instances of the given business object type (BOTYPE).
+func GenericHandleList[BOTYPE IBusinessObject, QUERYPARAMVALUES ISearchParamValues](group *EndpointGroup) *manyForOneEndpoint[QUERYPARAMVALUES, BOTYPE] {
+	boModelName := (*new(BOTYPE)).GetModelName()
+	boModel := modelFor(boModelName, true)
+	loadingConf := core.IfThenElse(boModel.getListLoadingConfig() != nil, boModel.getListLoadingConfig(), boModel.ReadNoRelationship())
+	query := Find[BOTYPE, QUERYPARAMVALUES](loadingConf)
+
+	ep := GetManyWithParams(
+		// new (anonym) handler function here
+		func(webCtx WebContext, queryParamValues QUERYPARAMVALUES) ([]BOTYPE, hstatus.Code, string) {
+
+			// calling the Business LOgic (BLO) for business object search
+			results, errSearch := SearchBusinessObjects(webCtx.GetBloContext(), query, queryParamValues, query.getLoadingConfig())
+			if errSearch != nil {
+				return nil, hstatus.InternalServerError, fmt.Sprintf("Failed retrieving '%s' instances: %s", query.getSearchedObjectsModel().GetName(), errSearch)
+			}
+
+			// found nothing?
+			if len(results) == 0 {
+				return nil, hstatus.NotFound, fmt.Sprintf("No '%s' instances found for the given parameters", query.getSearchedObjectsModel().GetName())
+			}
+
+			// return the found instances
+			return allCleaned[BOTYPE](results), hstatus.OK, fmt.Sprintf("Found %d '%s' instances", len(results), query.getSearchedObjectsModel().GetName())
+		},
+		// passing the loading type
+		query.getLoadingConfig())
+
+	ep.Label(fmt.Sprintf("List %s instances", ep.getResourceModel().GetName()))
+	ep.Description(fmt.Sprintf("Retrieves %s instances from the database", ep.getResourceModel().GetName()))
 	ep.InGroup(group)
 
 	return ep

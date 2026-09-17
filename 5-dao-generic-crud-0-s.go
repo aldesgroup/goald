@@ -2,6 +2,7 @@ package goald
 
 import (
 	"database/sql"
+	"fmt"
 	"strconv"
 	"strings"
 )
@@ -29,8 +30,23 @@ func (baseDAO *BusinessObjectDAO) ExecSearch(ctx *SearchContext) (result []IBusi
 	// turning the OR-ed, AND-ed condition clauses into a single WHERE clause string, with its placeholders
 	where := queryArgs.toWhereClauseAsString()
 
+	// handling pagination: page size and page number
+	pageSize := ctx.QueryValues.getPageSize()
+	maxListSize := baseDAO.getModel().getMaxListSize()
+	if pageSize > maxListSize {
+		return nil, Error("The requested page size (%d) exceeds the max allowed list size for this resource (%d)", pageSize, maxListSize)
+	}
+	if pageSize <= 0 {
+		pageSize = maxListSize
+	}
+	page := ctx.QueryValues.getPage()
+	if page < 0 {
+		page = 0
+	}
+	limitOffset := fmt.Sprintf(" LIMIT %d OFFSET %d", pageSize, page*pageSize)
+
 	// executing the query and retrieving the rows
-	rows, errQuery := baseDAO.Query(queryArgs.Mask, "SELECT "+ctx.Columns+" FROM "+ctx.Table+where, queryArgs.Args...)
+	rows, errQuery := baseDAO.Query(queryArgs.Mask, "SELECT "+ctx.Columns+" FROM "+ctx.Table+where+limitOffset, queryArgs.Args...)
 	if errQuery != nil {
 		return nil, baseDAO.HandleDbError(errQuery)
 	}

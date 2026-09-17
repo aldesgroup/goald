@@ -36,6 +36,31 @@ func CachedOrNewDevice(cache *goald.BObjCache, id goald.BObjID) *Device {
 }
 
 // ------------------------------------------------------------------------------------------------
+// Cloning
+// ------------------------------------------------------------------------------------------------
+
+// getting the name of the model for a Device, without using reflection
+func (bo *Device) Clone(withFields, withRelationships bool) goald.IBusinessObject {
+	clone := &Device{}
+	clone.ID = bo.ID
+
+	if withFields {
+		clone.Creation = bo.Creation
+		clone.Model = bo.Model
+		clone.Modification = bo.Modification
+		clone.Serial = bo.Serial
+		clone.Status = bo.Status
+		clone.StatusString = bo.StatusString
+	}
+
+	if withRelationships {
+		clone.AssociatedUsers = bo.AssociatedUsers
+	}
+
+	return clone
+}
+
+// ------------------------------------------------------------------------------------------------
 // Identification
 // ------------------------------------------------------------------------------------------------
 
@@ -57,6 +82,8 @@ func (bo *Device) GetValueAsString(propertyName string) string {
 		return core.Int64ToString(int64(bo.ID))
 	case "Model":
 		return bo.Model
+	case "Modification":
+		return core.DateToString(bo.Modification)
 	case "Serial":
 		return bo.Serial
 	case "Status":
@@ -77,6 +104,8 @@ func (bo *Device) SetValueAsString(propertyName string, valueAsString string) er
 		bo.ID = goald.BObjID(core.StringToInt64(valueAsString, "ID"))
 	case "Model":
 		bo.Model = valueAsString
+	case "Modification":
+		bo.Modification = core.StringToDate(valueAsString, "Modification")
 	case "Serial":
 		bo.Serial = valueAsString
 	case "Status":
@@ -171,6 +200,18 @@ func (bo *Device) IsModelValid() error {
 	}
 
 	return nil
+}
+
+// ------------------------------------------------------------------------------------------------
+// Diffing
+// ------------------------------------------------------------------------------------------------
+
+// Creates 2 synthetic instances gathering the added and removed relationships
+func (bo *Device) DiffWith(other goald.IBusinessObject, forLinks map[string]bool) (goald.IBusinessObject, goald.IBusinessObject) {
+	added := NewDevice(bo.ID)
+	removed := NewDevice(bo.ID)
+
+	return added, removed
 }
 
 // ------------------------------------------------------------------------------------------------

@@ -19,5 +19,11 @@ func (this *TranslationQueryModelSource) NewObject() any {
 }
 
 func (this *TranslationQueryModelSource) NewSlice() any {
-	return []*i18n.TranslationQuery{}
+	return &[]*i18n.TranslationQuery{}
+}
+
+func (this *TranslationQueryModelSource) AppendToSlice(slicePtr any, bObj any) any {
+	s := slicePtr.(*[]*i18n.TranslationQuery)
+	*s = append(*s, bObj.(*i18n.TranslationQuery))
+	return s
 }

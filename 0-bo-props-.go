@@ -44,11 +44,11 @@ type IBusinessObjectProperty interface {
 	isPersonal() bool                       // if true, then this property is personal
 	getDeclaringBO() utils.ModelName        // the name of the business object that actually declares this property (instead of inheriting it from a super model)
 	setTechnical()                          // to set this property as technical
+	isExported() bool                       // if true, then this property is exported (i.e. public)
 }
 
 type ioType string
 
-const ioTypeINPUT ioType = "in"
 const ioTypeINPUTxMANDATORY ioType = "i*"
 const ioTypePURExOUTPUT ioType = "o*"
 
@@ -168,6 +168,10 @@ func (prop *businessObjectProperty) getDeclaringBO() utils.ModelName {
 
 func (prop *businessObjectProperty) setTechnical() {
 	prop.technical = true
+}
+
+func (prop *businessObjectProperty) isExported() bool {
+	return prop.getStructField().IsExported()
 }
 
 // ------------------------------------------------------------------------------------------------

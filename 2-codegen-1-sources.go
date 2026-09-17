@@ -177,7 +177,13 @@ func (this *%[5]sModelSource) NewObject() any {
 }
 
 func (this *%[5]sModelSource) NewSlice() any {
-	return []*%[6]s.%[5]s{}
+	return &[]*%[6]s.%[5]s{}
+}
+
+func (this *%[5]sModelSource) AppendToSlice(slicePtr any, bObj any) any {
+	s := slicePtr.(*[]*%[6]s.%[5]s)
+	*s = append(*s, bObj.(*%[6]s.%[5]s))
+	return s
 }
 `
 
@@ -188,6 +194,10 @@ func (this *%[5]sModelSource) NewObject() any {
 
 func (this *%[5]sModelSource) NewSlice() any {
 	panic("NewSlice cannot be called for an interface!")
+}
+
+func (this *%[5]sModelSource) AppendToSlice(slicePtr any, bObj any) any {
+	panic("AppendToSlice cannot be called for an interface!")
 }
 `
 

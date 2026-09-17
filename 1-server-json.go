@@ -97,6 +97,27 @@ func unmarshalBObj(data []byte, bObj any) error {
 	return json.Unmarshal(remaining, bObj)
 }
 
+// unmarshalling a JSON array into a slice of business objects of the given model, resolving each
+// element's own relationships (if any) the same way unmarshalBObj does for a single object;
+// returns the *[]*package.BObj pointer obtained from the model's NewSlice()
+func unmarshalBObjSlice(data []byte, model IBusinessObjectModel) (any, error) {
+	var rawItems []json.RawMessage
+	if err := json.Unmarshal(data, &rawItems); err != nil {
+		return nil, err
+	}
+
+	slicePtr := model.NewSlice()
+	for _, rawItem := range rawItems {
+		bObj := model.NewObject()
+		if err := unmarshalBObj(rawItem, bObj); err != nil {
+			return nil, err
+		}
+		model.AppendToSlice(slicePtr, bObj)
+	}
+
+	return slicePtr, nil
+}
+
 // resolving & instantiating the concrete business object targeted by a relationship's raw JSON value:
 // - for a polymorphic relationship, the concrete model is read from the "model" discriminator property
 // - for a monomorphic relationship, the concrete model is already known, from the model itself

@@ -28,10 +28,10 @@ type ExecCreateContext struct {
 
 // ExecBatchCreate performs a batched, multi-row insert of the business objects described by the given context; returns a map
 // of each object's pre-ID to its newly assigned DB ID to help consolidate the real DB IDs back onto the inserted business objects.
-func (baseDAO *BusinessObjectDAO) ExecBatchCreate(ctx *ExecCreateContext) (map[int]int64, error) {
+func (baseDAO *BusinessObjectDAO) ExecBatchCreate(ctx *ExecCreateContext) (map[int]BObjID, error) {
 	// this will hold the mapping between each business object's pre-ID and its newly assigned DB ID,
 	// allowing for the consolidation done later on in dbInsert
-	rowToIDMap := make(map[int]int64, len(ctx.BObjs))
+	rowToIDMap := make(map[int]BObjID, len(ctx.BObjs))
 
 	// reusable buffers, sized for the largest possible batch, and reset (not reallocated) at each iteration -
 	// this avoids re-allocating them on every batch
@@ -49,7 +49,7 @@ func (baseDAO *BusinessObjectDAO) ExecBatchCreate(ctx *ExecCreateContext) (map[i
 
 	// reused scan targets: only their address is needed by Scan, no need for a fresh variable on every row
 	var preID int
-	var newID int64
+	var newID BObjID
 
 	// some DB pecularities
 	var placeholder = baseDAO.model.getDB().get.QueryPlaceholder()
@@ -99,6 +99,7 @@ func (baseDAO *BusinessObjectDAO) ExecBatchCreate(ctx *ExecCreateContext) (map[i
 			ctx.FillRow(bObj, batchArgs, n)
 		}
 
+		// TODO WARNING ONLY FOR POSTGRESQL: we need to retrieve the new IDs, along with the pre-IDs they relate to, so we can consolidate them back onto the business objects
 		queryBuilder.WriteString(" RETURNING _pre_id, id")
 
 		// executing the insert query and retrieving the new IDs, along with the pre-IDs they relate to;

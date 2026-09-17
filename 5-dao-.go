@@ -31,10 +31,12 @@ type IBusinessObjectDAO interface {
 	HandleDbError(err error) error
 
 	// these are the generic queries any DAO should be able to perform for its associated business object ModelName
-	ExecCreateQuery(bObjs ...IBusinessObject) (map[int]int64, error)                                             // executes the insert query for the given BOs, returning a map of the BO's rowID to the DB's ID
+	ExecCreateQuery(bObjs ...IBusinessObject) (map[int]BObjID, error)                                            // executes the insert query for the given BOs, returning a map of the BO's rowID to the DB's ID
 	ExecCreateLinksQueries(bObjs ...IBusinessObject) error                                                       // executes the insert links queries for the given business objects
 	ExecReadQuery(bObjIDs []any, cache *BObjCache) error                                                         // executes the read query for the given business objects
 	ExecReadRelationshipQuery(bObjIDs []any, relName string, cache *BObjCache) ([]IBusinessObject, error)        // executes the read relationship query for the given business objects and a given relationship name
+	ExecUpdateQuery(bObjs ...IBusinessObject) error                                                              // executes the insert query for the given BOs, returning a map of the BO's rowID to the DB's ID
+	ExecDeleteLinksQueries(bObjs ...IBusinessObject) error                                                       // executes the delete links queries for the given business objects
 	ExecSearchQuery(queryName queryName, values ISearchParamValues, cache *BObjCache) ([]IBusinessObject, error) // executes the select query for the given query name and values, returning the resulting business objects
 }
 
@@ -97,7 +99,7 @@ func (baseDAO *BusinessObjectDAO) QueryRow(m mask, query string, args ...any) *s
 var _ IBusinessObjectDAO = (*BusinessObjectDAO)(nil)
 
 // ExecCreateQuery implements [IBusinessObjectDAO].
-func (baseDAO *BusinessObjectDAO) ExecCreateQuery(bObjs ...IBusinessObject) (map[int]int64, error) {
+func (baseDAO *BusinessObjectDAO) ExecCreateQuery(bObjs ...IBusinessObject) (map[int]BObjID, error) {
 	panic("unimplemented")
 }
 
@@ -113,6 +115,16 @@ func (baseDAO *BusinessObjectDAO) ExecReadQuery(bObjIDs []any, cache *BObjCache)
 
 // ExecReadRelationshipQuery implements [IBusinessObjectDAO].
 func (baseDAO *BusinessObjectDAO) ExecReadRelationshipQuery(bObjIDs []any, relName string, cache *BObjCache) ([]IBusinessObject, error) {
+	panic("unimplemented")
+}
+
+// ExecUpdateQuery implements [IBusinessObjectDAO].
+func (baseDAO *BusinessObjectDAO) ExecUpdateQuery(bObjs ...IBusinessObject) error {
+	panic("unimplemented")
+}
+
+// ExecDeleteLinksQueries implements [IBusinessObjectDAO].
+func (baseDAO *BusinessObjectDAO) ExecDeleteLinksQueries(bObjs ...IBusinessObject) error {
 	panic("unimplemented")
 }
 

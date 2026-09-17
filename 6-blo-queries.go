@@ -7,47 +7,6 @@ import (
 	core "github.com/aldesgroup/corego"
 )
 
-// ------------------------------------------------------------------------------------------------
-// Business objects for containing search parameter values, which are involved in queries
-// ------------------------------------------------------------------------------------------------
-
-// particular business object used for containing search parameter values
-type ISearchParamValues interface {
-	IBusinessObject
-	DoBeforeSearch(bloCtx BloContext) error
-}
-
-// model associated with it
-type ISearchParamValuesModel interface {
-	IBusinessObjectModel
-}
-
-// constructor for this model
-func NewSearchParamValuesModel() ISearchParamValuesModel {
-	model := &struct {
-		businessObjectModel
-	}{
-		businessObjectModel: businessObjectModel{
-			fields:        map[string]IField{},
-			relationships: map[string]*Relationship{},
-			inNoDB:        true,
-		},
-	}
-
-	return model
-}
-
-// default implem for ISearchParamValues
-type SearchParamValues struct {
-	BusinessObject
-}
-
-// default implem
-func (this *SearchParamValues) DoBeforeSearch(bloCtx BloContext) error {
-	// default implementation does nothing
-	return nil
-}
-
 // ----------------------------------------------------------------------------
 // Query & clause definition
 // ----------------------------------------------------------------------------

@@ -36,6 +36,32 @@ func CachedOrNewDeviceBootstrap(cache *goald.BObjCache, id goald.BObjID) *Device
 }
 
 // ------------------------------------------------------------------------------------------------
+// Cloning
+// ------------------------------------------------------------------------------------------------
+
+// getting the name of the model for a DeviceBootstrap, without using reflection
+func (bo *DeviceBootstrap) Clone(withFields, withRelationships bool) goald.IBusinessObject {
+	clone := &DeviceBootstrap{}
+	clone.ID = bo.ID
+
+	if withFields {
+		clone.Creation = bo.Creation
+		clone.DeviceID = bo.DeviceID
+		clone.IotCertPEM = bo.IotCertPEM
+		clone.IotChainPEM = bo.IotChainPEM
+		clone.Modification = bo.Modification
+		clone.ScopeID = bo.ScopeID
+		clone.Status = bo.Status
+	}
+
+	if withRelationships {
+
+	}
+
+	return clone
+}
+
+// ------------------------------------------------------------------------------------------------
 // Identification
 // ------------------------------------------------------------------------------------------------
 
@@ -61,6 +87,8 @@ func (bo *DeviceBootstrap) GetValueAsString(propertyName string) string {
 		return bo.IotCertPEM
 	case "IotChainPEM":
 		return bo.IotChainPEM
+	case "Modification":
+		return core.DateToString(bo.Modification)
 	case "ScopeID":
 		return bo.ScopeID
 	case "Status":
@@ -83,6 +111,8 @@ func (bo *DeviceBootstrap) SetValueAsString(propertyName string, valueAsString s
 		bo.IotCertPEM = valueAsString
 	case "IotChainPEM":
 		bo.IotChainPEM = valueAsString
+	case "Modification":
+		bo.Modification = core.StringToDate(valueAsString, "Modification")
 	case "ScopeID":
 		bo.ScopeID = valueAsString
 	case "Status":
@@ -158,6 +188,18 @@ func (bo *DeviceBootstrap) IsModelValid() error {
 	}
 
 	return nil
+}
+
+// ------------------------------------------------------------------------------------------------
+// Diffing
+// ------------------------------------------------------------------------------------------------
+
+// Creates 2 synthetic instances gathering the added and removed relationships
+func (bo *DeviceBootstrap) DiffWith(other goald.IBusinessObject, forLinks map[string]bool) (goald.IBusinessObject, goald.IBusinessObject) {
+	added := NewDeviceBootstrap(bo.ID)
+	removed := NewDeviceBootstrap(bo.ID)
+
+	return added, removed
 }
 
 // ------------------------------------------------------------------------------------------------

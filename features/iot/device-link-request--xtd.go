@@ -37,6 +37,35 @@ func CachedOrNewDeviceLinkRequest(cache *goald.BObjCache, id goald.BObjID) *Devi
 }
 
 // ------------------------------------------------------------------------------------------------
+// Cloning
+// ------------------------------------------------------------------------------------------------
+
+// getting the name of the model for a DeviceLinkRequest, without using reflection
+func (bo *DeviceLinkRequest) Clone(withFields, withRelationships bool) goald.IBusinessObject {
+	clone := &DeviceLinkRequest{}
+	clone.ID = bo.ID
+
+	if withFields {
+		clone.Creation = bo.Creation
+		clone.Model = bo.Model
+		clone.Modification = bo.Modification
+		clone.Serial = bo.Serial
+		clone.UserFullName = bo.UserFullName
+		clone.UserID = bo.UserID
+		clone.VerificationCode = bo.VerificationCode
+	}
+
+	if withRelationships {
+		clone.ENTranslation = bo.ENTranslation
+		clone.ForWho = bo.ForWho
+		clone.MainContact = bo.MainContact
+		clone.Users = bo.Users
+	}
+
+	return clone
+}
+
+// ------------------------------------------------------------------------------------------------
 // Identification
 // ------------------------------------------------------------------------------------------------
 
@@ -58,6 +87,8 @@ func (bo *DeviceLinkRequest) GetValueAsString(propertyName string) string {
 		return core.Int64ToString(int64(bo.ID))
 	case "Model":
 		return bo.Model
+	case "Modification":
+		return core.DateToString(bo.Modification)
 	case "Serial":
 		return bo.Serial
 	case "UserFullName":
@@ -80,6 +111,8 @@ func (bo *DeviceLinkRequest) SetValueAsString(propertyName string, valueAsString
 		bo.ID = goald.BObjID(core.StringToInt64(valueAsString, "ID"))
 	case "Model":
 		bo.Model = valueAsString
+	case "Modification":
+		bo.Modification = core.StringToDate(valueAsString, "Modification")
 	case "Serial":
 		bo.Serial = valueAsString
 	case "UserFullName":
@@ -229,6 +262,18 @@ func (bo *DeviceLinkRequest) IsModelValid() error {
 	}
 
 	return nil
+}
+
+// ------------------------------------------------------------------------------------------------
+// Diffing
+// ------------------------------------------------------------------------------------------------
+
+// Creates 2 synthetic instances gathering the added and removed relationships
+func (bo *DeviceLinkRequest) DiffWith(other goald.IBusinessObject, forLinks map[string]bool) (goald.IBusinessObject, goald.IBusinessObject) {
+	added := NewDeviceLinkRequest(bo.ID)
+	removed := NewDeviceLinkRequest(bo.ID)
+
+	return added, removed
 }
 
 // ------------------------------------------------------------------------------------------------

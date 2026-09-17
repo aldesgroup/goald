@@ -19,5 +19,11 @@ func (this *DeviceBootstrapPayloadModelSource) NewObject() any {
 }
 
 func (this *DeviceBootstrapPayloadModelSource) NewSlice() any {
-	return []*iot.DeviceBootstrapPayload{}
+	return &[]*iot.DeviceBootstrapPayload{}
+}
+
+func (this *DeviceBootstrapPayloadModelSource) AppendToSlice(slicePtr any, bObj any) any {
+	s := slicePtr.(*[]*iot.DeviceBootstrapPayload)
+	*s = append(*s, bObj.(*iot.DeviceBootstrapPayload))
+	return s
 }

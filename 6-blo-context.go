@@ -216,19 +216,3 @@ func (thisCache *BObjCache) Set[BOTYPE IBusinessObject](bObj BOTYPE) BOTYPE {
 
 	return bObj
 }
-
-// AddAll adds all the given business objects to the cache and returns a map of all their IDs grouped by model name.
-func (thisCache *BObjCache) AddAll(bObjs []IBusinessObject) (allBObjIDs map[utils.ModelName][]any) {
-	allBObjIDs = make(map[utils.ModelName][]any)
-
-	// iterating to build the result
-	for _, bObj := range bObjs {
-		// caching the object
-		thisCache.Set(bObj)
-
-		// gathering its ID along with the IDs of the objects of the same model
-		allBObjIDs[bObj.GetModelName()] = append(allBObjIDs[bObj.GetModelName()], bObj.GetID())
-	}
-
-	return
-}

@@ -19,5 +19,11 @@ func (this *DeviceModelSource) NewObject() any {
 }
 
 func (this *DeviceModelSource) NewSlice() any {
-	return []*iot.Device{}
+	return &[]*iot.Device{}
+}
+
+func (this *DeviceModelSource) AppendToSlice(slicePtr any, bObj any) any {
+	s := slicePtr.(*[]*iot.Device)
+	*s = append(*s, bObj.(*iot.Device))
+	return s
 }

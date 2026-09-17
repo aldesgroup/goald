@@ -36,6 +36,31 @@ func CachedOrNewDeviceBootstrapPayload(cache *goald.BObjCache, id goald.BObjID) 
 }
 
 // ------------------------------------------------------------------------------------------------
+// Cloning
+// ------------------------------------------------------------------------------------------------
+
+// getting the name of the model for a DeviceBootstrapPayload, without using reflection
+func (bo *DeviceBootstrapPayload) Clone(withFields, withRelationships bool) goald.IBusinessObject {
+	clone := &DeviceBootstrapPayload{}
+	clone.ID = bo.ID
+
+	if withFields {
+		clone.Creation = bo.Creation
+		clone.Model = bo.Model
+		clone.Modification = bo.Modification
+		clone.Nonce = bo.Nonce
+		clone.Serial = bo.Serial
+		clone.Timestamp = bo.Timestamp
+	}
+
+	if withRelationships {
+
+	}
+
+	return clone
+}
+
+// ------------------------------------------------------------------------------------------------
 // Identification
 // ------------------------------------------------------------------------------------------------
 
@@ -57,6 +82,8 @@ func (bo *DeviceBootstrapPayload) GetValueAsString(propertyName string) string {
 		return core.Int64ToString(int64(bo.ID))
 	case "Model":
 		return bo.Model
+	case "Modification":
+		return core.DateToString(bo.Modification)
 	case "Nonce":
 		return bo.Nonce
 	case "Serial":
@@ -77,6 +104,8 @@ func (bo *DeviceBootstrapPayload) SetValueAsString(propertyName string, valueAsS
 		bo.ID = goald.BObjID(core.StringToInt64(valueAsString, "ID"))
 	case "Model":
 		bo.Model = valueAsString
+	case "Modification":
+		bo.Modification = core.StringToDate(valueAsString, "Modification")
 	case "Nonce":
 		bo.Nonce = valueAsString
 	case "Serial":
@@ -162,6 +191,18 @@ func (bo *DeviceBootstrapPayload) IsModelValid() error {
 	}
 
 	return nil
+}
+
+// ------------------------------------------------------------------------------------------------
+// Diffing
+// ------------------------------------------------------------------------------------------------
+
+// Creates 2 synthetic instances gathering the added and removed relationships
+func (bo *DeviceBootstrapPayload) DiffWith(other goald.IBusinessObject, forLinks map[string]bool) (goald.IBusinessObject, goald.IBusinessObject) {
+	added := NewDeviceBootstrapPayload(bo.ID)
+	removed := NewDeviceBootstrapPayload(bo.ID)
+
+	return added, removed
 }
 
 // ------------------------------------------------------------------------------------------------

@@ -149,3 +149,43 @@ func (model *businessObjectModel) getRelationshipsWithRequiredBackref() []*Relat
 
 	return model.relationshipsWithRequiredBackref
 }
+
+// ------------------------------------------------------------------------------------------------
+// Some "views" on a model's fields and properties
+// ------------------------------------------------------------------------------------------------
+
+// DiffBusinessObjectSlices compares 2 slices of business objects and returns what is added and what is removed.
+// Equality is based on each object's ID, plus its model name too when useModel is true (for polymorphic cases).
+func DiffBusinessObjectSlices[BOTYPE IBusinessObject](before, after []BOTYPE, useModel bool) (added, removed []BOTYPE) {
+	keyOf := func(bObj IBusinessObject) any {
+		if useModel {
+			return KeyFor(bObj)
+		}
+		return bObj.GetID()
+	}
+
+	// indexing the before objects by key, so each can be matched (and removed from the map) in one pass over 'updated'
+	beforeByKey := make(map[any]BOTYPE, len(before))
+	for _, bObj := range before {
+		beforeByKey[keyOf(bObj)] = bObj
+	}
+
+	// building the list of added business objects based on the 'after' slice
+	added = make([]BOTYPE, 0, len(after))
+	for _, bObj := range after {
+		k := keyOf(bObj)
+		if _, found := beforeByKey[k]; found {
+			delete(beforeByKey, k) // still present: neither added nor removed
+		} else {
+			added = append(added, bObj)
+		}
+	}
+
+	// whatever's left in the map was in-store but is no longer in 'after': it's been removed
+	removed = make([]BOTYPE, 0, len(beforeByKey))
+	for _, bObj := range beforeByKey {
+		removed = append(removed, bObj)
+	}
+
+	return added, removed
+}

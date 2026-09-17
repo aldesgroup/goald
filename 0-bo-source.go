@@ -30,9 +30,10 @@ type IBusinessObjectModelSource interface {
 	isFromDir(dirName string) bool     // tells if the model is from the given package
 
 	// public methods
-	AsInterface() IBusinessObjectModelSource // sets the model as an interface
-	NewObject() any                          // a function to instantiate 1 BO corresponding to this entry
-	NewSlice() any                           // a function to instantiate an empty slice of BOs corresponding to this entry
+	AsInterface() IBusinessObjectModelSource  // sets the model as an interface
+	NewObject() any                           // a function to instantiate 1 BO corresponding to this entry
+	NewSlice() any                            // a function to instantiate an empty slice (pointer) of BOs corresponding to this entry
+	AppendToSlice(slicePtr any, bObj any) any // appends a BO (from NewObject) onto a slice (from NewSlice), returning the slice pointer
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -114,6 +115,11 @@ func (this *baseBusinessObjectModelSource) NewSlice() any {
 	panic("unimplemented")
 }
 
+// AppendToSlice implements [IBusinessObjectModelSource].
+func (this *baseBusinessObjectModelSource) AppendToSlice(slicePtr any, bObj any) any {
+	panic("unimplemented")
+}
+
 // ------------------------------------------------------------------------------------------------
 // Utils helping with code modules
 // ------------------------------------------------------------------------------------------------
@@ -181,4 +187,7 @@ func (boModel *businessObjectModel) NewObject() any {
 }
 func (boModel *businessObjectModel) NewSlice() any {
 	return boModel.source.NewSlice()
+}
+func (boModel *businessObjectModel) AppendToSlice(slicePtr any, bObj any) any {
+	return boModel.source.AppendToSlice(slicePtr, bObj)
 }

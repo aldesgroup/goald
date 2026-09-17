@@ -5,16 +5,43 @@
 package goald
 
 import (
-	"fmt"
 	"slices"
-	"strings"
 
 	core "github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald/features/utils"
 )
 
-// CreateBusinessObjects creates a new business object in the database, and all the other business objects
-// that are linked exclusively to it (children) if any, in a single transaction/
+// SearchBusinessObjects searches for business objects based on the given query and search parameter values, and loads them according to the specified loading configuration.
+func SearchBusinessObjects(bloCtx BloContext, query IQuery, values ISearchParamValues, loadingConf ILoadingConfig) ([]IBusinessObject, error) {
+	// performing some actions on the query params values before searching
+	if err := values.DoBeforeSearch(bloCtx); err != nil {
+		return nil, ErrorC(err, "Could not search for business objects since the query params values got an error")
+	}
+
+	// first we need to make sure the query params values are valid
+	if err := values.IsModelValid(); err != nil {
+		return nil, ErrorC(err, "Could not search for business objects since the query is not valid")
+	}
+
+	// the relevant DAO for the task
+	dao := bloCtx.daoFor(query.getSearchedObjectsModel().GetName())
+
+	// doing the search for the business objects in the database
+	results, err := dao.ExecSearchQuery(query.getName(), values, bloCtx.bObjCache())
+	if err != nil {
+		return nil, err
+	}
+
+	// performing some actions on the business objects after reading them
+	if err := afterLoad(bloCtx, loadingConf, results...); err != nil {
+		return nil, ErrorC(err, "Could not retrieve business objects since the post-load got an error")
+	}
+
+	// not much more logic for now
+	return results, nil
+}
+
+// CreateBusinessObjects creates new business objects in the database
 // WARNING: all the business objects must be of the same type (same model), this does not handle polymorphism
 func CreateBusinessObjects[BOTYPE IBusinessObject](bloCtx BloContext, bObjs ...BOTYPE) (createErr error) {
 	if len(bObjs) == 0 {
@@ -55,7 +82,7 @@ func CreateBusinessObjects[BOTYPE IBusinessObject](bloCtx BloContext, bObjs ...B
 	return
 }
 
-// doCreateBO does the actual creation of a new business object in the database
+// doCreateBusinessObjects does the actual creation of a new business objects in the database
 func doCreateBusinessObjects[BOTYPE IBusinessObject](bloCtx BloContext, model IBusinessObjectModel, bObjs ...BOTYPE) error {
 	if len(bObjs) == 0 {
 		return nil
@@ -110,7 +137,7 @@ func doCreateBusinessObjects[BOTYPE IBusinessObject](bloCtx BloContext, model IB
 
 	// consolidating the DB IDs back into the business objects
 	for _, bObj := range bObjs {
-		bObj.setID(BObjID(rowToIDMap[bObj.GetPreID()]))
+		bObj.setID(rowToIDMap[bObj.GetPreID()])
 	}
 
 	// so far, we've just handle the entities' properties and persisted single links; let's now handle the multiple links
@@ -169,11 +196,11 @@ func doCreateDependentBusinessObjects(bloCtx BloContext, model IBusinessObjectMo
 }
 
 // ReadBusinessObjects reads the specified business objects from the database according to the given loading configuration.
-func ReadBusinessObjects(bloCtx BloContext, loadingConf ILoadingConfig, bObjs ...IBusinessObject) error {
+func ReadBusinessObjects[BOTYPE IBusinessObject](bloCtx BloContext, loadingConf ILoadingConfig, bObjs ...BOTYPE) error {
 	// logObjs(bloCtx, bObjs, "Reading business objects with loading config: %s", loadingConf.ToString())
 
 	// first, caching the business objects, whilst computing the IDs mapped by their model
-	allBObjIDs := bloCtx.bObjCache().AddAll(bObjs)
+	allBObjIDs := bloCtx.bObjCache().AddAndGetIDs(bObjs)
 
 	// then dealing with all the business objects of the same model
 	for modelName, bObjIDs := range allBObjIDs {
@@ -210,17 +237,10 @@ func ReadBusinessObjects(bloCtx BloContext, loadingConf ILoadingConfig, bObjs ..
 }
 
 // afterLoad performs some actions on the business objects after reading them
-func afterLoad(bloCtx BloContext, loadingConf ILoadingConfig, bObjs ...IBusinessObject) error {
-	// we check that this entity can be read, given the context
+func afterLoad[BOTYPE IBusinessObject](bloCtx BloContext, loadingConf ILoadingConfig, bObjs ...BOTYPE) error {
+	// we check that this entity can be read, given the context, and maybe do some changes
 	for _, bObj := range bObjs {
-		if err := bObj.CanBeRead(bloCtx); err != nil {
-			return err
-		}
-	}
-
-	// now that we're okey with our loading, me might have to perform some specific actions
-	for _, bObj := range bObjs {
-		if err := bObj.ChangeAfterRead(bloCtx); err != nil {
+		if err := bObj.CheckAndChangeAfterRead(bloCtx); err != nil {
 			return err
 		}
 	}
@@ -234,12 +254,12 @@ func afterLoad(bloCtx BloContext, loadingConf ILoadingConfig, bObjs ...IBusiness
 }
 
 // ReadRelationships reads the relationships of the given business objects, according to the given loading configuration
-func ReadRelationships(bloCtx BloContext, loadingConf ILoadingConfig, bObjs ...IBusinessObject) error {
+func ReadRelationships[BOTYPE IBusinessObject](bloCtx BloContext, loadingConf ILoadingConfig, bObjs ...BOTYPE) error {
 	// logObjs(bloCtx, bObjs, "Reading relationships with loading config: %s", loadingConf.ToString())
 
 	if len(loadingConf.getRelationshipsToLoad()) > 0 {
 		// first, caching the business objects, whilst computing the IDs mapped by their model
-		allBObjIDs := bloCtx.bObjCache().AddAll(bObjs)
+		allBObjIDs := bloCtx.bObjCache().AddAndGetIDs(bObjs)
 
 		// reading the relationships of the given business objects, according to the given loading configuration
 		for _, subLoadingConf := range loadingConf.getRelationshipsToLoad() {
@@ -289,155 +309,186 @@ func ReadRelationships(bloCtx BloContext, loadingConf ILoadingConfig, bObjs ...I
 		}
 	}
 
+	// now, we can flag all the relationships as loaded for the source business objects
+	for _, bObj := range bObjs {
+		bObj.setLoaded(loadingConf.getLoadedRelationships())
+	}
+
 	return nil
 }
 
-// SearchBusinessObjects searches for business objects based on the given query and search parameter values, and loads them according to the specified loading configuration.
-func SearchBusinessObjects(bloCtx BloContext, query IQuery, values ISearchParamValues, loadingConf ILoadingConfig) ([]IBusinessObject, error) {
-	// performing some actions on the query params values before searching
-	if err := values.DoBeforeSearch(bloCtx); err != nil {
-		return nil, ErrorC(err, "Could not search for business objects since the query params values got an error")
+// UpdateBusinessObjects updates existing business objects in the database
+// WARNING: all the business objects must be of the same type (same model), this does not handle polymorphism
+func UpdateBusinessObjects[BOTYPE IBusinessObject](bloCtx BloContext, bObjs ...BOTYPE) (updateErr error) {
+	if len(bObjs) == 0 {
+		return nil
 	}
 
-	// first we need to make sure the query params values are valid
-	if err := values.IsModelValid(); err != nil {
-		return nil, ErrorC(err, "Could not search for business objects since the query is not valid")
+	// we know the BOs here are all of the same model
+	model := bObjs[0].getModel(bObjs[0])
+
+	// let's start a transaction if none is already started
+	beginTransactionHere, errBegin := bloCtx.BeginTransaction(model)
+	if errBegin != nil {
+		return ErrorC(errBegin, "Could not update object since a transaction could not be started")
 	}
 
-	// the relevant DAO for the task
-	dao := bloCtx.daoFor(query.getSearchedObjectsModel().GetName())
+	// let's make sure the transaction is always ended, even if a panic occurs below,
+	// so that we never leave a dangling transaction / corrupt the BloContext's tx state
+	if beginTransactionHere {
+		bloCtx.Trace("New transaction started here!")
+		defer func() {
+			if r := recover(); r != nil {
+				bloCtx.Trace("Recovered from panic while updating object(s): %v", r)
+				errEnd := bloCtx.EndTransaction(Error("Recovered from panic while updating object(s): %v", r))
+				panic(errEnd)
+			}
 
-	// doing the search for the business objects in the database
-	results, err := dao.ExecSearchQuery(query.getName(), values, bloCtx.bObjCache())
+			if errEnd := bloCtx.EndTransaction(updateErr); errEnd != nil {
+				updateErr = ErrorC(errEnd, "Could not update object since the current transaction could not be terminated")
+			} else {
+				bloCtx.Trace("Transaction ended here!")
+			}
+		}()
+	}
+
+	// let's try to update the given entity
+	updateErr = doUpdateBusinessObjects(bloCtx, model, bObjs...)
+
+	return
+}
+
+// doUpdateBusinessObjects does the actual update of existing business objects in the database
+func doUpdateBusinessObjects[BOTYPE IBusinessObject](bloCtx BloContext, model IBusinessObjectModel, bObjs ...BOTYPE) error {
+	if len(bObjs) == 0 {
+		return nil
+	}
+
+	// // we cannot update anything if we do not know who's doing it
+	// if bloCtx.GetCurrentUser() == nil {
+	// 	return NewErr("Could not update entity '%s' since the current user is unknown", ToEntityFullReference(updated))
+	// }
+
+	// preparing to retrieve the current versions of the BOs from the DB
+	bObjsInDB, loadingConf, err := cloneBOsWithLoading(model, bObjs)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	// performing some actions on the business objects after reading them
-	if err := afterLoad(bloCtx, loadingConf, results...); err != nil {
-		return nil, ErrorC(err, "Could not retrieve business objects since the post-load got an error")
+	// actually reading the current versions of the BOs
+	if err := ReadBusinessObjects(bloCtx, loadingConf, bObjsInDB...); err != nil {
+		return err
 	}
 
-	// not much more logic for now
-	return results, nil
-}
+	// we need this type conversion later on, let's do it now since we're iterating over the given business objects anyway
+	iBObjs := make([]IBusinessObject, len(bObjs))
 
-// ------------------------------------------------------------------------------------------------
-// Loading configs
-// ------------------------------------------------------------------------------------------------
+	// now, doing a bit of work on the given BOs, thanks to what we just read from the DB
+	for i, updated := range bObjs {
+		// the current version of the BO in the DB
+		instore := bObjsInDB[i]
 
-type ILoadingConfig interface {
-	withParent(parent ILoadingConfig) ILoadingConfig
-	getRelationshipsToLoad() []ILoadingConfig
-	getCurrentRelationship() *Relationship
-	ToString(indent ...int) string
-}
+		// // if it was deleted, we cannot update it from this method (to recover it, for instance), unless we're an admin
+		// if instore.GetEntityStatus() == EntityStatusDELETED && !biContext.GetCurrentUser().IsAdmin() {
+		// 	return NewErrC(err, "Could not update entity '%s' because it is deleted", ToEntityFullReference(updated))
+		// }
 
-type loadingConfig struct {
-	relationshipsOwner  IBusinessObjectModel
-	parent              ILoadingConfig
-	relationshipsToLoad []ILoadingConfig
-	currentRelationship *Relationship
-}
+		// we make sure the updated entity bears the right technical info, to avoid corruption from the outside
+		updated.setCreation(instore.GetCreation())
 
-func (cfg *loadingConfig) withParent(parent ILoadingConfig) ILoadingConfig {
-	cfg.parent = parent
-	return cfg
-}
+		// can we update this entity ? does it need any changes before the update ?
+		if err := updated.CheckAndChangeBeforeUpdate(bloCtx, instore); err != nil {
+			return ErrorC(err, "Could not update entity '%s' because this update is not allowed", KeyFor(updated))
+		}
 
-func (cfg *loadingConfig) getRelationshipsToLoad() []ILoadingConfig {
-	return cfg.relationshipsToLoad
-}
+		// check of validity constraints put on the corresponding schema
+		if err := updated.IsModelValid(); err != nil {
+			return ErrorC(err, "Could not update entity '%s' since it is not valid", KeyFor(updated))
+		}
 
-func (cfg *loadingConfig) getCurrentRelationship() *Relationship {
-	return cfg.currentRelationship
-}
+		// check of "functional / business" validity
+		if err := updated.IsValid(bloCtx); err != nil {
+			return ErrorC(err, "Could not update entity '%s' since it is not valid", KeyFor(updated))
+		}
 
-func (cfg *loadingConfig) ToString(indent ...int) string {
-	ind := 0
-	if len(indent) > 0 {
-		ind = indent[0]
-	}
-	prefix := strings.Repeat("  ", ind)
+		// updating some tracking info
+		// updated.SetModifiedByID(biContext.GetCurrentUser().GetID())
+		// updated.SetModifiedBy(biContext.GetCurrentUser().GetLabel())
+		updated.setModification(core.Now())
+		// updated.SetEntityStatus(EntityStatusUPDATED)
 
-	result := ""
+		// // updating the hash, if required
+		// if updated.IsHashed() {
+		// 	updated.setHash(GetHash(updated))
+		// }
 
-	if cfg.parent == nil {
-		result = prefix + fmt.Sprintf("loading '%s' with:", cfg.relationshipsOwner.GetName())
-	} else if ind == 0 {
-		result = prefix + fmt.Sprintf("loading '%s' (from '%s#%s')%s",
-			strings.Join(core.ToStrings(cfg.currentRelationship.getTargetModelNames()), ", "),
-			cfg.relationshipsOwner.GetName(),
-			cfg.currentRelationship.name,
-			core.IfThenElse(len(cfg.relationshipsToLoad) > 0, " with:", "."),
-		)
+		// adding the business object to the interface slice
+		iBObjs[i] = updated
 	}
 
-	for _, subConfig := range cfg.relationshipsToLoad {
-		result += "\n" + prefix + fmt.Sprintf("  - %s (%v)", subConfig.getCurrentRelationship().name, subConfig.getCurrentRelationship().getTargetModelNames())
-		result += subConfig.ToString(ind + 1)
+	// we need the DAO for the given BO type here
+	dao := bloCtx.daoFor(model.GetName())
+
+	// pushing the business objects into the DB !
+	if err := dao.ExecUpdateQuery(iBObjs...); err != nil {
+		return ErrorC(err, "Could not update the '%s' instances because of a problem with the DB", model.GetName())
 	}
 
-	return result
+	// now, handling the links
+	if err := doUpdateBusinessObjectLinks(dao, bObjs, bObjsInDB, loadingConf); err != nil {
+		return ErrorC(err, "Could not update the '%s' instances' links because of a problem with the DB", model.GetName())
+	}
+
+	// now doing some work on the given BOs, after the update
+	for _, bObj := range bObjs {
+		// we have stuff to do after the update ? yeah ? really ? let's do it now !
+		if err := bObj.ChangeAfterUpdate(bloCtx); err != nil {
+			return ErrorC(err, "Could not post-update '%s' because it got an error", KeyFor(bObj))
+		}
+
+		// // tracking the diffs brought to the entity through this update
+		// if updated.IsDiffed() {
+		// 	go trackDiffs(biContext, instore, updated)
+		// }
+	}
+
+	// no problem updating, so returning
+	return nil
+
 }
 
-func Load(model IBusinessObjectModel, with ...ILoadingConfig) ILoadingConfig {
-	thisConfig := &loadingConfig{
-		relationshipsOwner: model,
-	}
-	for _, subConfig := range with {
-		thisConfig.relationshipsToLoad = append(thisConfig.relationshipsToLoad, subConfig.withParent(thisConfig))
-	}
-	return thisConfig
-}
+// doUpdateBusinessObjectLinks updates the links for the given business objects by computing the differences
+// with their counterparts in the database and executing the necessary add and remove link queries.
+func doUpdateBusinessObjectLinks[BOTYPE IBusinessObject](dao IBusinessObjectDAO, bObjs []BOTYPE, bObjsInDB []BOTYPE, loadingConf ILoadingConfig) error {
+	// synthetic BOs bearing links to add to / remove from the DB
+	bObjsWithLinksToAdd := make([]IBusinessObject, 0)
+	bObjsWithLinksToRemove := make([]IBusinessObject, 0)
 
-func With(relationship *Relationship, with ...ILoadingConfig) ILoadingConfig {
-	thisConfig := &loadingConfig{
-		relationshipsOwner:  relationship.owner,
-		currentRelationship: relationship,
+	// a map to flag which links to operate on
+	forLinks := map[string]bool{}
+	for _, loadedLink := range loadingConf.getLoadedRelationships() {
+		forLinks[string(loadedLink)] = true
 	}
-	for _, subConfig := range with {
-		thisConfig.relationshipsToLoad = append(thisConfig.relationshipsToLoad, subConfig.withParent(thisConfig))
+
+	// handling the links for each business object
+	for i, bObj := range bObjs {
+		// computing the links to add and remove, and making them borne by synthetic BOs
+		boWithLinksToAdd, boWithLinksToRemove := bObj.DiffWith(bObjsInDB[i], forLinks)
+
+		// appending the synthetic BOs to the respective slices
+		bObjsWithLinksToAdd = append(bObjsWithLinksToAdd, boWithLinksToAdd)
+		bObjsWithLinksToRemove = append(bObjsWithLinksToRemove, boWithLinksToRemove)
 	}
-	return thisConfig
-}
 
-// ReadNoRelationship returns a loading config that loads only the direct relationships of the given business object type
-func (thisModel *businessObjectModel) ReadNoRelationship() ILoadingConfig {
-	return Load(thisModel)
-}
-
-// ReadWithFirstLayer returns a loading config that loads only the direct relationships of the given business object type
-func (thisModel *businessObjectModel) ReadWithFirstLayer() ILoadingConfig {
-	firstLayer := []ILoadingConfig{}
-	for _, relationship := range core.GetSortedValues(thisModel.getRelationships()) {
-		firstLayer = append(firstLayer, With(relationship))
+	// removing the links
+	if err := dao.ExecDeleteLinksQueries(bObjsWithLinksToRemove...); err != nil {
+		return ErrorC(err, "Could not remove the links for the business objects")
 	}
-	return Load(thisModel, firstLayer...)
-}
 
-// ------------------------------------------------------------------------------------------------
-// Utils
-// ------------------------------------------------------------------------------------------------
-
-func logObjs(bloCtx BloContext, bObjs []IBusinessObject, reasonForLogging string, args ...any) {
-	if bloCtx.IsTraceEnabled() {
-		objStrings := fmt.Sprintf("[%s]", strings.Join(core.MapFn(bObjs, func(bObj IBusinessObject) string {
-			return fmt.Sprintf("%s (%p)", KeyFor(bObj), bObj)
-		}), ", "))
-		bloCtx.Trace("----------------------------------------------")
-		bloCtx.Trace(fmt.Sprintf(reasonForLogging+": "+objStrings, args...))
-		bloCtx.Trace("----------------------------------------------")
+	// adding the links
+	if err := dao.ExecCreateLinksQueries(bObjsWithLinksToAdd...); err != nil {
+		return ErrorC(err, "Could not add the links for the business objects")
 	}
-}
 
-func logIDs(bloCtx BloContext, bObjIDs []any, reasonForLogging string, args ...any) {
-	if bloCtx.IsTraceEnabled() {
-		objStrings := fmt.Sprintf("[%s]", strings.Join(core.MapFn(bObjIDs, func(id any) string {
-			return fmt.Sprintf("%d", id)
-		}), ", "))
-		bloCtx.Trace("----------------------------------------------")
-		bloCtx.Trace(fmt.Sprintf(reasonForLogging+": "+objStrings, args...))
-		bloCtx.Trace("----------------------------------------------")
-	}
+	return nil
 }

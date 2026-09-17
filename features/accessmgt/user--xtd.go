@@ -36,6 +36,31 @@ func CachedOrNewUser(cache *goald.BObjCache, id goald.BObjID) *User {
 }
 
 // ------------------------------------------------------------------------------------------------
+// Cloning
+// ------------------------------------------------------------------------------------------------
+
+// getting the name of the model for a User, without using reflection
+func (bo *User) Clone(withFields, withRelationships bool) goald.IBusinessObject {
+	clone := &User{}
+	clone.ID = bo.ID
+
+	if withFields {
+		clone.Creation = bo.Creation
+		clone.Email = bo.Email
+		clone.FirstName = bo.FirstName
+		clone.LastName = bo.LastName
+		clone.Modification = bo.Modification
+		clone.Password = bo.Password
+	}
+
+	if withRelationships {
+		clone.MemberOf = bo.MemberOf
+	}
+
+	return clone
+}
+
+// ------------------------------------------------------------------------------------------------
 // Identification
 // ------------------------------------------------------------------------------------------------
 
@@ -61,6 +86,8 @@ func (bo *User) GetValueAsString(propertyName string) string {
 		return core.Int64ToString(int64(bo.ID))
 	case "LastName":
 		return bo.LastName
+	case "Modification":
+		return core.DateToString(bo.Modification)
 	case "Password":
 		return bo.Password
 	default:
@@ -81,6 +108,8 @@ func (bo *User) SetValueAsString(propertyName string, valueAsString string) erro
 		bo.ID = goald.BObjID(core.StringToInt64(valueAsString, "ID"))
 	case "LastName":
 		bo.LastName = valueAsString
+	case "Modification":
+		bo.Modification = core.StringToDate(valueAsString, "Modification")
 	case "Password":
 		bo.Password = valueAsString
 	}
@@ -191,6 +220,24 @@ func (bo *User) IsModelValid() error {
 	}
 
 	return nil
+}
+
+// ------------------------------------------------------------------------------------------------
+// Diffing
+// ------------------------------------------------------------------------------------------------
+
+// Creates 2 synthetic instances gathering the added and removed relationships
+func (bo *User) DiffWith(other goald.IBusinessObject, forLinks map[string]bool) (goald.IBusinessObject, goald.IBusinessObject) {
+	added := NewUser(bo.ID)
+	removed := NewUser(bo.ID)
+
+	otherBo := other.(*User)
+
+	if forLinks["MemberOf"] {
+		added.MemberOf, removed.MemberOf = goald.DiffBusinessObjectSlices(otherBo.MemberOf, bo.MemberOf, true)
+	}
+
+	return added, removed
 }
 
 // ------------------------------------------------------------------------------------------------

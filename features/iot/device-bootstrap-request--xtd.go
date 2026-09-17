@@ -36,6 +36,30 @@ func CachedOrNewDeviceBootstrapRequest(cache *goald.BObjCache, id goald.BObjID) 
 }
 
 // ------------------------------------------------------------------------------------------------
+// Cloning
+// ------------------------------------------------------------------------------------------------
+
+// getting the name of the model for a DeviceBootstrapRequest, without using reflection
+func (bo *DeviceBootstrapRequest) Clone(withFields, withRelationships bool) goald.IBusinessObject {
+	clone := &DeviceBootstrapRequest{}
+	clone.ID = bo.ID
+
+	if withFields {
+		clone.Creation = bo.Creation
+		clone.FactoryCertPEM = bo.FactoryCertPEM
+		clone.Modification = bo.Modification
+		clone.PayloadB64 = bo.PayloadB64
+		clone.SignatureB64 = bo.SignatureB64
+	}
+
+	if withRelationships {
+
+	}
+
+	return clone
+}
+
+// ------------------------------------------------------------------------------------------------
 // Identification
 // ------------------------------------------------------------------------------------------------
 
@@ -57,6 +81,8 @@ func (bo *DeviceBootstrapRequest) GetValueAsString(propertyName string) string {
 		return bo.FactoryCertPEM
 	case "ID":
 		return core.Int64ToString(int64(bo.ID))
+	case "Modification":
+		return core.DateToString(bo.Modification)
 	case "PayloadB64":
 		return bo.PayloadB64
 	case "SignatureB64":
@@ -75,6 +101,8 @@ func (bo *DeviceBootstrapRequest) SetValueAsString(propertyName string, valueAsS
 		bo.FactoryCertPEM = valueAsString
 	case "ID":
 		bo.ID = goald.BObjID(core.StringToInt64(valueAsString, "ID"))
+	case "Modification":
+		bo.Modification = core.StringToDate(valueAsString, "Modification")
 	case "PayloadB64":
 		bo.PayloadB64 = valueAsString
 	case "SignatureB64":
@@ -155,6 +183,18 @@ func (bo *DeviceBootstrapRequest) IsModelValid() error {
 	}
 
 	return nil
+}
+
+// ------------------------------------------------------------------------------------------------
+// Diffing
+// ------------------------------------------------------------------------------------------------
+
+// Creates 2 synthetic instances gathering the added and removed relationships
+func (bo *DeviceBootstrapRequest) DiffWith(other goald.IBusinessObject, forLinks map[string]bool) (goald.IBusinessObject, goald.IBusinessObject) {
+	added := NewDeviceBootstrapRequest(bo.ID)
+	removed := NewDeviceBootstrapRequest(bo.ID)
+
+	return added, removed
 }
 
 // ------------------------------------------------------------------------------------------------

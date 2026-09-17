@@ -125,7 +125,7 @@ func (ep *oneForOneEndpoint[InputType, ResourceType]) returnOneForOne(webCtx Web
 
 // // adapting the parametrized function to a generic format that the main *httpRequestContext.serve() can call
 // func (ep *oneForManyEndpoint[InputType, ResourceType]) returnOneForMany(webCtx WebContext, inputs any) (any, hstatus.Code, string) {
-// 	return ep.handlerFunc(webCtx, inputs.([]InputType))
+// 	return ep.handlerFunc(webCtx, *inputs.(*[]InputType))
 // }
 
 // ------------------------------------------------------------------------------------------------
@@ -190,5 +190,5 @@ func handleManyForMany[InputType, ResourceType IBusinessObject](
 
 // adapting the parametrized function to a generic format that the main *httpRequestContext.serve() can call
 func (ep *manyForManyEndpoint[InputType, ResourceType]) returnManyForMany(webCtx WebContext, inputs any) (any, hstatus.Code, string) {
-	return ep.handlerFunc(webCtx, inputs.([]InputType))
+	return ep.handlerFunc(webCtx, *inputs.(*[]InputType))
 }

@@ -5,7 +5,6 @@ package goald
 
 import (
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/aldesgroup/goald/features/utils"
@@ -21,20 +20,24 @@ type IBusinessObject interface {
 	setID(BObjID)
 	GetCreation() *time.Time
 	setCreation(*time.Time)
+	GetModification() *time.Time
+	setModification(*time.Time)
 	GetPreID() int
 	setPreID(int)
-	getKey() string
-	setKey(string)
+	getKey() boKey
+	setKey(boKey)
 
 	// business logic
 	ChangeBeforeInsert(BloContext) error
 	IsValid(BloContext) error
 	ChangeAfterInsert(BloContext) error
-	CanBeRead(bloCtx BloContext) error
-	ChangeAfterRead(bloCtx BloContext) error
+	CheckAndChangeAfterRead(bloCtx BloContext) error
+	CheckAndChangeBeforeUpdate(bloCtx BloContext, instore IBusinessObject) error
+	ChangeAfterUpdate(bloCtx BloContext) error
 
 	// utilities for accessing properties and relationships without using reflection
 	GetModelName() utils.ModelName                                          // returning the name of the business object's model
+	Clone(withFields, withRelationships bool) IBusinessObject               // returning a copy of the business object, optionally including fields and relationships
 	GetValueAsString(string) string                                         // returning a BO's field's value, given the field's name
 	SetValueAsString(string, string) error                                  // setting a BO's field's value, given the field's name
 	SetRelationshipValue(relName string, value IBusinessObject) error       // setting a single-valued relationship's target, given the relationship's name - without using reflection
@@ -45,27 +48,38 @@ type IBusinessObject interface {
 	IsModelValid() error                                                    // checking a business object's general validity - without using reflection
 	RemoveCycles()                                                          // removing any cycles from the business object, without using reflection
 
+	// work with other BOs
+	DiffWith(other IBusinessObject, forLinks map[string]bool) (IBusinessObject, IBusinessObject) // creates 2 synthetic instances gathering the added and removed relationships
+
 	// technical stuff
 	getModel(this IBusinessObject) IBusinessObjectModel
+	setLoaded(loadedRelationships)
+	getLoaded() loadedRelationships
 }
 
 // ------------------------------------------------------------------------------------------------
 // Common implementation for business objects - Should be part of any BO's inheritance
 // ------------------------------------------------------------------------------------------------
 
-// type BObjID string // probably a UUID here
-type BObjID int64 // probably a UUID here
+type BObjID int64
+
+type boKey struct {
+	id  BObjID
+	mdl utils.ModelName
+}
 
 type BusinessObject struct {
 	// properties common to all business objects
-	ID        BObjID          `json:"id,omitempty"       io:"o*" desc:"The unique identifier of this business object"`
-	Creation  *time.Time      `json:"creation,omitempty" io:"o*" desc:"The creation timestamp of this business object"`
-	ModelName utils.ModelName `json:"mdl,omitempty"      io:"in" desc:"The name of the business object's model, sometimes used to resolve polymorphic relationships"`
-	preID     int             `json:"-"                  io:"o*" desc:"A temporary identifier in Business Objects lists"`
+	ID           BObjID              `json:"id,omitempty"           io:"o*" desc:"The unique identifier of this business object"`
+	Loaded       loadedRelationships `json:"_loaded,omitempty"      io:"o*" desc:"The direct relationships that have been loaded for this business object"`
+	Creation     *time.Time          `json:"creation,omitempty"     io:"o*" desc:"The creation timestamp of this business object"`
+	Modification *time.Time          `json:"modification,omitempty" io:"o*" desc:"The modification timestamp of this business object"`
+	ModelName    utils.ModelName     `json:"mdl,omitempty"          io:"in" desc:"The name of the business object's model, sometimes used to resolve polymorphic relationships"`
+	preID        int                 `json:"-"                      io:"o*" desc:"A temporary identifier in Business Objects lists"`
 
 	// technical stuff
 	model IBusinessObjectModel
-	key   string
+	key   boKey
 }
 
 var _ IBusinessObject = (*BusinessObject)(nil)
@@ -75,20 +89,30 @@ func (thisBO *BusinessObject) GetID() BObjID                   { return thisBO.I
 func (thisBO *BusinessObject) setID(id BObjID)                 { thisBO.ID = id }
 func (thisBO *BusinessObject) GetCreation() *time.Time         { return thisBO.Creation }
 func (thisBO *BusinessObject) setCreation(creation *time.Time) { thisBO.Creation = creation }
-func (thisBO *BusinessObject) GetPreID() int                   { return thisBO.preID }
-func (thisBO *BusinessObject) setPreID(preID int)              { thisBO.preID = preID }
-func (thisBO *BusinessObject) getKey() string                  { return thisBO.key }
-func (thisBO *BusinessObject) setKey(key string)               { thisBO.key = key }
+func (thisBO *BusinessObject) GetModification() *time.Time     { return thisBO.Modification }
+func (thisBO *BusinessObject) setModification(modification *time.Time) {
+	thisBO.Modification = modification
+}
+func (thisBO *BusinessObject) GetPreID() int      { return thisBO.preID }
+func (thisBO *BusinessObject) setPreID(preID int) { thisBO.preID = preID }
+func (thisBO *BusinessObject) getKey() boKey      { return thisBO.key }
+func (thisBO *BusinessObject) setKey(key boKey)   { thisBO.key = key }
 
 // Triggers - default implems
-func (thisBO *BusinessObject) ChangeBeforeInsert(BloContext) error     { return nil }
-func (thisBO *BusinessObject) IsValid(BloContext) error                { return nil }
-func (thisBO *BusinessObject) ChangeAfterInsert(BloContext) error      { return nil }
-func (thisBO *BusinessObject) CanBeRead(bloCtx BloContext) error       { return nil }
-func (thisBO *BusinessObject) ChangeAfterRead(bloCtx BloContext) error { return nil }
+func (thisBO *BusinessObject) ChangeBeforeInsert(BloContext) error             { return nil }
+func (thisBO *BusinessObject) IsValid(BloContext) error                        { return nil }
+func (thisBO *BusinessObject) ChangeAfterInsert(BloContext) error              { return nil }
+func (thisBO *BusinessObject) CheckAndChangeAfterRead(bloCtx BloContext) error { return nil }
+func (thisBO *BusinessObject) CheckAndChangeBeforeUpdate(bloCtx BloContext, instore IBusinessObject) error {
+	return nil
+}
+func (thisBO *BusinessObject) ChangeAfterUpdate(bloCtx BloContext) error { return nil }
 
 // Utilities - default implems
-func (thisBO *BusinessObject) GetModelName() utils.ModelName         { panic("unimplemented") }
+func (thisBO *BusinessObject) GetModelName() utils.ModelName { panic("unimplemented") }
+func (thisBO *BusinessObject) Clone(withFields, withRelationships bool) IBusinessObject {
+	panic("unimplemented")
+}
 func (thisBO *BusinessObject) GetValueAsString(string) string        { panic("unimplemented") }
 func (thisBO *BusinessObject) SetValueAsString(string, string) error { panic("unimplemented") }
 func (thisBO *BusinessObject) SetRelationshipValue(relName string, value IBusinessObject) error {
@@ -106,6 +130,15 @@ func (thisBO *BusinessObject) GetMultipleRelationshipValue(relName string) ([]IB
 }
 func (thisBO *BusinessObject) IsModelValid() error { panic("unimplemented") }
 func (thisBO *BusinessObject) RemoveCycles()       { panic("unimplemented") }
+
+// Working with other BOs - default implems
+func (thisBO *BusinessObject) DiffWith(other IBusinessObject, forLinks map[string]bool) (IBusinessObject, IBusinessObject) {
+	panic("unimplemented")
+}
+
+// Technical stuff
+func (thisBO *BusinessObject) setLoaded(loaded loadedRelationships) { thisBO.Loaded = loaded }
+func (thisBO *BusinessObject) getLoaded() loadedRelationships       { return thisBO.Loaded }
 
 // ------------------------------------------------------------------------------------------------
 // Special accessors
@@ -134,14 +167,18 @@ type IEnum interface {
 // Utils
 // ------------------------------------------------------------------------------------------------
 
-func KeyFor(bo IBusinessObject) string {
-	if bo.getKey() == "" {
+func KeyFor(bo IBusinessObject) boKey {
+	if bo.getKey().id == 0 {
 		if bo.GetID() == 0 {
 			panic("cannot generate key for business object with no ID")
 		}
 
-		bo.setKey(string(bo.GetModelName()) + "-" + strconv.FormatInt(int64(bo.GetID()), 10))
+		bo.setKey(boKey{id: bo.GetID(), mdl: bo.GetModelName()})
 	}
 
 	return bo.getKey()
+}
+
+func (key boKey) String() string {
+	return fmt.Sprintf("%s-%d", key.mdl, key.id)
 }

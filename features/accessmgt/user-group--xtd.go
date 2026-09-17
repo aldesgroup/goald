@@ -36,6 +36,29 @@ func CachedOrNewUserGroup(cache *goald.BObjCache, id goald.BObjID) *UserGroup {
 }
 
 // ------------------------------------------------------------------------------------------------
+// Cloning
+// ------------------------------------------------------------------------------------------------
+
+// getting the name of the model for a UserGroup, without using reflection
+func (bo *UserGroup) Clone(withFields, withRelationships bool) goald.IBusinessObject {
+	clone := &UserGroup{}
+	clone.ID = bo.ID
+
+	if withFields {
+		clone.Creation = bo.Creation
+		clone.Description = bo.Description
+		clone.Modification = bo.Modification
+		clone.Name = bo.Name
+	}
+
+	if withRelationships {
+		clone.Members = bo.Members
+	}
+
+	return clone
+}
+
+// ------------------------------------------------------------------------------------------------
 // Identification
 // ------------------------------------------------------------------------------------------------
 
@@ -57,6 +80,8 @@ func (bo *UserGroup) GetValueAsString(propertyName string) string {
 		return bo.Description
 	case "ID":
 		return core.Int64ToString(int64(bo.ID))
+	case "Modification":
+		return core.DateToString(bo.Modification)
 	case "Name":
 		return bo.Name
 	default:
@@ -73,6 +98,8 @@ func (bo *UserGroup) SetValueAsString(propertyName string, valueAsString string)
 		bo.Description = valueAsString
 	case "ID":
 		bo.ID = goald.BObjID(core.StringToInt64(valueAsString, "ID"))
+	case "Modification":
+		bo.Modification = core.StringToDate(valueAsString, "Modification")
 	case "Name":
 		bo.Name = valueAsString
 	}
@@ -168,6 +195,24 @@ func (bo *UserGroup) IsModelValid() error {
 	}
 
 	return nil
+}
+
+// ------------------------------------------------------------------------------------------------
+// Diffing
+// ------------------------------------------------------------------------------------------------
+
+// Creates 2 synthetic instances gathering the added and removed relationships
+func (bo *UserGroup) DiffWith(other goald.IBusinessObject, forLinks map[string]bool) (goald.IBusinessObject, goald.IBusinessObject) {
+	added := NewUserGroup(bo.ID)
+	removed := NewUserGroup(bo.ID)
+
+	otherBo := other.(*UserGroup)
+
+	if forLinks["Members"] {
+		added.Members, removed.Members = goald.DiffBusinessObjectSlices(otherBo.Members, bo.Members, true)
+	}
+
+	return added, removed
 }
 
 // ------------------------------------------------------------------------------------------------

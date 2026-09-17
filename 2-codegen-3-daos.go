@@ -59,9 +59,10 @@ func (thisDAO *%[2]sDAO) NewDAO() goald.IBusinessObjectDAO {
 // ------------------------------------------------------------------------------------------------
 
 var (
-	%[3]sDB     string
-	%[3]sDBOnce sync.Once
-	%[3]sMask   = []bool{%[5]s}
+	%[3]sDB         string
+	%[3]sDBOnce     sync.Once
+	%[3]sUpdateMask = []bool{%[5]s}
+	%[3]sCreateMask = append([]bool{false}, %[3]sUpdateMask...)
 )
 `
 
@@ -183,7 +184,7 @@ func (thisGen *daoGenerator) generateOneDAO(srcdir string, dbType string, model 
 
 	// trivial filling of the template
 	modelNameCamel := core.PascalToCamel(string(model.GetName()))
-	_, _, maskPattern, _ := thisGen.getColumnsAndInsertData(model, "\t\t\t")
+	_, _, _, maskPattern, _ := thisGen.getColumnsAndInsertData(model, "\t\t\t", false)
 
 	// dealing with extra imports, and making sure the model at least is imported
 	extraImports := map[string]bool{}
@@ -199,6 +200,8 @@ func (thisGen *daoGenerator) generateOneDAO(srcdir string, dbType string, model 
 		maskPattern)
 
 	// adding all the needed DAO methods
+	content += thisGen.generateExecSearchQuery(model, extraImports)
+	content += "\n\n"
 	content += thisGen.generateExecCreateQuery(model)
 	content += "\n\n"
 	content += thisGen.generateExecCreateLinksQueries(model)
@@ -207,7 +210,11 @@ func (thisGen *daoGenerator) generateOneDAO(srcdir string, dbType string, model 
 	content += "\n\n"
 	content += thisGen.generateExecReadRelationshipQuery(model, extraImports)
 	content += "\n"
-	content += thisGen.generateExecSearchQuery(model, extraImports)
+	content += thisGen.generateExecUpdateQuery(model)
+	content += "\n\n"
+	content += thisGen.generateExecDeleteQuery(model)
+	content += "\n\n"
+	content += thisGen.generateExecDeleteLinksQueries(model)
 	content += "\n\n"
 	content += thisGen.generateScanRowFunc(model, extraImports)
 
@@ -231,7 +238,8 @@ func (thisGen *daoGenerator) generateOneDAO(srcdir string, dbType string, model 
 // ------------------------------------------------------------------------------------------------
 
 // getColumnsAndInsertData gathers the necessary information for generating an insert statement for the given model.
-func (thisGen *daoGenerator) getColumnsAndInsertData(model IBusinessObjectModel, space string) (columns, argAssignments, maskPattern string, nbCols int) {
+func (thisGen *daoGenerator) getColumnsAndInsertData(model IBusinessObjectModel, space string,
+	addPreID bool) (columns, columnTypes, argAssignments, maskPattern string, nbCols int) {
 	varName := core.PascalToCamel(string(model.GetName()))
 
 	for _, prop := range model.getPersistedProperties() {
@@ -241,16 +249,24 @@ func (thisGen *daoGenerator) getColumnsAndInsertData(model IBusinessObjectModel,
 			continue
 		}
 
+		// the pre-ID field is handled separately and should be skipped if addPreID is false
+		if !addPreID && prop.GetName() == boFieldPreID {
+			continue
+		}
+
 		if columns != "" {
 			columns += ", "
+			columnTypes += ", "
 			maskPattern += ", "
 		}
+
+		columns += prop.getColumnName()
+		columnTypes += bq + thisGen.getColumnSQLType(prop) + bq
 
 		colIndex := nbCols
 		nbCols++
 
 		if relationship, ok := prop.(*Relationship); ok {
-			columns += relationship.getColumnName()
 			maskPattern += core.IfThenElse(relationship.isSecret(), "true", "false")
 
 			// the relationship's Go field is either a concrete pointer (monomorphic) or an interface
@@ -260,6 +276,7 @@ func (thisGen *daoGenerator) getColumnsAndInsertData(model IBusinessObjectModel,
 
 			if relationship.IsPolymorphic() {
 				columns += ", " + relationship.getColumnNameForTargetModel()
+				columnTypes += ", " + bq + "text" + bq
 				maskPattern += ", " + core.IfThenElse(relationship.isSecret(), "true", "false")
 				polyIndex := nbCols
 				nbCols++
@@ -276,11 +293,10 @@ func (thisGen *daoGenerator) getColumnsAndInsertData(model IBusinessObjectModel,
 		} else if prop.GetName() == boFieldPreID {
 			// the pre-ID field is unexported, so it can only be accessed through its exported getter,
 			// unlike the other, regular fields
-			columns += prop.getColumnName()
 			maskPattern += "false"
 			argAssignments += fmt.Sprintf("%sargs[base+%d] = %s.GetPreID()\n", space, colIndex, varName)
+
 		} else {
-			columns += prop.getColumnName()
 			maskPattern += core.IfThenElse(prop.isSecret(), "true", "false")
 			argAssignments += fmt.Sprintf("%sargs[base+%d] = %s.%s\n", space, colIndex, varName, prop.GetName())
 		}
@@ -289,13 +305,23 @@ func (thisGen *daoGenerator) getColumnsAndInsertData(model IBusinessObjectModel,
 	return
 }
 
+func (thisGen *daoGenerator) getColumnSQLType(prop IBusinessObjectProperty) (columnType string) {
+	columnSQLDeclaration, _ := prop.ownerModel().getDB().get.SQLColumnDeclaration(prop)
+	if index := strings.Index(columnSQLDeclaration, ")"); index != -1 {
+		columnType = columnSQLDeclaration[:index+1]
+	} else {
+		columnType = core.Before(columnSQLDeclaration, " ")
+	}
+	return strings.ToLower(columnType)
+}
+
 // ------------------------------------------------------------------------------------------------
 // Generating the CRUD(S) methods - the CREATION part
 // ------------------------------------------------------------------------------------------------
 
 func (thisGen *daoGenerator) generateExecCreateQuery(model IBusinessObjectModel) string {
 
-	columns, argAssignments, _, nbCols := thisGen.getColumnsAndInsertData(model, "\t\t\t")
+	columns, _, argAssignments, _, nbCols := thisGen.getColumnsAndInsertData(model, "\t\t\t", true)
 	varName := core.PascalToCamel(string(model.GetName()))
 
 	return fmt.Sprintf(`
@@ -304,12 +330,12 @@ func (thisGen *daoGenerator) generateExecCreateQuery(model IBusinessObjectModel)
 // ------------------------------------------------------------------------------------------------
 
 // ExecCreateQuery implements [goald.IBusinessObjectDAO].
-func (thisDAO *%[1]sDAO) ExecCreateQuery(bObjs ...goald.IBusinessObject) (map[int]int64, error) {
+func (thisDAO *%[1]sDAO) ExecCreateQuery(bObjs ...goald.IBusinessObject) (map[int]goald.BObjID, error) {
 	return thisDAO.ExecBatchCreate(&goald.ExecCreateContext{
 		Table:       %[2]sDB + `+bq+`.%[4]s`+bq+`,
 		Columns:     `+bq+`%[5]s`+bq+`,
 		NbCols:      %[7]d,
-		MaskPattern: %[2]sMask,
+		MaskPattern: %[2]sCreateMask,
 		BObjs:       bObjs,
 		FillRow: func(bObj goald.IBusinessObject, args []any, base int) {
 			// casting the business object to its actual type
@@ -519,14 +545,14 @@ func (thisDAO *%[1]sDAO) execRead%[2]s(bObjIDs []any, cache *goald.BObjCache) ([
 	return thisDAO.ExecReadRelationship(&goald.ReadRelationshipContext{
 		Query: "SELECT %[5]s" +
 			" FROM " + %[6]sDB + ".%[7]s" +
-			" WHERE %[8]s" + inClause,
+			" WHERE %[8]s" + inClause + "%[9]s",
 		Args: queryArgs.Args,
 		AttachRow: func(rows *sql.Rows) (goald.IBusinessObject, error) {
-			var sourceID, targetID goald.BObjID%[9]s
-			if errScan := rows.Scan(%[10]s); errScan != nil {
+			var sourceID, targetID goald.BObjID%[10]s
+			if errScan := rows.Scan(%[11]s); errScan != nil {
 				return nil, errScan
 			}
-			return %[11]s.Get%[1]sFrom(cache, sourceID).WithAdded%[2]s(%[12]s.CachedOrNew%[13]s(%[14]s, targetID)%[15]s), nil
+			return %[12]s.Get%[1]sFrom(cache, sourceID).WithAdded%[2]s(%[13]s.CachedOrNew%[14]s(%[15]s, targetID)%[16]s), nil
 		},
 	})
 }
@@ -543,22 +569,23 @@ func (thisGen *daoGenerator) generateExecReadRelationshipQuery(model IBusinessOb
 			// name of the model in camel case
 			modelNameCamel := core.PascalToCamel(string(model.GetName()))
 
-			// declaring some variables that will be used in the template
-			var sourceColName, targetColName, targetMdlColName, selTable string
+			// declaring some variables that will be used in the template; "local" is this model's own side of
+			// the link table (the one matching bObjIDs), "target" is the related object's side
+			var sourceColName, sourceMdlColName, targetColName, targetMdlColName, selTable string
 
 			// is this link indirectly persisted, from this model's perspective?
 			if rel.isDirectlyPersisted() {
-				sourceColName, _ = rel.getLinkTableSourceColumn()
+				sourceColName, sourceMdlColName = rel.getLinkTableSourceColumn()
 				targetColName, targetMdlColName = rel.getLinkTableTargetColumn()
 				selTable = rel.getLinkTableName()
 			} else {
 				// in this case, the backref is the directly persisted one, so things are a bit reversed here
 				if dirRel := rel.backRef; dirRel.IsMultiple() {
-					sourceColName, _ = dirRel.getLinkTableTargetColumn() // the backref's target is this model, so it's the source for the link table
-					targetColName, _ = dirRel.getLinkTableSourceColumn() // the backref's source is the other model, so it's the target for the link table
+					sourceColName, sourceMdlColName = dirRel.getLinkTableTargetColumn() // the backref's target is this model, so it's the source side for the link table
+					targetColName, targetMdlColName = dirRel.getLinkTableSourceColumn() // the backref's source is the other model, so it's the target side for the link table
 					selTable = dirRel.getLinkTableName()
 				} else {
-					sourceColName = dirRel.getColumnName() // the backref's target is this model, so it's the source for this relationship
+					sourceColName = dirRel.getColumnName() // the backref's target is this model, so it's the source side for this relationship
 					targetColName = "id"                   // the backref's source is the other model, so it's the target for this relationship
 					selTable = dirRel.owner.getTableName(false)
 				}
@@ -570,8 +597,17 @@ func (thisGen *daoGenerator) generateExecReadRelationshipQuery(model IBusinessOb
 				selColNames += ", " + targetMdlColName
 			}
 			selColVars := "&sourceID, &targetID"
-			if rel.IsPolymorphic() {
+			if targetMdlColName != "" {
 				selColVars += ", &targetMdl"
+			}
+
+			// when the source column is shared, in the link table, by several business object models (i.e. the
+			// relationship pointing back to this one is polymorphic), IDs alone aren't enough to identify which
+			// rows belong to this model: we also filter on the model name, since another model's rows could have
+			// colliding IDs
+			var sourceModelFilter string
+			if sourceMdlColName != "" {
+				sourceModelFilter = fmt.Sprintf(" AND %s = '%s'", sourceMdlColName, model.GetName())
 			}
 
 			// declaring iother variables that will be used in the template
@@ -602,14 +638,15 @@ func (thisGen *daoGenerator) generateExecReadRelationshipQuery(model IBusinessOb
 				selColNames,                                //  5: SELECT %[5]s
 				modelNameCamel,                             //  6: FROM ` + bq + ` + %[6]s + ` + bq + `.%[7]s
 				selTable,                                   //  7: FROM ` + bq + ` + %[6]s + ` + bq + `.%[7]s
-				sourceColName,                              //  8: WHERE %[8]s` + bq + ` + inClause
-				mdlColScan,                                 //  9: var sourceID, targetID goald.BObjID%[9]s
-				selColVars,                                 // 10: if errScan := rows.Scan(%[10]s); errScan != nil {
-				model.getPackage(),                         // 11: return %[11]s.Get%[1]sFrom(cache, sourceID)
-				cacheOrNewReceiver,                         // 12: .WithAdded%[2]s(%[12]s.CachedOrNew%[13]s(%[14]s, targetID)%[15]s)
-				cacheOrNewObject,                           // 13: .WithAdded%[2]s(%[12]s.CachedOrNew%[13]s(%[14]s, targetID)%[15]s)
-				cacheOrNewArg,                              // 14: .WithAdded%[2]s(%[12]s.CachedOrNew%[13]s(%[14]s, targetID)%[15]s)
-				cacheOrNewType,                             // 15: .WithAdded%[2]s(%[12]s.CachedOrNew%[13]s(%[14]s, targetID)%[15]s)
+				sourceColName,                              //  8: WHERE %[8]s` + bq + ` + inClause + "%[9]s"
+				sourceModelFilter,                          //  9: WHERE %[8]s` + bq + ` + inClause + "%[9]s"
+				mdlColScan,                                 // 10: var sourceID, targetID goald.BObjID%[10]s
+				selColVars,                                 // 11: if errScan := rows.Scan(%[11]s); errScan != nil {
+				model.getPackage(),                         // 12: return %[12]s.Get%[1]sFrom(cache, sourceID)
+				cacheOrNewReceiver,                         // 13: .WithAdded%[2]s(%[13]s.CachedOrNew%[14]s(%[15]s, targetID)%[16]s)
+				cacheOrNewObject,                           // 14: .WithAdded%[2]s(%[13]s.CachedOrNew%[14]s(%[15]s, targetID)%[16]s)
+				cacheOrNewArg,                              // 15: .WithAdded%[2]s(%[13]s.CachedOrNew%[14]s(%[15]s, targetID)%[16]s)
+				cacheOrNewType,                             // 16: .WithAdded%[2]s(%[13]s.CachedOrNew%[14]s(%[15]s, targetID)%[16]s)
 			)
 
 			// Adding the case:
@@ -620,6 +657,172 @@ func (thisGen *daoGenerator) generateExecReadRelationshipQuery(model IBusinessOb
 	}
 
 	return fmt.Sprintf(execReadRelationshipQueryTpl, model.GetName(), readRelCases, readRelFuncs)
+}
+
+// ------------------------------------------------------------------------------------------------
+// Generating the CRUD(S) methods - the UPDATE part
+// ------------------------------------------------------------------------------------------------
+
+func (thisGen *daoGenerator) generateExecUpdateQuery(model IBusinessObjectModel) string {
+
+	columns, columnTypes, argAssignments, _, nbCols := thisGen.getColumnsAndInsertData(model, "\t\t\t", false)
+	varName := core.PascalToCamel(string(model.GetName()))
+
+	return fmt.Sprintf(`
+// ------------------------------------------------------------------------------------------------
+// Updating
+// ------------------------------------------------------------------------------------------------
+
+// ExecUpdateQuery implements [goald.IBusinessObjectDAO].
+func (thisDAO *%[1]sDAO) ExecUpdateQuery(bObjs ...goald.IBusinessObject) error {
+    return thisDAO.ExecBatchUpdate(&goald.UpdateContext{
+		Table:       %[2]sDB + `+bq+`.%[4]s`+bq+`,
+		Columns:     `+bq+`%[5]s`+bq+`,
+		ColumnTypes: []string{%[8]s},
+		NbCols:      %[7]d,
+		MaskPattern: userGroupUpdateMask,
+		BObjs:       bObjs,
+		FillRow: func(bObj goald.IBusinessObject, args []any, base int) {
+			// casting the business object to its actual type
+			%[2]s := bObj.(*%[3]s.%[1]s)
+
+%[6]s		},
+	})
+}`,
+		model.GetName(),           // 1
+		varName,                   // 2
+		model.getPackage(),        // 3
+		model.getTableName(false), // 4
+		columns,                   // 5
+		argAssignments,            // 6
+		nbCols,                    // 7
+		columnTypes,               // 8
+	)
+}
+
+// ------------------------------------------------------------------------------------------------
+// Generating the CRUD(S) methods - the DELETE part
+// ------------------------------------------------------------------------------------------------
+
+// generateExecDeleteQuery builds the ExecDeleteQuery method for the given model
+func (thisGen *daoGenerator) generateExecDeleteQuery(model IBusinessObjectModel) string {
+	return fmt.Sprintf(`
+// ------------------------------------------------------------------------------------------------
+// Deletion
+// ------------------------------------------------------------------------------------------------
+
+// ExecDeleteQuery implements [goald.IBusinessObjectDAO].
+func (thisDAO *%[1]sDAO) ExecDeleteQuery(bObjs ...goald.IBusinessObject) error {
+	return nil // TODO
+}`,
+		model.GetName(), // 1
+	)
+}
+
+// generateExecDeleteLinksQueries builds the ExecDeleteLinksQueries method for the given model
+func (thisGen *daoGenerator) generateExecDeleteLinksQueries(model IBusinessObjectModel) string {
+	varName := core.PascalToCamel(string(model.GetName()))
+	pkg := model.getPackage()
+
+	var blocks string
+	for _, relationship := range core.GetSortedValues(model.getRelationships()) {
+		// the relationship that actually owns the link table
+		linkRel := relationship
+		reversed := false
+
+		if !relationship.needsLinkTable() {
+			// not persisted at all through a link table, from this model's perspective - either it's a
+			// single-valued / column-based relationship, or it's a back-reference whose source side
+			// doesn't use a link table (e.g. a plain one-to-many via a foreign key)
+			if !relationship.multiple || relationship.backRef == nil || !relationship.backRef.needsLinkTable() {
+				continue
+			}
+
+			linkRel = relationship.backRef
+			reversed = true
+		}
+
+		sourceCol, sourceModelCol := linkRel.getLinkTableSourceColumn()
+		targetCol, targetModelCol := linkRel.getLinkTableTargetColumn()
+
+		// the columns are always given in the table's actual order: source(s) first, then target(s) -
+		// this never changes, regardless of which side we're generating for
+		columns := sourceCol
+		nbCols := 1
+		if sourceModelCol != "" {
+			columns += ", " + sourceModelCol
+			nbCols++
+		}
+		columns += ", " + targetCol
+		nbCols++
+		if targetModelCol != "" {
+			columns += ", " + targetModelCol
+			nbCols++
+		}
+
+		// "own" refers to the business object we're generating this method for; "other" refers to each
+		// element of its relationship slice. Depending on the direction, either one can be the link
+		// table's source or target
+		ownArgs := fmt.Sprintf("%s.GetID()", varName)
+		otherArgs := "target.GetID()"
+		if !reversed {
+			// this business object is the source, the slice elements are the targets
+			if sourceModelCol != "" {
+				ownArgs += fmt.Sprintf(", %[1]s.GetModelName()", varName)
+			}
+			if targetModelCol != "" {
+				otherArgs += ", target.GetModelName()"
+			}
+		} else {
+			// this business object is the target, the slice elements are the sources
+			if sourceModelCol != "" {
+				otherArgs += ", target.GetModelName()"
+			}
+			if targetModelCol != "" {
+				ownArgs += fmt.Sprintf(", %[1]s.GetModelName()", varName)
+			}
+		}
+
+		// building the addRow(...) call's arguments in the same source-then-target order as the columns
+		addRowArgs := ownArgs + ", " + otherArgs
+		if reversed {
+			addRowArgs = otherArgs + ", " + ownArgs
+		}
+
+		blocks += fmt.Sprintf(`
+	if err := thisDAO.ExecBatchDeleteLink(&goald.DeleteLinkContext{
+		Table:   %[2]sDB + `+bq+`.%[5]s`+bq+`,
+		Columns: `+bq+`%[6]s`+bq+`,
+		NbCols:  %[7]d,
+		BObjs:   bObjs,
+		FillRows: func(bObj goald.IBusinessObject, addRow func(args ...any)) {
+			%[2]s := bObj.(*%[3]s.%[1]s)
+			for _, target := range %[2]s.%[4]s {
+				addRow(%[8]s)
+			}
+		},
+	}); err != nil {
+		return err
+	}
+`,
+			model.GetName(),            // 1
+			varName,                    // 2
+			pkg,                        // 3
+			relationship.GetName(),     // 4
+			linkRel.getLinkTableName(), // 5
+			columns,                    // 6
+			nbCols,                     // 7
+			addRowArgs,                 // 8
+		)
+	}
+
+	return fmt.Sprintf(`// ExecDeleteLinksQueries implements [goald.IBusinessObjectDAO].
+func (thisDAO *%[1]sDAO) ExecDeleteLinksQueries(bObjs ...goald.IBusinessObject) error {%[2]s
+	return nil
+}`,
+		model.GetName(), // 1
+		blocks,          // 2
+	)
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -699,6 +902,20 @@ func getQueriesForModel(model IBusinessObjectModel) []IQuery {
 // generateQueryArgsBuilder builds the function computing 1 registered query's *goald.QueryArgs (its
 // OR-ed/AND-ed condition clauses, args, and secret mask) from that query's param values.
 func (thisGen *daoGenerator) generateQueryArgsBuilder(model IBusinessObjectModel, q IQuery, funcName string, extraImports map[string]bool) string {
+	if q.getWhere() == nil {
+		return fmt.Sprintf(`// %[1]s builds the query args for the %[2]q query
+func %[1]s(values goald.ISearchParamValues) *goald.QueryArgs {
+	// empty query, which will lead to no WHERE part
+	return goald.NewQueryArgs(%[3]d, "%[4]s", %[5]t)
+}`,
+			funcName,                             // 1
+			q.getName(),                          // 2
+			0,                                    // 3
+			model.getDB().get.QueryPlaceholder(), // 4
+			model.getDB().is.QueryPlaceholderIndexed(), // 5
+		)
+	}
+
 	// flatten the WHERE clause into disjunctive normal form (DNF)
 	var dnf [][]IClause
 	if q.getWhere() != nil {
@@ -728,7 +945,8 @@ func (thisGen *daoGenerator) generateQueryArgsBuilder(model IBusinessObjectModel
 	}
 
 	// which query params model this query is using
-	queryParamsModel := thisGen.findQueryParamsModel(dnf)
+	// queryParamsModel := thisGen.findQueryParamsModel(dnf)
+	queryParamsModel := q.getQueryParamsModel()
 
 	// making sure we import the package for the query params model
 	extraImports[getImportPackageLine(queryParamsModel)] = true
@@ -775,22 +993,22 @@ func %[1]s(values goald.ISearchParamValues) *goald.QueryArgs {
 	)
 }
 
-// findQueryParamsModel returns the query params model that a query's clause is comparing against.
-// found via any comparison leaf's right-hand side - the left-hand side is always the
-// business object's own property (e.g. order.OrderRef()), the right-hand side the query param being
-// compared against it (e.g. query.OrderRefExact()); an IN clause has no right-hand side (its values are
-// literal constants), hence looking across every leaf until one is found.
-func (thisGen *daoGenerator) findQueryParamsModel(dnf [][]IClause) IBusinessObjectModel {
-	for _, group := range dnf {
-		for _, leaf := range group {
-			if concreteLeaf, ok := leaf.(*clause); ok && concreteLeaf.right != nil {
-				return concreteLeaf.right.ownerModel()
-			}
-		}
-	}
+// // findQueryParamsModel returns the query params model that a query's clause is comparing against.
+// // found via any comparison leaf's right-hand side - the left-hand side is always the
+// // business object's own property (e.g. order.OrderRef()), the right-hand side the query param being
+// // compared against it (e.g. query.OrderRefExact()); an IN clause has no right-hand side (its values are
+// // literal constants), hence looking across every leaf until one is found.
+// func (thisGen *daoGenerator) findQueryParamsModel(dnf [][]IClause) IBusinessObjectModel {
+// 	for _, group := range dnf {
+// 		for _, leaf := range group {
+// 			if concreteLeaf, ok := leaf.(*clause); ok && concreteLeaf.right != nil {
+// 				return concreteLeaf.right.ownerModel()
+// 			}
+// 		}
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 // generateLeafClauseCode builds the single statement appending 1 leaf clause (a comparison, or an IN)
 // to the AND-clause currently being built, and returns how many query args it consumes. isMandatory

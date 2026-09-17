@@ -103,6 +103,13 @@ type mask []bool
 func logSQL(logger logging.ILogger, db *DB, start time.Time, m mask, query string, args ...any) {
 	if logger.IsVerbose() {
 		// TODO later: plug in a mechanism of gathering analytics here
+
+		// controlling the mask has the right size
+		if m != nil && len(m) != len(args) {
+			core.PanicMsg("Mask length %d does not match number of arguments %d", len(m), len(args))
+		}
+
+		// building the list of arguments to be logged, masking sensitive ones according to the mask
 		var loggedArgs []any
 		for i, arg := range args {
 			if m != nil && i < len(m) && m[i] {
@@ -111,6 +118,8 @@ func logSQL(logger logging.ILogger, db *DB, start time.Time, m mask, query strin
 				loggedArgs = append(loggedArgs, arg)
 			}
 		}
+
+		// actual logging
 		logger.Debug(
 			core.Elude(fmt.Sprintf("Run from '%s' in %s: "+strings.Join(strings.Fields(query), " "), db.name, time.Since(start)), 500) +
 				core.Elude(fmt.Sprintf(", with args: %+v", loggedArgs), 500),

@@ -19,5 +19,11 @@ func (this *UserModelSource) NewObject() any {
 }
 
 func (this *UserModelSource) NewSlice() any {
-	return []*accessmgt.User{}
+	return &[]*accessmgt.User{}
+}
+
+func (this *UserModelSource) AppendToSlice(slicePtr any, bObj any) any {
+	s := slicePtr.(*[]*accessmgt.User)
+	*s = append(*s, bObj.(*accessmgt.User))
+	return s
 }

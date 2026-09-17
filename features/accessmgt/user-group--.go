@@ -20,5 +20,7 @@ func init() {
 	ug.Name().SetSize(24).SetUnique()
 	ug.Description().SetSize(64)
 
+	ug.SetListLoadingConfig(ug.ReadWithFirstLayer())
+
 	goald.SetAutoCRUD[*UserGroup](groupAUTH)
 }

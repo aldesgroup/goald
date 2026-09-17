@@ -74,6 +74,9 @@ func (thisServer *server) generateAllObjectModels(srcdir string, regen bool) (co
 		filename string
 	}
 
+	// all the model sources
+	modelSourceNames := core.GetSortedKeys(sourceRegistry.items)
+
 	// iterating over each package for which we've already got a registry
 	core.EnsureDir(srcdir, includePATH)
 	for _, includeDirEntry := range core.EnsureReadDir(srcdir, includePATH) {
@@ -102,7 +105,10 @@ func (thisServer *server) generateAllObjectModels(srcdir string, regen bool) (co
 		}
 
 		// let's see what we have in terms of business objects
-		for name, source := range sourceRegistry.items {
+		for _, name := range modelSourceNames {
+			// getting the source for this name
+			source := sourceRegistry.items[name]
+
 			// considering only the business objects of THIS module
 			// and no interface (at least for now)
 			if source.isFromDir(includeDirEntry.Name()) && !source.isInterface() {

@@ -232,15 +232,12 @@ func retrieveInputData(request *http.Request, webContext *webContextImpl, ep iEn
 	webContext.inputBodyBytes = inputBodyBytes
 
 	if ep.isMultipleInput() {
-		// Handling array of bObj input: []*package.BObj
-		bObjSlice := ep.getInputOrParamsModel().NewSlice()
-
-		// Unmarshaling *[]*package.BObj as an interface - which is expected by the Unmarshal function
-		if jsonErr := json.Unmarshal(inputBodyBytes, &bObjSlice); jsonErr != nil {
+		// Handling array of bObj input: []*package.BObj, resolving each element's own relationships too
+		bObjSlice, jsonErr := unmarshalBObjSlice(inputBodyBytes, ep.getInputOrParamsModel())
+		if jsonErr != nil {
 			return nil, ErrorC(jsonErr, "Could not unmarshall the JSON object array!")
 		}
 
-		// Not returning the reflect.Value, but the concrete instance associated with it
 		return bObjSlice, nil
 
 	} else {

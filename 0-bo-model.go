@@ -28,6 +28,8 @@ type IBusinessObjectModel interface {
 	SetAbstract()                                          // to indicate this model does not model concrete business objects, but most probably a super model
 	AddUniqueCombination(props ...IBusinessObjectProperty) // to indicate that a combination of properties must be unique in the DB
 	SetAutoCRUD()                                          // to automatically start the generic CRUD endpoints for this business object model
+	SetMaxListSize(int)                                    // to set the maximum number of items that can be listed for this business object model
+	SetListLoadingConfig(loadingConfig ILoadingConfig)     // to set the loading config suitable for loading lists of this business object type
 
 	// // access to generic properties (fields & relationships)
 	// ID() IField
@@ -54,6 +56,7 @@ type IBusinessObjectModel interface {
 	isUsedInWebApp() bool
 	setUsedInWebApp()
 	getIdField() *BigIntField
+	getMaxListSize() int
 
 	// utils
 	getPersistedProperties() []IBusinessObjectProperty
@@ -69,8 +72,9 @@ type IBusinessObjectModel interface {
 	IBusinessObjectModelSource
 
 	// defining special load configurations for this model
-	ReadNoRelationship() ILoadingConfig // returns a loading config that loads only the model's own properties, and no relationships
-	ReadWithFirstLayer() ILoadingConfig // returns a loading config that loads only the direct relationships of this business object type
+	ReadNoRelationship() ILoadingConfig   // returns a loading config that loads only the model's own properties, and no relationships
+	ReadWithFirstLayer() ILoadingConfig   // returns a loading config that loads only the direct relationships of this business object type
+	getListLoadingConfig() ILoadingConfig // returns a loading config suitable for loading lists of this business object type
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -99,6 +103,8 @@ type businessObjectModel struct {
 	autoCRUD                         bool                                 // if true, then the generic CRUD endpoints will be automatically started for this business object model
 	childToParentRelationship        *Relationship                        // if this model is a child in a parent-child relationship, then this is the relationship to the parent
 	relationshipsWithRequiredBackref []*Relationship                      // all the relationships through which the target BOs cannot be persisted without a backref to this BO
+	maxListSize                      int                                  // the maximum number of items that can be listed for this business object model
+	listLoadingConfig                ILoadingConfig                       // the loading config suitable for loading lists of this business object type
 }
 
 const BoFieldID = "ID"       // the name of the ID field, which is a special case in Goald
@@ -114,6 +120,7 @@ func NewBusinessObjectModel() IBusinessObjectModel {
 	model.idField = AddBigIntField(model, "BusinessObject", BoFieldID, false)
 	preIDField := AddIntField(model, "BusinessObject", boFieldPreID, false)
 	creationField := AddDateField(model, "BusinessObject", "Creation", false)
+	AddDateField(model, "BusinessObject", "Modification", false)
 
 	// some tweaking
 	preIDField.setTechnical()
@@ -169,6 +176,14 @@ func (boModel *businessObjectModel) AddUniqueCombination(props ...IBusinessObjec
 
 func (boModel *businessObjectModel) SetAutoCRUD() {
 	boModel.autoCRUD = true
+}
+
+func (boModel *businessObjectModel) SetMaxListSize(maxListSize int) {
+	boModel.maxListSize = maxListSize
+}
+
+func (boModel *businessObjectModel) SetListLoadingConfig(loadingConfig ILoadingConfig) {
+	boModel.listLoadingConfig = loadingConfig
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -281,6 +296,18 @@ func (boModel *businessObjectModel) setUsedInWebApp() {
 
 func (boModel *businessObjectModel) getIdField() *BigIntField {
 	return boModel.idField
+}
+
+func (boModel *businessObjectModel) getMaxListSize() int {
+	if boModel.maxListSize <= 0 {
+		boModel.maxListSize = 100
+	}
+
+	return boModel.maxListSize
+}
+
+func (boModel *businessObjectModel) getListLoadingConfig() ILoadingConfig {
+	return boModel.listLoadingConfig
 }
 
 // ------------------------------------------------------------------------------------------------

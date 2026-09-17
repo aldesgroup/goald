@@ -2,6 +2,7 @@
 package i18n
 
 import (
+	"github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald"
 	"github.com/aldesgroup/goald/features/utils"
 )
@@ -35,6 +36,29 @@ func CachedOrNewTranslationQuery(cache *goald.BObjCache, id goald.BObjID) *Trans
 }
 
 // ------------------------------------------------------------------------------------------------
+// Cloning
+// ------------------------------------------------------------------------------------------------
+
+// getting the name of the model for a TranslationQuery, without using reflection
+func (bo *TranslationQuery) Clone(withFields, withRelationships bool) goald.IBusinessObject {
+	clone := &TranslationQuery{}
+	clone.ID = bo.ID
+
+	if withFields {
+		clone.Key = bo.Key
+		clone.Namespace = bo.Namespace
+		clone.Page = bo.Page
+		clone.PageSize = bo.PageSize
+	}
+
+	if withRelationships {
+
+	}
+
+	return clone
+}
+
+// ------------------------------------------------------------------------------------------------
 // Identification
 // ------------------------------------------------------------------------------------------------
 
@@ -54,6 +78,10 @@ func (bo *TranslationQuery) GetValueAsString(propertyName string) string {
 		return bo.Key
 	case "Namespace":
 		return bo.Namespace
+	case "Page":
+		return core.IntToString(bo.Page)
+	case "PageSize":
+		return core.IntToString(bo.PageSize)
 	default:
 		return "unknown property: " + propertyName
 	}
@@ -66,6 +94,10 @@ func (bo *TranslationQuery) SetValueAsString(propertyName string, valueAsString 
 		bo.Key = valueAsString
 	case "Namespace":
 		bo.Namespace = valueAsString
+	case "Page":
+		bo.Page = core.StringToInt(valueAsString, "Page")
+	case "PageSize":
+		bo.PageSize = core.StringToInt(valueAsString, "PageSize")
 	}
 
 	return goald.Error("Unknown property: %T.%s", bo, propertyName)
@@ -133,6 +165,18 @@ func (bo *TranslationQuery) GetMultipleRelationshipValue(relationshipName string
 func (bo *TranslationQuery) IsModelValid() error {
 
 	return nil
+}
+
+// ------------------------------------------------------------------------------------------------
+// Diffing
+// ------------------------------------------------------------------------------------------------
+
+// Creates 2 synthetic instances gathering the added and removed relationships
+func (bo *TranslationQuery) DiffWith(other goald.IBusinessObject, forLinks map[string]bool) (goald.IBusinessObject, goald.IBusinessObject) {
+	added := NewTranslationQuery(bo.ID)
+	removed := NewTranslationQuery(bo.ID)
+
+	return added, removed
 }
 
 // ------------------------------------------------------------------------------------------------
