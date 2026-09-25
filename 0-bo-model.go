@@ -51,6 +51,7 @@ type IBusinessObjectModel interface {
 	getRelationship(name string) *Relationship
 	setRelationship(name string, relationship *Relationship)
 	setChildToParentRelationship(r *Relationship)
+	getChildToParentRelationship() *Relationship
 	isUsedInNativeApp() bool
 	setUsedInNativeApp()
 	isUsedInWebApp() bool
@@ -66,7 +67,7 @@ type IBusinessObjectModel interface {
 
 	// technical stuff
 	resolve() IBusinessObjectModel
-	getType() *reflection.GoaldType
+	getType() reflection.GoaldType
 
 	// this makes each model aware of its source, and capable of instantiating new business objects of its type
 	IBusinessObjectModelSource
@@ -278,6 +279,10 @@ func (boModel *businessObjectModel) setChildToParentRelationship(rel *Relationsh
 	boModel.childToParentRelationship = rel
 }
 
+func (boModel *businessObjectModel) getChildToParentRelationship() *Relationship {
+	return boModel.childToParentRelationship
+}
+
 func (boModel *businessObjectModel) isUsedInNativeApp() bool {
 	return boModel.usedInNativeApp
 }
@@ -314,13 +319,14 @@ func (boModel *businessObjectModel) getListLoadingConfig() ILoadingConfig {
 // Technical stuff
 // ------------------------------------------------------------------------------------------------
 
-func (boModel *businessObjectModel) getType() *reflection.GoaldType {
+// WARNING: don't use it at init time, as the model might not be fully initialized yet
+func (boModel *businessObjectModel) getType() reflection.GoaldType {
 	if boModel.boType == nil {
-		boType := reflection.TypeOf(boModel.NewObject(), true)
-		boModel.boType = &boType
+		tmpBoType := reflection.TypeOf(boModel.NewObject(), true)
+		boModel.boType = &tmpBoType
 	}
 
-	return boModel.boType
+	return *boModel.boType
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -412,8 +418,9 @@ func (boModel *businessObjectModel) importConfig(from, to IBusinessObjectPropert
 		if relationship.relationType == 0 {
 			relationship.relationType = from.(*Relationship).relationType
 		}
-		if relationship.backRef == nil {
-			relationship.backRef = from.(*Relationship).backRef
+		if len(relationship.backRefSlice) == 0 {
+			relationship.backRefSlice = from.(*Relationship).backRefSlice
+			relationship.backRefMap = from.(*Relationship).backRefMap
 		}
 	}
 }

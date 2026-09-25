@@ -123,14 +123,14 @@ func (bo *DeviceLinkRequest) SetValueAsString(propertyName string, valueAsString
 		bo.VerificationCode = valueAsString
 	}
 
-	return goald.Error("Unknown property: %T.%s", bo, propertyName)
+	return goald.Error("[SetValueAsString] Unknown property: %T.%s", bo, propertyName)
 }
 
 // ------------------------------------------------------------------------------------------------
 // Explicit relationship access
 // ------------------------------------------------------------------------------------------------
 
-func (bo *DeviceLinkRequest) WithAddedUsers(added goald.IUser) goald.IUser {
+func (bo *DeviceLinkRequest) AddAndReturnUsers(added goald.IUser) goald.IUser {
 	bo.Users = append(bo.Users, added)
 	return added
 }
@@ -138,6 +138,11 @@ func (bo *DeviceLinkRequest) WithAddedUsers(added goald.IUser) goald.IUser {
 // ------------------------------------------------------------------------------------------------
 // Generic relationship access
 // ------------------------------------------------------------------------------------------------
+
+// setting this DeviceLinkRequest's parent
+func (bo *DeviceLinkRequest) SetParent(parent goald.IBusinessObject) {
+	// no parent for this model
+}
 
 // setting a single-valued relationship's target, given the relationship's name, without using reflection
 func (bo *DeviceLinkRequest) SetRelationshipValue(relationshipName string, value goald.IBusinessObject) error {
@@ -165,7 +170,7 @@ func (bo *DeviceLinkRequest) SetRelationshipValue(relationshipName string, value
 		return nil
 	}
 
-	return goald.Error("Unknown or non-single-valued relationship: %T.%s", bo, relationshipName)
+	return goald.Error("[SetRelationshipValue] Unknown or non-single-valued relationship: %T.%s", bo, relationshipName)
 }
 
 // appending a target to a multi-valued relationship, given the relationship's name, without using reflection
@@ -180,7 +185,7 @@ func (bo *DeviceLinkRequest) AddRelationshipValue(relationshipName string, value
 		return nil
 	}
 
-	return goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+	return goald.Error("[AddRelationshipValue] Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
 }
 
 // resetting a multi-valued relationship to an empty slice, given the relationship's name, without using reflection
@@ -191,7 +196,7 @@ func (bo *DeviceLinkRequest) ClearRelationshipValue(relationshipName string) err
 		return nil
 	}
 
-	return goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+	return goald.Error("[ClearRelationshipValue] Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
 }
 
 // getting a single-valued relationship's target, given the relationship's name, without using reflection
@@ -205,7 +210,7 @@ func (bo *DeviceLinkRequest) GetSingleRelationshipValue(relationshipName string)
 		return bo.MainContact, nil
 	}
 
-	return nil, goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+	return nil, goald.Error("[GetSingleRelationshipValue]Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
 }
 
 // getting a multi-valued relationship's targets, given the relationship's name, without using reflection
@@ -219,7 +224,7 @@ func (bo *DeviceLinkRequest) GetMultipleRelationshipValue(relationshipName strin
 		return users, nil
 	}
 
-	return nil, goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+	return nil, goald.Error("[GetMultipleRelationshipValue] Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
 }
 
 // ------------------------------------------------------------------------------------------------

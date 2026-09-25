@@ -16,24 +16,25 @@ import (
 
 type IBusinessObject interface {
 	// identification
-	GetID() BObjID
-	setID(BObjID)
-	GetCreation() *time.Time
-	setCreation(*time.Time)
-	GetModification() *time.Time
-	setModification(*time.Time)
-	GetPreID() int
-	setPreID(int)
-	getKey() boKey
-	setKey(boKey)
+	GetID() BObjID                    // returning the business object's ID
+	setID(BObjID)                     // setting the business object's ID
+	GetCreation() *time.Time          // returning the business object's creation timestamp
+	setCreation(*time.Time)           // setting the business object's creation timestamp
+	GetModification() *time.Time      // returning the business object's modification timestamp
+	setModification(*time.Time)       // setting the business object's modification timestamp
+	GetPreID() int                    // returning the business object's pre-insert ID
+	setPreID(int)                     // setting the business object's pre-insert ID
+	getKey() boKey                    // returning the business object's key
+	setKey(boKey)                     // setting the business object's key
+	SetParent(parent IBusinessObject) // setting the business object's parent, if it has one
 
 	// business logic
-	ChangeBeforeInsert(BloContext) error
-	IsValid(BloContext) error
-	ChangeAfterInsert(BloContext) error
-	CheckAndChangeAfterRead(bloCtx BloContext) error
-	CheckAndChangeBeforeUpdate(bloCtx BloContext, instore IBusinessObject) error
-	ChangeAfterUpdate(bloCtx BloContext) error
+	ChangeBeforeInsert(BloContext) error                                         // performing any necessary changes before inserting the business object into the database
+	IsValid(BloContext) error                                                    // checking the business object's validity according to the business logic
+	ChangeAfterInsert(BloContext) error                                          // performing any necessary changes after inserting the business object into the database
+	CheckAndChangeAfterRead(bloCtx BloContext) error                             // performing any necessary checks and changes after reading the business object from the database
+	CheckAndChangeBeforeUpdate(bloCtx BloContext, instore IBusinessObject) error // performing any necessary checks and changes before updating the business object in the database
+	ChangeAfterUpdate(bloCtx BloContext) error                                   // performing any necessary changes after updating the business object in the database
 
 	// utilities for accessing properties and relationships without using reflection
 	GetModelName() utils.ModelName                                          // returning the name of the business object's model
@@ -52,9 +53,9 @@ type IBusinessObject interface {
 	DiffWith(other IBusinessObject, forLinks map[string]bool) (IBusinessObject, IBusinessObject) // creates 2 synthetic instances gathering the added and removed relationships
 
 	// technical stuff
-	getModel(this IBusinessObject) IBusinessObjectModel
-	setLoaded(loadedRelationships)
-	getLoaded() loadedRelationships
+	getModel(this IBusinessObject) IBusinessObjectModel // returning the business object's model
+	setLoaded(loadedRelationships)                      // setting the business object's loaded relationships
+	getLoaded() loadedRelationships                     // returning the business object's loaded relationships
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -93,10 +94,11 @@ func (thisBO *BusinessObject) GetModification() *time.Time     { return thisBO.M
 func (thisBO *BusinessObject) setModification(modification *time.Time) {
 	thisBO.Modification = modification
 }
-func (thisBO *BusinessObject) GetPreID() int      { return thisBO.preID }
-func (thisBO *BusinessObject) setPreID(preID int) { thisBO.preID = preID }
-func (thisBO *BusinessObject) getKey() boKey      { return thisBO.key }
-func (thisBO *BusinessObject) setKey(key boKey)   { thisBO.key = key }
+func (thisBO *BusinessObject) GetPreID() int                    { return thisBO.preID }
+func (thisBO *BusinessObject) setPreID(preID int)               { thisBO.preID = preID }
+func (thisBO *BusinessObject) getKey() boKey                    { return thisBO.key }
+func (thisBO *BusinessObject) setKey(key boKey)                 { thisBO.key = key }
+func (thisBO *BusinessObject) SetParent(parent IBusinessObject) { panic("unimplemented") }
 
 // Triggers - default implems
 func (thisBO *BusinessObject) ChangeBeforeInsert(BloContext) error             { return nil }

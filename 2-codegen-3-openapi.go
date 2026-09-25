@@ -81,7 +81,7 @@ func (thisServer *server) isWebModelsChanged(docModified time.Time) bool {
 			return true
 		}
 		if inputModel := ep.getInputOrParamsModel(); inputModel != nil && inputModel.getLastBOMod().After(docModified) {
-			thisServer.Info(fmt.Sprintf("Input model '%s' for endpoint '%s %s' has changed!", inputModel, ep.getMethod(), ep.getLabel()))
+			thisServer.Info(fmt.Sprintf("Input model '%s' for endpoint '%s %s' has changed!", inputModel.GetName(), ep.getMethod(), ep.getLabel()))
 			return true
 		}
 	}
@@ -237,6 +237,13 @@ func addEndpointToDoc(doc *openapi3.T, ep iEndpoint) error {
 			var description string
 			if ep.isMultipleInput() {
 				description = fmt.Sprintf("An array of %s objects", inModel.GetName())
+				// wrapping the schema in an array to match the plural description
+				ref = &openapi3.SchemaRef{
+					Value: &openapi3.Schema{
+						Type:  &openapi3.Types{"array"},
+						Items: ref,
+					},
+				}
 			} else {
 				description = fmt.Sprintf("A %s object", inModel.GetName())
 			}
@@ -273,7 +280,7 @@ func addEndpointToDoc(doc *openapi3.T, ep iEndpoint) error {
 
 		op.Responses.Set("200", &openapi3.ResponseRef{
 			Value: &openapi3.Response{
-				Description: strPtr("OK"),
+				Description: strPtr(fmt.Sprintf("'%s' was successful", ep.getLabel())),
 				Content: openapi3.Content{
 					"application/json": &openapi3.MediaType{
 						Schema: ref,

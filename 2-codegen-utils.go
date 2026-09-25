@@ -285,7 +285,7 @@ func getBits(fieldTypeAlias, getBit string) (string, string, string) {
 	return "", "", ""
 }
 
-func getNonBuiltInFieldType(bOjbType *reflection.GoaldType, fieldName string, toBeImported map[string]bool) string {
+func getNonBuiltInFieldType(bOjbType reflection.GoaldType, fieldName string, toBeImported map[string]bool) string {
 	fieldType := bOjbType.FieldByName(fieldName).Type()
 	fieldPkg := fieldType.PkgPath()
 
@@ -305,7 +305,7 @@ func getNonBuiltInFieldType(bOjbType *reflection.GoaldType, fieldName string, to
 // returns the Go type to use to type-assert a relationship's incoming value against, e.g.
 // "domain.IContact" for a polymorphic relationship, or "*domain.Employee" for a monomorphic one -
 // also registering the corresponding package for import, if needed
-func getRelationshipFieldType(bOjbType *reflection.GoaldType, fieldName string, toBeImported map[string]bool) string {
+func getRelationshipFieldType(bOjbType reflection.GoaldType, fieldName string, toBeImported map[string]bool) string {
 	fieldType := bOjbType.FieldByName(fieldName).Type()
 
 	// for a multi-valued relationship, the Go field is a slice: we need its element type

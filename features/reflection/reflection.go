@@ -20,12 +20,11 @@ import (
 // ------------------------------------------------------------------------------------------------
 
 type GoaldType struct {
-	val    reflect.Type
-	fields map[string]GoaldField
+	val reflect.Type
 }
 
 func newType(val reflect.Type) GoaldType {
-	return GoaldType{val, nil}
+	return GoaldType{val}
 }
 
 type GoaldField struct {

@@ -71,7 +71,7 @@ func GenericHandleSearch[BOTYPE IBusinessObject, QUERYPARAMVALUES ISearchParamVa
 			}
 
 			// return the found instances
-			return allCleaned[BOTYPE](results), hstatus.OK, fmt.Sprintf("Found %d '%s' instances", len(results), query.getSearchedObjectsModel().GetName())
+			return allCastAndCleaned[BOTYPE](results), hstatus.OK, fmt.Sprintf("Found %d '%s' instances", len(results), query.getSearchedObjectsModel().GetName())
 		},
 		// passing the loading type
 		query.getLoadingConfig())
@@ -102,16 +102,11 @@ func GenericHandleCreate[BOTYPE IBusinessObject](group *EndpointGroup) *manyForM
 
 			// calling the Business LOgic (BLO) for business object creation
 			if errCreate := CreateBusinessObjects(webCtx.GetBloContext(), inputs...); errCreate != nil {
-				return inputs, hstatus.InternalServerError, fmt.Sprintf("Failed creating new '%T' instances: %s", inputs[0], errCreate)
+				return allCleaned(inputs), hstatus.InternalServerError, fmt.Sprintf("Failed creating new '%T' instances: %s", inputs[0], errCreate)
 			}
 
-			// cleaning the created instances from cycles, and returning them
-			for _, input := range inputs {
-				input.RemoveCycles()
-			}
-
-			// return the created instance
-			return inputs, hstatus.Created, fmt.Sprintf("Created %d new '%T' instances", len(inputs), inputs[0])
+			// return the created instance after cleaning cycles
+			return allCleaned(inputs), hstatus.Created, fmt.Sprintf("Created %d new '%T' instances", len(inputs), inputs[0])
 		},
 		// not loading anything in this
 		nil)
@@ -189,16 +184,11 @@ func GenericHandleUpdate[BOTYPE IBusinessObject](group *EndpointGroup) *manyForM
 
 			// calling the Business LOgic (BLO) for business object update
 			if errUpdate := UpdateBusinessObjects(webCtx.GetBloContext(), inputs...); errUpdate != nil {
-				return inputs, hstatus.InternalServerError, fmt.Sprintf("Failed updating '%T' instances: %s", inputs[0], errUpdate)
-			}
-
-			// cleaning the created instances from cycles, and returning them
-			for _, input := range inputs {
-				input.RemoveCycles()
+				return allCleaned(inputs), hstatus.InternalServerError, fmt.Sprintf("Failed updating '%T' instances: %s", inputs[0], errUpdate)
 			}
 
 			// return the created instance
-			return inputs, hstatus.OK, fmt.Sprintf("Updated %d '%T' instances", len(inputs), inputs[0])
+			return allCleaned(inputs), hstatus.OK, fmt.Sprintf("Updated %d '%T' instances", len(inputs), inputs[0])
 		},
 		// not loading anything in this
 		nil)
@@ -233,7 +223,7 @@ func GenericHandleList[BOTYPE IBusinessObject, QUERYPARAMVALUES ISearchParamValu
 			}
 
 			// return the found instances
-			return allCleaned[BOTYPE](results), hstatus.OK, fmt.Sprintf("Found %d '%s' instances", len(results), query.getSearchedObjectsModel().GetName())
+			return allCastAndCleaned[BOTYPE](results), hstatus.OK, fmt.Sprintf("Found %d '%s' instances", len(results), query.getSearchedObjectsModel().GetName())
 		},
 		// passing the loading type
 		query.getLoadingConfig())

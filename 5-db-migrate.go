@@ -444,7 +444,7 @@ func (thisServer *server) createMissingLinkTables(db *DB, modelsForThisDB map[ut
 				targetColumnName, targetModelColumnName := relationship.getLinkTableTargetColumn()
 
 				// do we need to handle polymorphism?
-				polymSource := relationship.backRef != nil && relationship.backRef.IsPolymorphic()
+				polymSource := relationship.isPolymorphicSource()
 				polymTarget := relationship.IsPolymorphic()
 
 				// the SQL request allowing to create the missing link table

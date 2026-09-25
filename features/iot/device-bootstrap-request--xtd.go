@@ -109,7 +109,7 @@ func (bo *DeviceBootstrapRequest) SetValueAsString(propertyName string, valueAsS
 		bo.SignatureB64 = valueAsString
 	}
 
-	return goald.Error("Unknown property: %T.%s", bo, propertyName)
+	return goald.Error("[SetValueAsString] Unknown property: %T.%s", bo, propertyName)
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -121,13 +121,18 @@ func (bo *DeviceBootstrapRequest) SetValueAsString(propertyName string, valueAsS
 // Generic relationship access
 // ------------------------------------------------------------------------------------------------
 
+// setting this DeviceBootstrapRequest's parent
+func (bo *DeviceBootstrapRequest) SetParent(parent goald.IBusinessObject) {
+	// no parent for this model
+}
+
 // setting a single-valued relationship's target, given the relationship's name, without using reflection
 func (bo *DeviceBootstrapRequest) SetRelationshipValue(relationshipName string, value goald.IBusinessObject) error {
 	switch relationshipName {
 
 	}
 
-	return goald.Error("Unknown or non-single-valued relationship: %T.%s", bo, relationshipName)
+	return goald.Error("[SetRelationshipValue] Unknown or non-single-valued relationship: %T.%s", bo, relationshipName)
 }
 
 // appending a target to a multi-valued relationship, given the relationship's name, without using reflection
@@ -136,7 +141,7 @@ func (bo *DeviceBootstrapRequest) AddRelationshipValue(relationshipName string, 
 
 	}
 
-	return goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+	return goald.Error("[AddRelationshipValue] Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
 }
 
 // resetting a multi-valued relationship to an empty slice, given the relationship's name, without using reflection
@@ -145,7 +150,7 @@ func (bo *DeviceBootstrapRequest) ClearRelationshipValue(relationshipName string
 
 	}
 
-	return goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+	return goald.Error("[ClearRelationshipValue] Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
 }
 
 // getting a single-valued relationship's target, given the relationship's name, without using reflection
@@ -154,7 +159,7 @@ func (bo *DeviceBootstrapRequest) GetSingleRelationshipValue(relationshipName st
 
 	}
 
-	return nil, goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+	return nil, goald.Error("[GetSingleRelationshipValue]Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
 }
 
 // getting a multi-valued relationship's targets, given the relationship's name, without using reflection
@@ -163,7 +168,7 @@ func (bo *DeviceBootstrapRequest) GetMultipleRelationshipValue(relationshipName 
 
 	}
 
-	return nil, goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+	return nil, goald.Error("[GetMultipleRelationshipValue] Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
 }
 
 // ------------------------------------------------------------------------------------------------

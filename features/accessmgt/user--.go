@@ -6,7 +6,7 @@ import (
 	"github.com/aldesgroup/goald/_include/accessmgt/model"
 )
 
-// Provides a partial
+// Provides a partial implementation of the User business object
 type User struct {
 	goald.BusinessObject
 	Email     string             `json:"email,omitempty"     io:"i*" desc:"the user's email address, which serves as her/his username"`

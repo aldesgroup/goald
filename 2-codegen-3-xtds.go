@@ -91,7 +91,7 @@ func (bo *$$Upper$$) SetValueAsString(propertyName string, valueAsString string)
 $$setcases$$
 	}
 
-	return goald.Error("Unknown property: %T.%s", bo, propertyName)
+	return goald.Error("[SetValueAsString] Unknown property: %T.%s", bo, propertyName)
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -103,13 +103,18 @@ $$withaddedmethods$$
 // Generic relationship access
 // ------------------------------------------------------------------------------------------------
 
+// setting this $$Upper$$'s parent
+func (bo *$$Upper$$) SetParent(parent goald.IBusinessObject) {
+$$setparent$$
+}
+
 // setting a single-valued relationship's target, given the relationship's name, without using reflection
 func (bo *$$Upper$$) SetRelationshipValue(relationshipName string, value goald.IBusinessObject) error {
 	switch relationshipName {
 $$setrelcases$$
 	}
 
-	return goald.Error("Unknown or non-single-valued relationship: %T.%s", bo, relationshipName)
+	return goald.Error("[SetRelationshipValue] Unknown or non-single-valued relationship: %T.%s", bo, relationshipName)
 }
 
 // appending a target to a multi-valued relationship, given the relationship's name, without using reflection
@@ -118,7 +123,7 @@ func (bo *$$Upper$$) AddRelationshipValue(relationshipName string, value goald.I
 $$addrelcases$$
 	}
 
-	return goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+	return goald.Error("[AddRelationshipValue] Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
 }
 
 // resetting a multi-valued relationship to an empty slice, given the relationship's name, without using reflection
@@ -127,7 +132,7 @@ func (bo *$$Upper$$) ClearRelationshipValue(relationshipName string) error {
 $$clearrelcases$$
 	}
 
-	return goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+	return goald.Error("[ClearRelationshipValue] Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
 }
 
 // getting a single-valued relationship's target, given the relationship's name, without using reflection
@@ -136,7 +141,7 @@ func (bo *$$Upper$$) GetSingleRelationshipValue(relationshipName string) (goald.
 $$getsinglerelcases$$
 	}
 
-	return nil, goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+	return nil, goald.Error("[GetSingleRelationshipValue]Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
 }
 
 // getting a multi-valued relationship's targets, given the relationship's name, without using reflection
@@ -145,7 +150,7 @@ func (bo *$$Upper$$) GetMultipleRelationshipValue(relationshipName string) ([]go
 $$getmultiplerelcases$$
 	}
 
-	return nil, goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+	return nil, goald.Error("[GetMultipleRelationshipValue] Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -233,6 +238,7 @@ func (thisGen *xtdGenerator) generateObjectXtdForModel(model IBusinessObjectMode
 	copyFields, copyRelationships := thisGen.buildUtilsCopyProperties(model)
 	getCases, setCases, importUtils := thisGen.buildUtilsValueCases(model, importsMap)
 	withAddedMethods := thisGen.buildUtilsWithAddedMethods(model, importsMap)
+	setParent := thisGen.buildUtilsSetParent(model)
 	setRelCases, addRelCases, clearRelCases, getSingleRelCases, getMultiRelCases := thisGen.buildUtilsRelationshipCases(model, importsMap)
 	modelChecks := thisGen.buildUtilsModelChecks(model, importsMap)
 	removeCyclesStatements := thisGen.buildUtilsRemoveCyclesStatements(model)
@@ -248,17 +254,18 @@ func (thisGen *xtdGenerator) generateObjectXtdForModel(model IBusinessObjectMode
 	// filling up the content
 	content := strings.ReplaceAll(utilsFileTEMPLATE, "$$package$$", model.getPackage())
 	content = strings.ReplaceAll(content, "$$Upper$$", string(model.GetName()))
-	content = strings.ReplaceAll(content, "$$copyfields$$", strings.Join(copyFields, newline))
-	content = strings.ReplaceAll(content, "$$copyrelationships$$", strings.Join(copyRelationships, newline))
-	content = strings.ReplaceAll(content, "$$getcases$$", strings.Join(getCases, newline))
-	content = strings.ReplaceAll(content, "$$setcases$$", strings.Join(setCases, newline))
-	content = strings.ReplaceAll(content, "$$withaddedmethods$$", strings.Join(withAddedMethods, newline))
-	content = strings.ReplaceAll(content, "$$setrelcases$$", strings.Join(setRelCases, newline))
-	content = strings.ReplaceAll(content, "$$addrelcases$$", strings.Join(addRelCases, newline))
-	content = strings.ReplaceAll(content, "$$clearrelcases$$", strings.Join(clearRelCases, newline))
-	content = strings.ReplaceAll(content, "$$getsinglerelcases$$", strings.Join(getSingleRelCases, newline))
-	content = strings.ReplaceAll(content, "$$getmultiplerelcases$$", strings.Join(getMultiRelCases, newline))
-	content = strings.ReplaceAll(content, "$$diffedlinks$$", strings.Join(diffedLinks, newline))
+	content = strings.Replace(content, "$$copyfields$$", strings.Join(copyFields, newline), 1)
+	content = strings.Replace(content, "$$copyrelationships$$", strings.Join(copyRelationships, newline), 1)
+	content = strings.Replace(content, "$$getcases$$", strings.Join(getCases, newline), 1)
+	content = strings.Replace(content, "$$setcases$$", strings.Join(setCases, newline), 1)
+	content = strings.Replace(content, "$$withaddedmethods$$", strings.Join(withAddedMethods, newline), 1)
+	content = strings.Replace(content, "$$setparent$$", setParent, 1)
+	content = strings.Replace(content, "$$setrelcases$$", strings.Join(setRelCases, newline), 1)
+	content = strings.Replace(content, "$$addrelcases$$", strings.Join(addRelCases, newline), 1)
+	content = strings.Replace(content, "$$clearrelcases$$", strings.Join(clearRelCases, newline), 1)
+	content = strings.Replace(content, "$$getsinglerelcases$$", strings.Join(getSingleRelCases, newline), 1)
+	content = strings.Replace(content, "$$getmultiplerelcases$$", strings.Join(getMultiRelCases, newline), 1)
+	content = strings.Replace(content, "$$diffedlinks$$", strings.Join(diffedLinks, newline), 1)
 
 	checksBody := ""
 	if len(modelChecks) > 0 {
@@ -274,7 +281,7 @@ func (thisGen *xtdGenerator) generateObjectXtdForModel(model IBusinessObjectMode
 
 	imports := ""
 	if len(importsMap) > 0 {
-		imports = "\"" + strings.Join(core.GetSortedKeys(importsMap), "\""+newline+"\t"+"\"") + "\""
+		imports = "\"" + strings.Join(core.GetSortedKeys(importsMap), "\""+newline+"	"+"\"") + "\""
 	}
 	content = strings.Replace(content, "$$otherimports$$", imports, 1)
 
@@ -285,12 +292,12 @@ func (thisGen *xtdGenerator) generateObjectXtdForModel(model IBusinessObjectMode
 func (thisGen *xtdGenerator) buildUtilsCopyProperties(model IBusinessObjectModel) (copyFields []string, copyRelationships []string) {
 	for _, field := range core.GetSortedValues(model.getFields()) {
 		if field.isExported() && field.GetName() != BoFieldID {
-			copyFields = append(copyFields, fmt.Sprintf("\t\tclone.%[1]s = bo.%[1]s", field.GetName()))
+			copyFields = append(copyFields, fmt.Sprintf("		clone.%[1]s = bo.%[1]s", field.GetName()))
 		}
 	}
 	for _, relationship := range core.GetSortedValues(model.getRelationships()) {
 		if relationship.isExported() {
-			copyRelationships = append(copyRelationships, fmt.Sprintf("\t\tclone.%[1]s = bo.%[1]s", relationship.GetName()))
+			copyRelationships = append(copyRelationships, fmt.Sprintf("		clone.%[1]s = bo.%[1]s", relationship.GetName()))
 		}
 	}
 
@@ -312,55 +319,55 @@ func (thisGen *xtdGenerator) buildUtilsValueCases(model IBusinessObjectModel, im
 				fieldTypeAlias := stripSelfPackage(getNonBuiltInFieldType(model.getType(), fieldName, importsMap), model.getPackage())
 
 				// case init
-				getCase := fmt.Sprintf("\tcase \"%s\":", fieldName)
+				getCase := fmt.Sprintf("	case \"%s\":", fieldName)
 				setCase := getCase
 
 				switch propertyType {
 				case propertyTypeBOOL:
 					getBit, setBit, end := getBits(fieldTypeAlias, "bool")
-					getCase += newline + fmt.Sprintf("\t\treturn core.BoolToString(%sbo.%s%s)", getBit, fieldName, end)
+					getCase += newline + fmt.Sprintf("		return core.BoolToString(%sbo.%s%s)", getBit, fieldName, end)
 					importUtils = true
-					setCase += newline + fmt.Sprintf("\t\tbo.%s = %score.StringToBool(valueAsString, \"%s\")%s", fieldName, setBit, fieldName, end)
+					setCase += newline + fmt.Sprintf("		bo.%s = %score.StringToBool(valueAsString, \"%s\")%s", fieldName, setBit, fieldName, end)
 
 				case propertyTypeSTRING:
 					getBit, setBit, end := getBits(fieldTypeAlias, "string")
-					getCase += newline + fmt.Sprintf("\t\treturn %sbo.%s%s", getBit, fieldName, end)
-					setCase += newline + fmt.Sprintf("\t\tbo.%s = %svalueAsString%s", fieldName, setBit, end)
+					getCase += newline + fmt.Sprintf("		return %sbo.%s%s", getBit, fieldName, end)
+					setCase += newline + fmt.Sprintf("		bo.%s = %svalueAsString%s", fieldName, setBit, end)
 
 				case propertyTypeINT:
 					getBit, setBit, end := getBits(fieldTypeAlias, "int")
-					getCase += newline + fmt.Sprintf("\t\treturn core.IntToString(%sbo.%s%s)", getBit, fieldName, end)
+					getCase += newline + fmt.Sprintf("		return core.IntToString(%sbo.%s%s)", getBit, fieldName, end)
 					importUtils = true
-					setCase += newline + fmt.Sprintf("\t\tbo.%s = %score.StringToInt(valueAsString, \"%s\")%s", fieldName, setBit, fieldName, end)
+					setCase += newline + fmt.Sprintf("		bo.%s = %score.StringToInt(valueAsString, \"%s\")%s", fieldName, setBit, fieldName, end)
 
 				case propertyTypeBIGINT:
 					getBit, setBit, end := getBits(fieldTypeAlias, "int64")
-					getCase += newline + fmt.Sprintf("\t\treturn core.Int64ToString(%sbo.%s%s)", getBit, fieldName, end)
+					getCase += newline + fmt.Sprintf("		return core.Int64ToString(%sbo.%s%s)", getBit, fieldName, end)
 					importUtils = true
-					setCase += newline + fmt.Sprintf("\t\tbo.%s = %score.StringToInt64(valueAsString, \"%s\")%s", fieldName, setBit, fieldName, end)
+					setCase += newline + fmt.Sprintf("		bo.%s = %score.StringToInt64(valueAsString, \"%s\")%s", fieldName, setBit, fieldName, end)
 
 				case propertyTypeREAL:
 					getBit, setBit, end := getBits(fieldTypeAlias, "float32")
-					getCase += newline + fmt.Sprintf("\t\treturn core.Float32ToString(%sbo.%s%s)", getBit, fieldName, end)
+					getCase += newline + fmt.Sprintf("		return core.Float32ToString(%sbo.%s%s)", getBit, fieldName, end)
 					importUtils = true
-					setCase += newline + fmt.Sprintf("\t\tbo.%s = %score.StringToFloat32(valueAsString, \"%s\")%s", fieldName, setBit, fieldName, end)
+					setCase += newline + fmt.Sprintf("		bo.%s = %score.StringToFloat32(valueAsString, \"%s\")%s", fieldName, setBit, fieldName, end)
 
 				case propertyTypeDOUBLE:
 					getBit, setBit, end := getBits(fieldTypeAlias, "float64")
-					getCase += newline + fmt.Sprintf("\t\treturn core.Float64ToString(%sbo.%s%s)", getBit, fieldName, end)
+					getCase += newline + fmt.Sprintf("		return core.Float64ToString(%sbo.%s%s)", getBit, fieldName, end)
 					importUtils = true
-					setCase += newline + fmt.Sprintf("\t\tbo.%s = %score.StringToFloat64(valueAsString, \"%s\")%s", fieldName, setBit, fieldName, end)
+					setCase += newline + fmt.Sprintf("		bo.%s = %score.StringToFloat64(valueAsString, \"%s\")%s", fieldName, setBit, fieldName, end)
 
 				case propertyTypeDATE:
-					getCase += newline + fmt.Sprintf("\t\treturn core.DateToString(bo.%s)", fieldName)
+					getCase += newline + fmt.Sprintf("		return core.DateToString(bo.%s)", fieldName)
 					importUtils = true
-					setCase += newline + fmt.Sprintf("\t\tbo.%s = core.StringToDate(valueAsString, \"%s\")", fieldName, fieldName)
+					setCase += newline + fmt.Sprintf("		bo.%s = core.StringToDate(valueAsString, \"%s\")", fieldName, fieldName)
 
 				case propertyTypeENUM:
-					getCase += newline + fmt.Sprintf("\t\treturn core.IntToString(bo.%s.Val())", fieldName)
+					getCase += newline + fmt.Sprintf("		return core.IntToString(bo.%s.Val())", fieldName)
 					importUtils = true
-					setCase += newline + fmt.Sprintf("\t\tbo.%s = %s(core.StringToInt(valueAsString, \"%s\"))", fieldName, fieldTypeAlias, fieldName)
-					setCase += newline + fmt.Sprintf("\t\tcore.PanicMsgIf(bo.%s.String() == \"\", \"Could not set '%s' to %%s since it's not a listed value\", valueAsString)",
+					setCase += newline + fmt.Sprintf("		bo.%s = %s(core.StringToInt(valueAsString, \"%s\"))", fieldName, fieldTypeAlias, fieldName)
+					setCase += newline + fmt.Sprintf("		core.PanicMsgIf(bo.%s.String() == \"\", \"Could not set '%s' to %%s since it's not a listed value\", valueAsString)",
 						fieldName, fieldName)
 				}
 
@@ -380,9 +387,19 @@ func (thisGen *xtdGenerator) buildUtilsWithAddedMethods(model IBusinessObjectMod
 	for _, relationship := range core.GetSortedValues(model.getRelationships()) {
 		if relationship.IsMultiple() {
 			withAddedMethods = append(withAddedMethods, fmt.Sprintf(`
-func (bo *%[1]s) WithAdded%[2]s(added %[3]s) %[3]s {
+func (bo *%[1]s) AddAndReturn%[2]s(added %[3]s) %[3]s {
 	bo.%[2]s = append(bo.%[2]s, added)
 	return added
+}`,
+				model.GetName(),
+				relationship.GetName(),
+				stripSelfPackage(getRelationshipFieldType(model.getType(), relationship.GetName(), importsMap), model.getPackage()),
+			))
+		} else if !relationship.IsMultiple() && relationship.isIndirectlyPersisted() {
+			withAddedMethods = append(withAddedMethods, fmt.Sprintf(`
+func (bo *%[1]s) SetAndReturn%[2]s(related %[3]s) %[3]s {
+	bo.%[2]s = related
+	return related
 }`,
 				model.GetName(),
 				relationship.GetName(),
@@ -392,6 +409,16 @@ func (bo *%[1]s) WithAdded%[2]s(added %[3]s) %[3]s {
 	}
 
 	return
+}
+
+// building the SetParent method for the business object
+func (thisGen *xtdGenerator) buildUtilsSetParent(model IBusinessObjectModel) string {
+	if model.getChildToParentRelationship() == nil {
+		return "	// no parent for this model"
+	}
+
+	targetType := stripSelfPackage(getRelationshipFieldType(model.getType(), model.getChildToParentRelationship().GetName(), nil), model.getPackage())
+	return fmt.Sprintf("	bo.%s = parent.(%s)", model.getChildToParentRelationship().GetName(), targetType)
 }
 
 // building the cases for the relationship setters/getters, reusing the same logic as the value
@@ -406,26 +433,37 @@ func (thisGen *xtdGenerator) buildUtilsRelationshipCases(model IBusinessObjectMo
 		// stripping this package's own qualification, since we're generating code living within that package
 		targetType := stripSelfPackage(getRelationshipFieldType(model.getType(), relName, importsMap), model.getPackage())
 
-		relCase := fmt.Sprintf("\tcase \"%s\":", relName)
-		relCase += newline + fmt.Sprintf("\t\ttargetValue, ok := value.(%s)", targetType)
-		relCase += newline + "\t\tif !ok {"
-		relCase += newline + fmt.Sprintf("\t\t\treturn goald.Error(\"Expected a value of type '%s' for '%s.%s', got %%T\", value)", targetType, model.GetName(), relName)
-		relCase += newline + "\t\t}"
+		relCase := fmt.Sprintf("	case \"%s\":", relName)
+
+		tab := ""
+		if !relationship.IsMultiple() {
+			relCase += newline + "		if value == nil {"
+			relCase += newline + fmt.Sprintf("			bo.%s = nil", relName)
+			relCase += newline + "		} else {"
+			tab = "	"
+		}
+
+		relCase += newline + tab + fmt.Sprintf("		targetValue, ok := value.(%s)", targetType)
+		relCase += newline + tab + "		if !ok {"
+		relCase += newline + tab + fmt.Sprintf("			return goald.Error(\"Expected a value of type '%s' for '%s.%s', got %%T\", value)", targetType, model.GetName(), relName)
+		relCase += newline + tab + "		}"
 
 		if relationship.IsMultiple() {
-			relCase += newline + fmt.Sprintf("\t\tbo.%s = append(bo.%s, targetValue)", relName, relName)
-			relCase += newline + "\t\treturn nil"
+			relCase += newline + fmt.Sprintf("		bo.%s = append(bo.%s, targetValue)", relName, relName)
+			relCase += newline + "		return nil"
 			addRelCases = append(addRelCases, relCase)
 
-			clearCase := fmt.Sprintf("\tcase \"%s\":", relName)
-			clearCase += newline + fmt.Sprintf("\t\tbo.%s = []%s{}", relName, targetType)
-			clearCase += newline + "\t\treturn nil"
+			clearCase := fmt.Sprintf("	case \"%s\":", relName)
+			clearCase += newline + fmt.Sprintf("		bo.%s = []%s{}", relName, targetType)
+			clearCase += newline + "		return nil"
 			clearRelCases = append(clearRelCases, clearCase)
 
 			getMultiRelCases = append(getMultiRelCases, thisGen.buildGetMultiRelCase(relName, relationship))
 		} else {
-			relCase += newline + fmt.Sprintf("\t\tbo.%s = targetValue", relName)
-			relCase += newline + "\t\treturn nil"
+			relCase += newline + fmt.Sprintf("			bo.%s = targetValue", relName)
+			relCase += newline + "		}"
+			relCase += newline
+			relCase += newline + "		return nil"
 			setRelCases = append(setRelCases, relCase)
 
 			getSingleRelCases = append(getSingleRelCases, thisGen.buildGetSingleRelCase(relName))
@@ -437,8 +475,8 @@ func (thisGen *xtdGenerator) buildUtilsRelationshipCases(model IBusinessObjectMo
 
 // building the corresponding GetSingleRelationshipValue case
 func (thisGen *xtdGenerator) buildGetSingleRelCase(relName string) string {
-	getSingleCase := fmt.Sprintf("\tcase \"%s\":", relName)
-	getSingleCase += newline + fmt.Sprintf("\t\treturn bo.%s, nil", relName)
+	getSingleCase := fmt.Sprintf("	case \"%s\":", relName)
+	getSingleCase += newline + fmt.Sprintf("		return bo.%s, nil", relName)
 	return getSingleCase
 }
 
@@ -448,15 +486,15 @@ func (thisGen *xtdGenerator) buildGetSingleRelCase(relName string) string {
 // casting is needed here anymore, since "bo" is already of the right, concrete type
 func (thisGen *xtdGenerator) buildGetMultiRelCase(relName string, relationship *Relationship) string {
 	resultVar := core.PascalToCamel(relName)
-	getMultiCase := fmt.Sprintf("\tcase \"%s\":", relName)
-	getMultiCase += newline + fmt.Sprintf("\t\t%s := make([]goald.IBusinessObject, len(bo.%s))", resultVar, relName)
-	getMultiCase += newline + fmt.Sprintf("\t\tfor i, target := range bo.%s {", relName)
-	if relationship.backRef != nil && !relationship.backRef.IsMultiple() {
-		getMultiCase += newline + fmt.Sprintf("\t\t\ttarget.%s = bo // ensuring the unique backref is set", relationship.backRef.GetName())
+	getMultiCase := fmt.Sprintf("	case \"%s\":", relName)
+	getMultiCase += newline + fmt.Sprintf("		%s := make([]goald.IBusinessObject, len(bo.%s))", resultVar, relName)
+	getMultiCase += newline + fmt.Sprintf("		for i, target := range bo.%s {", relName)
+	if !relationship.isMultipleSource() {
+		getMultiCase += newline + fmt.Sprintf("			target.%s = bo // ensuring the unique backref is set", relationship.getBackRefName())
 	}
-	getMultiCase += newline + fmt.Sprintf("\t\t\t%s[i] = target", resultVar)
-	getMultiCase += newline + "\t\t}"
-	getMultiCase += newline + fmt.Sprintf("\t\treturn %s, nil", resultVar)
+	getMultiCase += newline + fmt.Sprintf("			%s[i] = target", resultVar)
+	getMultiCase += newline + "		}"
+	getMultiCase += newline + fmt.Sprintf("		return %s, nil", resultVar)
 	return getMultiCase
 }
 
@@ -468,13 +506,18 @@ func (thisGen *xtdGenerator) buildUtilsRemoveCyclesStatements(model IBusinessObj
 	statements := []string{}
 
 	for _, relationship := range core.GetSortedValues(model.getRelationships()) {
-		if relationship.IsMultiple() && !relationship.IsPolymorphic() && relationship.backRef != nil && !relationship.backRef.IsMultiple() {
+		if relationship.IsMultiple() && !relationship.IsPolymorphic() && len(relationship.backRefSlice) > 0 && !relationship.isMultipleSource() {
 			relName := relationship.GetName()
-			backRefName := relationship.backRef.GetName()
+			backRefName := relationship.getBackRefName()
 
-			statements = append(statements, fmt.Sprintf("\tfor _, target := range bo.%s {", relName))
-			statements = append(statements, fmt.Sprintf("\t\ttarget.%s = nil", backRefName))
-			statements = append(statements, "\t}")
+			statements = append(statements, fmt.Sprintf("	for _, target := range bo.%s {", relName))
+			statements = append(statements, fmt.Sprintf("		target.%s = nil", backRefName))
+			statements = append(statements, "	}")
+		} else if !relationship.IsMultiple() && len(relationship.backRefSlice) > 0 && relationship.isIndirectlyPersisted() {
+			relName := relationship.GetName()
+			statements = append(statements, fmt.Sprintf("	if bo.%s != nil {", relName))
+			statements = append(statements, fmt.Sprintf("		core.PanicIfErr(bo.%s.SetRelationshipValue(\"%s\", nil))", relName, relationship.getBackRefName()))
+			statements = append(statements, "	}")
 		}
 	}
 
@@ -529,7 +572,7 @@ func (thisGen *xtdGenerator) buildUtilsModelChecks(model IBusinessObjectModel, i
 // building the diffed links for the given model's relationships that require link tables
 func (thisGen *xtdGenerator) buildUtilsDiffedLinks(model IBusinessObjectModel) (result []string) {
 	for _, relationship := range core.GetSortedValues(model.getRelationships()) {
-		if relationship.needsLinkTable() || relationship.backRef != nil && relationship.backRef.needsLinkTable() {
+		if relationship.needsLinkTable() || relationship.needsReverseLinkTable() {
 			result = append(result, fmt.Sprintf("	if forLinks[%q] {", relationship.GetName()))
 			result = append(result, fmt.Sprintf("		added.%[1]s, removed.%[1]s = goald.DiffBusinessObjectSlices(otherBo.%[1]s, bo.%[1]s, %t)",
 				relationship.GetName(), relationship.IsPolymorphic()))

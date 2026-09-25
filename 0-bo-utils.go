@@ -135,7 +135,7 @@ func (model *businessObjectModel) getRelationshipsWithRequiredBackref() []*Relat
 	if model.relationshipsWithRequiredBackref == nil {
 		// first, we retrieve a list of the relationships that have a required back reference
 		for _, relationship := range model.relationships {
-			if relationship.backRef != nil && relationship.backRef.IsRequiredInDb() {
+			if relationship.isSourceRequiredInDB() {
 				model.relationshipsWithRequiredBackref = append(model.relationshipsWithRequiredBackref, relationship)
 			}
 		}

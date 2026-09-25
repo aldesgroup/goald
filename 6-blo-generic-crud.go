@@ -170,16 +170,40 @@ func doCreateDependentBusinessObjects(bloCtx BloContext, model IBusinessObjectMo
 	for _, relationship := range model.getRelationshipsWithRequiredBackref() {
 		// gathering all the children, by type - because we may have polymorphic children, and we want to create them in batches of the same type
 		childrenByType := make(map[utils.ModelName][]IBusinessObject)
-		for _, bObj := range iBObjs {
-			// getting the children of this business object for this relationship
-			children, errGet := bObj.GetMultipleRelationshipValue(relationship.name)
-			if errGet != nil {
-				return errGet
-			}
 
-			// grouping the children by type, so that we can create them in batches of the same type
-			for _, child := range children {
-				childrenByType[child.GetModelName()] = append(childrenByType[child.GetModelName()], child)
+		// iterating over all the given business objects to gather their children for the current relationship
+		for _, bObj := range iBObjs {
+			if relationship.IsMultiple() {
+				// getting the children of this business object for this relationship
+				children, errGet := bObj.GetMultipleRelationshipValue(relationship.name)
+				if errGet != nil {
+					return errGet
+				}
+
+				for _, child := range children {
+
+					// making sure the child knows its parent
+					child.SetParent(bObj)
+
+					// adding the child to the grouping by type
+					childrenByType[child.GetModelName()] = append(childrenByType[child.GetModelName()], child)
+				}
+			} else {
+				// getting the single child of this business object for this relationship
+				child, errGet := bObj.GetSingleRelationshipValue(relationship.name)
+				if errGet != nil {
+					return errGet
+				}
+
+				// adding the single child to the grouping by type if it exists
+				if child != nil {
+
+					// making sure the child knows its parent
+					child.SetParent(bObj)
+
+					// adding the child to the grouping by type
+					childrenByType[child.GetModelName()] = append(childrenByType[child.GetModelName()], child)
+				}
 			}
 		}
 

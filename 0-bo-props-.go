@@ -18,6 +18,8 @@ import (
 // Business object properties, whether fields or relationships
 // ------------------------------------------------------------------------------------------------
 
+type propKey string
+
 type IBusinessObjectProperty interface {
 	// public methods
 	GetName() string  // the property's name, as declared in the struct
@@ -45,6 +47,7 @@ type IBusinessObjectProperty interface {
 	getDeclaringBO() utils.ModelName        // the name of the business object that actually declares this property (instead of inheriting it from a super model)
 	setTechnical()                          // to set this property as technical
 	isExported() bool                       // if true, then this property is exported (i.e. public)
+	getKey() propKey                        // to get the unique key identifying this property within its owner model
 }
 
 type ioType string
@@ -56,6 +59,7 @@ type businessObjectProperty struct {
 	owner        IBusinessObjectModel   // the property's owner model
 	declaringBO  utils.ModelName        // the name of the business object that actually declares this property (instead of inheriting it from a super model)
 	name         string                 // the property's name, as declared in the struct
+	key          propKey                // the unique key identifying this property within its owner model, combination of the owner, declaring BO, and property name
 	propType     propertyType           // the property's type, as detected by the codegen phase
 	multiple     bool                   // the property's multiplicity; false = 1, true = N
 	columnName   string                 // if this property - field or relationship - is persisted on the owner's table
@@ -106,6 +110,7 @@ func (prop *businessObjectProperty) isNotPersisted() bool {
 	return prop.notPersisted
 }
 
+// WARNING: don't use it at init time, as the underlying models might not be fully initialized yet
 func (prop *businessObjectProperty) getStructField() *reflection.GoaldField {
 	if prop.structField == nil {
 		structField := prop.ownerModel().getType().FieldByName(prop.name)
@@ -114,6 +119,7 @@ func (prop *businessObjectProperty) getStructField() *reflection.GoaldField {
 	return prop.structField
 }
 
+// WARNING: don't use it at init time, as the underlying models might not be fully initialized yet
 func (prop *businessObjectProperty) getTag(tagName string) string {
 	return prop.getStructField().Tag().Get(tagName)
 }
@@ -170,8 +176,16 @@ func (prop *businessObjectProperty) setTechnical() {
 	prop.technical = true
 }
 
+// WARNING: don't use it at init time, as the underlying models might not be fully initialized yet
 func (prop *businessObjectProperty) isExported() bool {
 	return prop.getStructField().IsExported()
+}
+
+func (prop *businessObjectProperty) getKey() propKey {
+	if prop.key == "" {
+		prop.key = propKey(string(prop.ownerModel().GetName()) + "." + prop.name + " (" + string(prop.declaringBO) + ")")
+	}
+	return prop.key
 }
 
 // ------------------------------------------------------------------------------------------------

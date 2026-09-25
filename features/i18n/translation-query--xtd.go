@@ -100,7 +100,7 @@ func (bo *TranslationQuery) SetValueAsString(propertyName string, valueAsString 
 		bo.PageSize = core.StringToInt(valueAsString, "PageSize")
 	}
 
-	return goald.Error("Unknown property: %T.%s", bo, propertyName)
+	return goald.Error("[SetValueAsString] Unknown property: %T.%s", bo, propertyName)
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -112,13 +112,18 @@ func (bo *TranslationQuery) SetValueAsString(propertyName string, valueAsString 
 // Generic relationship access
 // ------------------------------------------------------------------------------------------------
 
+// setting this TranslationQuery's parent
+func (bo *TranslationQuery) SetParent(parent goald.IBusinessObject) {
+	// no parent for this model
+}
+
 // setting a single-valued relationship's target, given the relationship's name, without using reflection
 func (bo *TranslationQuery) SetRelationshipValue(relationshipName string, value goald.IBusinessObject) error {
 	switch relationshipName {
 
 	}
 
-	return goald.Error("Unknown or non-single-valued relationship: %T.%s", bo, relationshipName)
+	return goald.Error("[SetRelationshipValue] Unknown or non-single-valued relationship: %T.%s", bo, relationshipName)
 }
 
 // appending a target to a multi-valued relationship, given the relationship's name, without using reflection
@@ -127,7 +132,7 @@ func (bo *TranslationQuery) AddRelationshipValue(relationshipName string, value 
 
 	}
 
-	return goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+	return goald.Error("[AddRelationshipValue] Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
 }
 
 // resetting a multi-valued relationship to an empty slice, given the relationship's name, without using reflection
@@ -136,7 +141,7 @@ func (bo *TranslationQuery) ClearRelationshipValue(relationshipName string) erro
 
 	}
 
-	return goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+	return goald.Error("[ClearRelationshipValue] Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
 }
 
 // getting a single-valued relationship's target, given the relationship's name, without using reflection
@@ -145,7 +150,7 @@ func (bo *TranslationQuery) GetSingleRelationshipValue(relationshipName string) 
 
 	}
 
-	return nil, goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+	return nil, goald.Error("[GetSingleRelationshipValue]Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
 }
 
 // getting a multi-valued relationship's targets, given the relationship's name, without using reflection
@@ -154,7 +159,7 @@ func (bo *TranslationQuery) GetMultipleRelationshipValue(relationshipName string
 
 	}
 
-	return nil, goald.Error("Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+	return nil, goald.Error("[GetMultipleRelationshipValue] Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
 }
 
 // ------------------------------------------------------------------------------------------------

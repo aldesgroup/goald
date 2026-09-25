@@ -123,11 +123,9 @@ func (thisServer *server) checkModel(modelName utils.ModelName, model IBusinessO
 	}
 
 	// TODO property sizes, when relevant
-	// TODO float precision
 	// TODO
 	// TODO SOON: set primary reference, or none
-	// TODO SOON: field / relationshop i/o descriptions
-	// TODO SOON: enum & listEnum auto-maxlength
+	// TODO SOON: listEnum auto-maxlength
 	// TODO SOON: query BObj : prevent some property types
 	// TODO
 	// TODO LATER: allow custom table name

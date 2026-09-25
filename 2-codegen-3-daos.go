@@ -126,14 +126,14 @@ func (thisServer *server) generateAllObjectDAOs(srcdir string, regen bool) (code
 	}
 
 	// let's now generate all the DAOs we need in these DB folders
-	for name, boModel := range modelRegistry.items {
+	for _, boModel := range core.GetSortedValues(modelRegistry.items) {
 		// we only consider the concrete business objects that are persisted in this project
 		if !boModel.isInterface() && !boModel.isAbstract() && boModel.isPersistedHere() {
 			// what's the DB type involved here?
 			dbType := boModel.getDB().schema.DbServer.Type
 
 			// do we meed to generate a DAO for this business object ?
-			if existingDAO := existingDAOFiles[dbType][name]; regen ||
+			if existingDAO := existingDAOFiles[dbType][boModel.GetName()]; regen ||
 				existingDAO == nil || existingDAO.modTime.Before(boModel.getLastBOMod()) {
 
 				// generating the missing or outdated DAO
@@ -150,12 +150,11 @@ func (thisServer *server) generateAllObjectDAOs(srcdir string, regen bool) (code
 			}
 
 			// flagging this business object DAO as NOT unneeded (i.e. needed)
-			delete(existingDAOFiles[dbType], name)
+			delete(existingDAOFiles[dbType], boModel.GetName())
 		}
-
 	}
 
-	// // iterating over each package for which we've already got a registry
+	// iterating over each package for which we've already got a registry
 	// for _, dbtype := range core.EnsureReadDir(srcdir, includePATH, dbFOLDERNAME) {
 	// 	codeChangedHere := false
 
@@ -369,11 +368,15 @@ func (thisGen *daoGenerator) generateExecCreateLinksQueries(model IBusinessObjec
 			// not persisted at all through a link table, from this model's perspective - either it's a
 			// single-valued / column-based relationship, or it's a back-reference whose source side
 			// doesn't use a link table (e.g. a plain one-to-many via a foreign key)
-			if !relationship.multiple || relationship.backRef == nil || !relationship.backRef.needsLinkTable() {
+			if !relationship.multiple || len(relationship.backRefSlice) == 0 || !relationship.needsReverseLinkTable() {
 				continue
 			}
 
-			linkRel = relationship.backRef
+			if len(relationship.backRefSlice) > 1 {
+				core.PanicMsg("Not handling the multiple back references for '%s' yet", relationship.getKey())
+			}
+
+			linkRel = relationship.backRefSlice[0]
 			reversed = true
 		}
 
@@ -544,15 +547,15 @@ func (thisDAO *%[1]sDAO) execRead%[2]s(bObjIDs []any, cache *goald.BObjCache) ([
 
 	return thisDAO.ExecReadRelationship(&goald.ReadRelationshipContext{
 		Query: "SELECT %[5]s" +
-			" FROM " + %[6]sDB + ".%[7]s" +
-			" WHERE %[8]s" + inClause + "%[9]s",
+			%[6]s +
+			" WHERE %[7]s" + inClause + "%[8]s",
 		Args: queryArgs.Args,
 		AttachRow: func(rows *sql.Rows) (goald.IBusinessObject, error) {
-			var sourceID, targetID goald.BObjID%[10]s
-			if errScan := rows.Scan(%[11]s); errScan != nil {
+			var sourceID, targetID goald.BObjID%[9]s
+			if errScan := rows.Scan(%[10]s); errScan != nil {
 				return nil, errScan
 			}
-			return %[12]s.Get%[1]sFrom(cache, sourceID).WithAdded%[2]s(%[13]s.CachedOrNew%[14]s(%[15]s, targetID)%[16]s), nil
+			return %[11]s.Get%[1]sFrom(cache, sourceID).%[12]s%[2]s(%[13]s.CachedOrNew%[14]s(%[15]s, targetID)%[16]s), nil
 		},
 	})
 }
@@ -564,31 +567,63 @@ func (thisGen *daoGenerator) generateExecReadRelationshipQuery(model IBusinessOb
 
 	// iterating over the relationships...
 	for i, rel := range core.GetSortedValues(model.getRelationships()) {
+		// we need this method to load multiple relationships, or single indirectly-persisted ones
+		isSingleIndirectRel := !rel.IsMultiple() && len(rel.backRefSlice) > 0 && rel.isIndirectlyPersisted()
+
 		// ... but only the multiple ones, since the single-valued ones are read through the main ExecReadQuery method
-		if rel.IsMultiple() {
+		if rel.IsMultiple() || isSingleIndirectRel {
 			// name of the model in camel case
 			modelNameCamel := core.PascalToCamel(string(model.GetName()))
 
 			// declaring some variables that will be used in the template; "local" is this model's own side of
 			// the link table (the one matching bObjIDs), "target" is the related object's side
-			var sourceColName, sourceMdlColName, targetColName, targetMdlColName, selTable string
+			var sourceColName, sourceMdlColName, targetColName, targetMdlColName, fromClause string
 
 			// is this link indirectly persisted, from this model's perspective?
 			if rel.isDirectlyPersisted() {
 				sourceColName, sourceMdlColName = rel.getLinkTableSourceColumn()
 				targetColName, targetMdlColName = rel.getLinkTableTargetColumn()
-				selTable = rel.getLinkTableName()
-			} else {
+				fromClause = fmt.Sprintf(`" FROM " + %sDB + ".%s"`, modelNameCamel, rel.getLinkTableName())
+			} else if rel.isMultipleSource() {
 				// in this case, the backref is the directly persisted one, so things are a bit reversed here
-				if dirRel := rel.backRef; dirRel.IsMultiple() {
-					sourceColName, sourceMdlColName = dirRel.getLinkTableTargetColumn() // the backref's target is this model, so it's the source side for the link table
-					targetColName, targetMdlColName = dirRel.getLinkTableSourceColumn() // the backref's source is the other model, so it's the target side for the link table
-					selTable = dirRel.getLinkTableName()
-				} else {
-					sourceColName = dirRel.getColumnName() // the backref's target is this model, so it's the source side for this relationship
-					targetColName = "id"                   // the backref's source is the other model, so it's the target for this relationship
-					selTable = dirRel.owner.getTableName(false)
+				if len(rel.backRefSlice) > 1 {
+					core.PanicMsg("Not handling the multiple back references for '%s' yet", rel.getKey())
 				}
+				dirRel := rel.backRefSlice[0]
+				sourceColName, sourceMdlColName = dirRel.getLinkTableTargetColumn() // the backref's target is this model, so it's the source side for the link table
+				targetColName, targetMdlColName = dirRel.getLinkTableSourceColumn() // the backref's source is the other model, so it's the target side for the link table
+				fromClause = fmt.Sprintf(`" FROM " + %sDB + ".%s"`, modelNameCamel, dirRel.getLinkTableName())
+			} else if rel.IsPolymorphic() {
+				sourceColName = "source_id"
+				targetColName = "target_id"
+				targetMdlColName = "target_model"
+				// however many concrete models point back to us here (a single-valued, polymorphic backref,
+				// directly persisted on their side as a plain FK column): we build 1 SELECT per
+				// backing table, tagging each with its own literal model name (there's no real model column
+				// on these tables), and UNION them all - even when there's just 1 - so the row-scanning code
+				// below can always rely on a "target_model" column being present
+				var selects []string
+				for _, dirRel := range rel.backRefSlice {
+					selects = append(selects, fmt.Sprintf(`"   SELECT %s AS source_id, id AS target_id, '%s' AS target_model " +
+			"    FROM " + %sDB + ".%s"`,
+						dirRel.getColumnName(), dirRel.owner.GetName(), modelNameCamel, dirRel.owner.getTableName(false)))
+				}
+				fromClause = fmt.Sprintf(`" FROM (" +
+			%s +
+			" ) %s"`,
+					strings.Join(selects, ` +
+			"  UNION ALL" +
+			`),
+					core.PascalToCamel(rel.GetName()),
+				)
+			} else {
+				if len(rel.backRefSlice) > 1 {
+					core.PanicMsg("Not handling the multiple back references for '%s' yet", rel.getKey())
+				}
+				dirRel := rel.backRefSlice[0]
+				sourceColName = dirRel.getColumnName() // the backref's target is this model, so it's the source side for this relationship
+				targetColName = "id"                   // the backref's source is the other model, so it's the target for this relationship
+				fromClause = fmt.Sprintf(`" FROM " + %sDB + ".%s"`, modelNameCamel, dirRel.owner.getTableName(false))
 			}
 
 			// aggregating the SELECT and the scanning parts
@@ -629,6 +664,9 @@ func (thisGen *daoGenerator) generateExecReadRelationshipQuery(model IBusinessOb
 				cacheOrNewArg = "cache"
 			}
 
+			// The type of function used to attach the linked BO to its source
+			attachMethod := core.IfThenElse(rel.IsMultiple(), "AddAndReturn", "SetAndReturn")
+
 			// Adding the function:
 			readRelFuncs += fmt.Sprintf(execReadOneRelationshipTpl,
 				model.GetName(),                            //  1: func (thisDAO *%[1]sDAO)
@@ -636,17 +674,17 @@ func (thisGen *daoGenerator) generateExecReadRelationshipQuery(model IBusinessOb
 				model.getDB().get.QueryPlaceholder(),       //  3: NewQueryArgsWithINClause("%[3]s", %[4]s, bObjIDs)
 				model.getDB().is.QueryPlaceholderIndexed(), //  4: NewQueryArgsWithINClause("%[3]s", %[4]s, bObjIDs)
 				selColNames,                                //  5: SELECT %[5]s
-				modelNameCamel,                             //  6: FROM ` + bq + ` + %[6]s + ` + bq + `.%[7]s
-				selTable,                                   //  7: FROM ` + bq + ` + %[6]s + ` + bq + `.%[7]s
-				sourceColName,                              //  8: WHERE %[8]s` + bq + ` + inClause + "%[9]s"
-				sourceModelFilter,                          //  9: WHERE %[8]s` + bq + ` + inClause + "%[9]s"
-				mdlColScan,                                 // 10: var sourceID, targetID goald.BObjID%[10]s
-				selColVars,                                 // 11: if errScan := rows.Scan(%[11]s); errScan != nil {
-				model.getPackage(),                         // 12: return %[12]s.Get%[1]sFrom(cache, sourceID)
-				cacheOrNewReceiver,                         // 13: .WithAdded%[2]s(%[13]s.CachedOrNew%[14]s(%[15]s, targetID)%[16]s)
-				cacheOrNewObject,                           // 14: .WithAdded%[2]s(%[13]s.CachedOrNew%[14]s(%[15]s, targetID)%[16]s)
-				cacheOrNewArg,                              // 15: .WithAdded%[2]s(%[13]s.CachedOrNew%[14]s(%[15]s, targetID)%[16]s)
-				cacheOrNewType,                             // 16: .WithAdded%[2]s(%[13]s.CachedOrNew%[14]s(%[15]s, targetID)%[16]s)
+				fromClause,                                 //  6: %[6]s (already a full " FROM ..." Go expression)
+				sourceColName,                              //  7: WHERE %[7]s" + inClause + "%[8]s"
+				sourceModelFilter,                          //  8: WHERE %[7]s" + inClause + "%[8]s"
+				mdlColScan,                                 //  9: var sourceID, targetID goald.BObjID%[9]s
+				selColVars,                                 // 10: if errScan := rows.Scan(%[10]s); errScan != nil {
+				model.getPackage(),                         // 11: return %[11]s.Get%[1]sFrom(cache, sourceID)
+				attachMethod,                               // 12: .%[12]s%[2]s(%[13]s.CachedOrNew%[14]s(%[15]s, targetID)%[16]s)
+				cacheOrNewReceiver,                         // 13: .%[12]s%[2]s(%[13]s.CachedOrNew%[14]s(%[15]s, targetID)%[16]s)
+				cacheOrNewObject,                           // 14: .%[12]s%[2]s(%[13]s.CachedOrNew%[14]s(%[15]s, targetID)%[16]s)
+				cacheOrNewArg,                              // 15: .%[12]s%[2]s(%[13]s.CachedOrNew%[14]s(%[15]s, targetID)%[16]s)
+				cacheOrNewType,                             // 16: .%[12]s%[2]s(%[13]s.CachedOrNew%[14]s(%[15]s, targetID)%[16]s)
 			)
 
 			// Adding the case:
@@ -734,11 +772,15 @@ func (thisGen *daoGenerator) generateExecDeleteLinksQueries(model IBusinessObjec
 			// not persisted at all through a link table, from this model's perspective - either it's a
 			// single-valued / column-based relationship, or it's a back-reference whose source side
 			// doesn't use a link table (e.g. a plain one-to-many via a foreign key)
-			if !relationship.multiple || relationship.backRef == nil || !relationship.backRef.needsLinkTable() {
+			if !relationship.multiple || len(relationship.backRefSlice) == 0 || !relationship.needsReverseLinkTable() {
 				continue
 			}
 
-			linkRel = relationship.backRef
+			if len(relationship.backRefSlice) > 1 {
+				core.PanicMsg("Not handling the multiple back references for '%s' yet", relationship.getKey())
+			}
+
+			linkRel = relationship.backRefSlice[0]
 			reversed = true
 		}
 
