@@ -27,6 +27,7 @@ type IBusinessObject interface {
 	getKey() boKey                    // returning the business object's key
 	setKey(boKey)                     // setting the business object's key
 	SetParent(parent IBusinessObject) // setting the business object's parent, if it has one
+	SetMdl(utils.ModelName)           // setting the business object's model name
 
 	// business logic
 	ChangeBeforeInsert(BloContext) error                                         // performing any necessary changes before inserting the business object into the database
@@ -48,6 +49,7 @@ type IBusinessObject interface {
 	GetMultipleRelationshipValue(relName string) ([]IBusinessObject, error) // returning the targets of a multi-valued relationship, given the relationship's name - without using reflection
 	IsModelValid() error                                                    // checking a business object's general validity - without using reflection
 	RemoveCycles()                                                          // removing any cycles from the business object, without using reflection
+	SetModelNames()                                                         // setting the model names for the polymorphic business objects associated with this one
 
 	// work with other BOs
 	DiffWith(other IBusinessObject, forLinks map[string]bool) (IBusinessObject, IBusinessObject) // creates 2 synthetic instances gathering the added and removed relationships
@@ -72,10 +74,10 @@ type boKey struct {
 type BusinessObject struct {
 	// properties common to all business objects
 	ID           BObjID              `json:"id,omitempty"           io:"o*" desc:"The unique identifier of this business object"`
+	Mdl          utils.ModelName     `json:"_mdl,omitempty"         io:"in" desc:"The name of the business object's model, sometimes used to resolve polymorphic relationships"`
 	Loaded       loadedRelationships `json:"_loaded,omitempty"      io:"o*" desc:"The direct relationships that have been loaded for this business object"`
 	Creation     *time.Time          `json:"creation,omitempty"     io:"o*" desc:"The creation timestamp of this business object"`
 	Modification *time.Time          `json:"modification,omitempty" io:"o*" desc:"The modification timestamp of this business object"`
-	ModelName    utils.ModelName     `json:"mdl,omitempty"          io:"in" desc:"The name of the business object's model, sometimes used to resolve polymorphic relationships"`
 	preID        int                 `json:"-"                      io:"o*" desc:"A temporary identifier in Business Objects lists"`
 
 	// technical stuff
@@ -99,6 +101,7 @@ func (thisBO *BusinessObject) setPreID(preID int)               { thisBO.preID =
 func (thisBO *BusinessObject) getKey() boKey                    { return thisBO.key }
 func (thisBO *BusinessObject) setKey(key boKey)                 { thisBO.key = key }
 func (thisBO *BusinessObject) SetParent(parent IBusinessObject) { panic("unimplemented") }
+func (thisBO *BusinessObject) SetMdl(mdl utils.ModelName)       { thisBO.Mdl = mdl }
 
 // Triggers - default implems
 func (thisBO *BusinessObject) ChangeBeforeInsert(BloContext) error             { return nil }
@@ -132,6 +135,7 @@ func (thisBO *BusinessObject) GetMultipleRelationshipValue(relName string) ([]IB
 }
 func (thisBO *BusinessObject) IsModelValid() error { panic("unimplemented") }
 func (thisBO *BusinessObject) RemoveCycles()       { panic("unimplemented") }
+func (thisBO *BusinessObject) SetModelNames()      { panic("unimplemented") }
 
 // Working with other BOs - default implems
 func (thisBO *BusinessObject) DiffWith(other IBusinessObject, forLinks map[string]bool) (IBusinessObject, IBusinessObject) {

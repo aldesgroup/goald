@@ -148,25 +148,40 @@ func (bo *DeviceLinkRequest) SetParent(parent goald.IBusinessObject) {
 func (bo *DeviceLinkRequest) SetRelationshipValue(relationshipName string, value goald.IBusinessObject) error {
 	switch relationshipName {
 	case "ENTranslation":
-		targetValue, ok := value.(*i18n.Translation)
-		if !ok {
-			return goald.Error("Expected a value of type '*i18n.Translation' for 'DeviceLinkRequest.ENTranslation', got %T", value)
+		if value == nil {
+			bo.ENTranslation = nil
+		} else {
+			targetValue, ok := value.(*i18n.Translation)
+			if !ok {
+				return goald.Error("Expected a value of type '*i18n.Translation' for 'DeviceLinkRequest.ENTranslation', got %T", value)
+			}
+			bo.ENTranslation = targetValue
 		}
-		bo.ENTranslation = targetValue
+
 		return nil
 	case "ForWho":
-		targetValue, ok := value.(goald.IUser)
-		if !ok {
-			return goald.Error("Expected a value of type 'goald.IUser' for 'DeviceLinkRequest.ForWho', got %T", value)
+		if value == nil {
+			bo.ForWho = nil
+		} else {
+			targetValue, ok := value.(goald.IUser)
+			if !ok {
+				return goald.Error("Expected a value of type 'goald.IUser' for 'DeviceLinkRequest.ForWho', got %T", value)
+			}
+			bo.ForWho = targetValue
 		}
-		bo.ForWho = targetValue
+
 		return nil
 	case "MainContact":
-		targetValue, ok := value.(goald.IUser)
-		if !ok {
-			return goald.Error("Expected a value of type 'goald.IUser' for 'DeviceLinkRequest.MainContact', got %T", value)
+		if value == nil {
+			bo.MainContact = nil
+		} else {
+			targetValue, ok := value.(goald.IUser)
+			if !ok {
+				return goald.Error("Expected a value of type 'goald.IUser' for 'DeviceLinkRequest.MainContact', got %T", value)
+			}
+			bo.MainContact = targetValue
 		}
-		bo.MainContact = targetValue
+
 		return nil
 	}
 
@@ -278,6 +293,12 @@ func (bo *DeviceLinkRequest) DiffWith(other goald.IBusinessObject, forLinks map[
 	added := NewDeviceLinkRequest(bo.ID)
 	removed := NewDeviceLinkRequest(bo.ID)
 
+	otherBo := other.(*DeviceLinkRequest)
+
+	if forLinks["Users"] {
+		added.Users, removed.Users = goald.DiffBusinessObjectSlices(otherBo.Users, bo.Users, true)
+	}
+
 	return added, removed
 }
 
@@ -287,4 +308,23 @@ func (bo *DeviceLinkRequest) DiffWith(other goald.IBusinessObject, forLinks map[
 
 // removing any cycles from the business object, without using reflection
 func (bo *DeviceLinkRequest) RemoveCycles() {
+}
+
+// setting the models names on all the business objects associated with this one
+func (bo *DeviceLinkRequest) SetModelNames() {
+	if bo.ENTranslation != nil {
+		bo.ENTranslation.SetModelNames()
+	}
+	if bo.ForWho != nil {
+		bo.ForWho.SetMdl(bo.ForWho.GetModelName())
+		bo.ForWho.SetModelNames()
+	}
+	if bo.MainContact != nil {
+		bo.MainContact.SetMdl(bo.MainContact.GetModelName())
+		bo.MainContact.SetModelNames()
+	}
+	for _, target := range bo.Users {
+		target.SetMdl(target.GetModelName())
+		target.SetModelNames()
+	}
 }

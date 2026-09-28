@@ -18,4 +18,5 @@ type Device struct {
 func init() {
 	model.Device().SetDescription("A device able to connect to the IoT platform and exchange data with it.")
 	model.Device().SetNotPersisted()
+	model.Device().AssociatedUsers().SetOneWay()
 }

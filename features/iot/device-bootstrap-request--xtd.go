@@ -209,3 +209,7 @@ func (bo *DeviceBootstrapRequest) DiffWith(other goald.IBusinessObject, forLinks
 // removing any cycles from the business object, without using reflection
 func (bo *DeviceBootstrapRequest) RemoveCycles() {
 }
+
+// setting the models names on all the business objects associated with this one
+func (bo *DeviceBootstrapRequest) SetModelNames() {
+}

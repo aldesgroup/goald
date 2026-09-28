@@ -23,4 +23,7 @@ type DeviceLinkRequest struct {
 func init() {
 	model.DeviceLinkRequest().SetDescription("A request to link a device to a user account, which should be processed by the provisioning service.")
 	model.DeviceLinkRequest().SetNotPersisted()
+	model.DeviceLinkRequest().Users().SetOneWay()
+	model.DeviceLinkRequest().MainContact().SetOneWay()
+	model.DeviceLinkRequest().ForWho().SetOneWay()
 }

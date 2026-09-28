@@ -252,3 +252,11 @@ func (bo *User) DiffWith(other goald.IBusinessObject, forLinks map[string]bool) 
 // removing any cycles from the business object, without using reflection
 func (bo *User) RemoveCycles() {
 }
+
+// setting the models names on all the business objects associated with this one
+func (bo *User) SetModelNames() {
+	for _, target := range bo.MemberOf {
+		target.SetMdl(target.GetModelName())
+		target.SetModelNames()
+	}
+}

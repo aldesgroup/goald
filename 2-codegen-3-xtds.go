@@ -182,7 +182,10 @@ $$diffedlinks$$
 // removing any cycles from the business object, without using reflection
 func (bo *$$Upper$$) RemoveCycles() {
 $$removecycles$$}
-`
+
+// setting the models names on all the business objects associated with this one
+func (bo *$$Upper$$) SetModelNames() {
+$$setmodelnames$$}`
 
 const utilsFILExSUFFIX = "--xtd.go"
 
@@ -242,6 +245,7 @@ func (thisGen *xtdGenerator) generateObjectXtdForModel(model IBusinessObjectMode
 	setRelCases, addRelCases, clearRelCases, getSingleRelCases, getMultiRelCases := thisGen.buildUtilsRelationshipCases(model, importsMap)
 	modelChecks := thisGen.buildUtilsModelChecks(model, importsMap)
 	removeCyclesStatements := thisGen.buildUtilsRemoveCyclesStatements(model)
+	setModelNamesStatements := thisGen.buildUtilsSetModelNamesStatements(model)
 	diffedLinks := thisGen.buildUtilsDiffedLinks(model)
 
 	if importUtils {
@@ -278,6 +282,12 @@ func (thisGen *xtdGenerator) generateObjectXtdForModel(model IBusinessObjectMode
 		removeCyclesBody = strings.Join(removeCyclesStatements, newline) + newline
 	}
 	content = strings.ReplaceAll(content, "$$removecycles$$", removeCyclesBody)
+
+	setModelNamesBody := ""
+	if len(setModelNamesStatements) > 0 {
+		setModelNamesBody = strings.Join(setModelNamesStatements, newline) + newline
+	}
+	content = strings.ReplaceAll(content, "$$setmodelnames$$", setModelNamesBody)
 
 	imports := ""
 	if len(importsMap) > 0 {
@@ -489,7 +499,8 @@ func (thisGen *xtdGenerator) buildGetMultiRelCase(relName string, relationship *
 	getMultiCase := fmt.Sprintf("	case \"%s\":", relName)
 	getMultiCase += newline + fmt.Sprintf("		%s := make([]goald.IBusinessObject, len(bo.%s))", resultVar, relName)
 	getMultiCase += newline + fmt.Sprintf("		for i, target := range bo.%s {", relName)
-	if !relationship.isMultipleSource() {
+	core.PanicMsgIf(relationship.relationType == 0, "Relationship '%s' should have a defined type", relName)
+	if !relationship.isMultipleSource() && relationship.relationType != relationshipTypeONExWAY {
 		getMultiCase += newline + fmt.Sprintf("			target.%s = bo // ensuring the unique backref is set", relationship.getBackRefName())
 	}
 	getMultiCase += newline + fmt.Sprintf("			%s[i] = target", resultVar)
@@ -521,6 +532,29 @@ func (thisGen *xtdGenerator) buildUtilsRemoveCyclesStatements(model IBusinessObj
 		}
 	}
 
+	return statements
+}
+
+func (thisGen *xtdGenerator) buildUtilsSetModelNamesStatements(model IBusinessObjectModel) []string {
+	// statements := []string{"	bo.SetMdl(bo.GetModelName())"}
+	statements := []string{}
+	for _, relationship := range core.GetSortedValues(model.getRelationships()) {
+		if relationship.IsMultiple() {
+			statements = append(statements, fmt.Sprintf("	for _, target := range bo.%s {", relationship.GetName()))
+			if relationship.IsPolymorphic() {
+				statements = append(statements, "		target.SetMdl(target.GetModelName())")
+			}
+			statements = append(statements, "		target.SetModelNames()")
+			statements = append(statements, "	}")
+		} else {
+			statements = append(statements, fmt.Sprintf("	if bo.%[1]s != nil {", relationship.GetName()))
+			if relationship.IsPolymorphic() {
+				statements = append(statements, fmt.Sprintf("		bo.%[1]s.SetMdl(bo.%[1]s.GetModelName())", relationship.GetName()))
+			}
+			statements = append(statements, fmt.Sprintf("		bo.%[1]s.SetModelNames()", relationship.GetName()))
+			statements = append(statements, "	}")
+		}
+	}
 	return statements
 }
 

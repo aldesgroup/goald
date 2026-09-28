@@ -10,6 +10,7 @@ func cleaned[BOTYPE IBusinessObject](bObj BOTYPE) BOTYPE {
 func allCleaned[BOTYPE IBusinessObject](bObjs []BOTYPE) []BOTYPE {
 	for _, bObj := range bObjs {
 		bObj.RemoveCycles()
+		bObj.SetModelNames()
 	}
 	return bObjs
 }
@@ -19,6 +20,7 @@ func allCastAndCleaned[BOTYPE IBusinessObject](bObjs []IBusinessObject) []BOTYPE
 	castBObjs := make([]BOTYPE, len(bObjs))
 	for i, bObj := range bObjs {
 		bObj.RemoveCycles()
+		bObj.SetModelNames()
 		castBObjs[i] = bObj.(BOTYPE)
 	}
 	return castBObjs

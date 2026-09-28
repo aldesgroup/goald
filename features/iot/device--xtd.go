@@ -216,6 +216,12 @@ func (bo *Device) DiffWith(other goald.IBusinessObject, forLinks map[string]bool
 	added := NewDevice(bo.ID)
 	removed := NewDevice(bo.ID)
 
+	otherBo := other.(*Device)
+
+	if forLinks["AssociatedUsers"] {
+		added.AssociatedUsers, removed.AssociatedUsers = goald.DiffBusinessObjectSlices(otherBo.AssociatedUsers, bo.AssociatedUsers, true)
+	}
+
 	return added, removed
 }
 
@@ -225,4 +231,12 @@ func (bo *Device) DiffWith(other goald.IBusinessObject, forLinks map[string]bool
 
 // removing any cycles from the business object, without using reflection
 func (bo *Device) RemoveCycles() {
+}
+
+// setting the models names on all the business objects associated with this one
+func (bo *Device) SetModelNames() {
+	for _, target := range bo.AssociatedUsers {
+		target.SetMdl(target.GetModelName())
+		target.SetModelNames()
+	}
 }
