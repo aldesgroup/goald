@@ -111,10 +111,25 @@ func (thisReqCtx *httpRequestContext) serve(ep iEndpoint, w http.ResponseWriter,
 	// prepping the response
 	resp := &response{Version: thisReqCtx.server.config.base().Version}
 
-	// TODO check auth!
+	// declared upfront so the auth check below can jump straight to "End" without it coming into scope later
+	var input any
+
+	// checking auth, unless this endpoint was explicitly marked as public (e.g. a login endpoint);
+	// authenticateRequest() itself is a no-op (nil, nil) as long as no auth provider is configured,
+	// so this stays entirely backward-compatible for servers that haven't opted into authentication
+	if !ep.isPublic() {
+		claims, errAuth := thisReqCtx.server.authenticateRequest(req)
+		if errAuth != nil {
+			resp.statusObj = hstatus.Unauthorized
+			resp.Message = errAuth.Error()
+
+			goto End
+		}
+
+		webCtx.authClaims = claims
+	}
 
 	// checking the input
-	var input any
 	if ep.hasBodyOrParamsInput() {
 		var inputErr error
 		if ep.isBodyInputRequired() {

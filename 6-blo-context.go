@@ -17,6 +17,7 @@ type BloContext interface {
 	EndTransaction(err error) error                            // ends the current transaction if it was started by this BloContext, and commits or rollbacks depending on the given error
 	daoFor(modelName utils.ModelName) IBusinessObjectDAO       // returns a new DAO from a given business object
 	bObjCache() *BObjCache                                     // returns a cache of business objects associated with this context
+	GetCurrentUser() IUser                                     // returns the authenticated caller for this context, or nil if there is none (public endpoint, or auth not configured)
 }
 
 // ------------------------------------------------------------------------------------------------

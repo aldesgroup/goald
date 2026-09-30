@@ -11,52 +11,51 @@ import (
 // Instantiation / cache retrieval
 // ------------------------------------------------------------------------------------------------
 
-func NewUser(id goald.BObjID) *User {
+func NewAuthToken(id goald.BObjID) *AuthToken {
 	// TODO use sync.Pool?
-	newUser := &User{}
-	newUser.ID = id
+	newAuthToken := &AuthToken{}
+	newAuthToken.ID = id
 
-	return newUser
+	return newAuthToken
 }
 
-func GetUserFrom(cache *goald.BObjCache, id goald.BObjID) *User {
-	if cachedUser := cache.Get("User", id); cachedUser != nil {
-		return cachedUser.(*User)
+func GetAuthTokenFrom(cache *goald.BObjCache, id goald.BObjID) *AuthToken {
+	if cachedAuthToken := cache.Get("AuthToken", id); cachedAuthToken != nil {
+		return cachedAuthToken.(*AuthToken)
 	}
 
 	return nil
 }
 
-func CachedOrNewUser(cache *goald.BObjCache, id goald.BObjID) *User {
-	if cachedUser := GetUserFrom(cache, id); cachedUser != nil {
-		return cachedUser
+func CachedOrNewAuthToken(cache *goald.BObjCache, id goald.BObjID) *AuthToken {
+	if cachedAuthToken := GetAuthTokenFrom(cache, id); cachedAuthToken != nil {
+		return cachedAuthToken
 	}
 
-	return cache.Set(NewUser(id))
+	return cache.Set(NewAuthToken(id))
 }
 
 // ------------------------------------------------------------------------------------------------
 // Cloning
 // ------------------------------------------------------------------------------------------------
 
-// getting the name of the model for a User, without using reflection
-func (bo *User) Clone(withFields, withRelationships bool) goald.IBusinessObject {
-	clone := &User{}
+// getting the name of the model for a AuthToken, without using reflection
+func (bo *AuthToken) Clone(withFields, withRelationships bool) goald.IBusinessObject {
+	clone := &AuthToken{}
 	clone.ID = bo.ID
 
 	if withFields {
+		clone.AccessToken = bo.AccessToken
 		clone.Creation = bo.Creation
-		clone.Email = bo.Email
-		clone.ExternalID = bo.ExternalID
-		clone.FirstName = bo.FirstName
-		clone.LastName = bo.LastName
+		clone.ExpiresIn = bo.ExpiresIn
+		clone.IDToken = bo.IDToken
 		clone.Modification = bo.Modification
-		clone.Password = bo.Password
-		clone.Realm = bo.Realm
+		clone.RefreshToken = bo.RefreshToken
+		clone.TokenType = bo.TokenType
 	}
 
 	if withRelationships {
-		clone.MemberOf = bo.MemberOf
+
 	}
 
 	return clone
@@ -66,9 +65,9 @@ func (bo *User) Clone(withFields, withRelationships bool) goald.IBusinessObject 
 // Identification
 // ------------------------------------------------------------------------------------------------
 
-// getting the name of the model for a User, without using reflection
-func (bo *User) GetModelName() utils.ModelName {
-	return "User"
+// getting the name of the model for a AuthToken, without using reflection
+func (bo *AuthToken) GetModelName() utils.ModelName {
+	return "AuthToken"
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -76,52 +75,48 @@ func (bo *User) GetModelName() utils.ModelName {
 // ------------------------------------------------------------------------------------------------
 
 // getting a property's value as a string, without using reflection
-func (bo *User) GetValueAsString(propertyName string) string {
+func (bo *AuthToken) GetValueAsString(propertyName string) string {
 	switch propertyName {
+	case "AccessToken":
+		return bo.AccessToken
 	case "Creation":
 		return core.DateToString(bo.Creation)
-	case "Email":
-		return bo.Email
-	case "ExternalID":
-		return bo.ExternalID
-	case "FirstName":
-		return bo.FirstName
+	case "ExpiresIn":
+		return core.Int64ToString(bo.ExpiresIn)
 	case "ID":
 		return core.Int64ToString(int64(bo.ID))
-	case "LastName":
-		return bo.LastName
+	case "IDToken":
+		return bo.IDToken
 	case "Modification":
 		return core.DateToString(bo.Modification)
-	case "Password":
-		return bo.Password
-	case "Realm":
-		return bo.Realm
+	case "RefreshToken":
+		return bo.RefreshToken
+	case "TokenType":
+		return bo.TokenType
 	default:
 		return "unknown property: " + propertyName
 	}
 }
 
 // setting a property's value with a given string value, without using reflection
-func (bo *User) SetValueAsString(propertyName string, valueAsString string) error {
+func (bo *AuthToken) SetValueAsString(propertyName string, valueAsString string) error {
 	switch propertyName {
+	case "AccessToken":
+		bo.AccessToken = valueAsString
 	case "Creation":
 		bo.Creation = core.StringToDate(valueAsString, "Creation")
-	case "Email":
-		bo.Email = valueAsString
-	case "ExternalID":
-		bo.ExternalID = valueAsString
-	case "FirstName":
-		bo.FirstName = valueAsString
+	case "ExpiresIn":
+		bo.ExpiresIn = core.StringToInt64(valueAsString, "ExpiresIn")
 	case "ID":
 		bo.ID = goald.BObjID(core.StringToInt64(valueAsString, "ID"))
-	case "LastName":
-		bo.LastName = valueAsString
+	case "IDToken":
+		bo.IDToken = valueAsString
 	case "Modification":
 		bo.Modification = core.StringToDate(valueAsString, "Modification")
-	case "Password":
-		bo.Password = valueAsString
-	case "Realm":
-		bo.Realm = valueAsString
+	case "RefreshToken":
+		bo.RefreshToken = valueAsString
+	case "TokenType":
+		bo.TokenType = valueAsString
 	}
 
 	return goald.Error("[SetValueAsString] Unknown property: %T.%s", bo, propertyName)
@@ -131,22 +126,17 @@ func (bo *User) SetValueAsString(propertyName string, valueAsString string) erro
 // Explicit relationship access
 // ------------------------------------------------------------------------------------------------
 
-func (bo *User) AddAndReturnMemberOf(added goald.IUserGroup) goald.IUserGroup {
-	bo.MemberOf = append(bo.MemberOf, added)
-	return added
-}
-
 // ------------------------------------------------------------------------------------------------
 // Generic relationship access
 // ------------------------------------------------------------------------------------------------
 
-// setting this User's parent
-func (bo *User) SetParent(parent goald.IBusinessObject) {
+// setting this AuthToken's parent
+func (bo *AuthToken) SetParent(parent goald.IBusinessObject) {
 	// no parent for this model
 }
 
 // setting a single-valued relationship's target, given the relationship's name, without using reflection
-func (bo *User) SetRelationshipValue(relationshipName string, value goald.IBusinessObject) error {
+func (bo *AuthToken) SetRelationshipValue(relationshipName string, value goald.IBusinessObject) error {
 	switch relationshipName {
 
 	}
@@ -155,33 +145,25 @@ func (bo *User) SetRelationshipValue(relationshipName string, value goald.IBusin
 }
 
 // appending a target to a multi-valued relationship, given the relationship's name, without using reflection
-func (bo *User) AddRelationshipValue(relationshipName string, value goald.IBusinessObject) error {
+func (bo *AuthToken) AddRelationshipValue(relationshipName string, value goald.IBusinessObject) error {
 	switch relationshipName {
-	case "MemberOf":
-		targetValue, ok := value.(goald.IUserGroup)
-		if !ok {
-			return goald.Error("Expected a value of type 'goald.IUserGroup' for 'User.MemberOf', got %T", value)
-		}
-		bo.MemberOf = append(bo.MemberOf, targetValue)
-		return nil
+
 	}
 
 	return goald.Error("[AddRelationshipValue] Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
 }
 
 // resetting a multi-valued relationship to an empty slice, given the relationship's name, without using reflection
-func (bo *User) ClearRelationshipValue(relationshipName string) error {
+func (bo *AuthToken) ClearRelationshipValue(relationshipName string) error {
 	switch relationshipName {
-	case "MemberOf":
-		bo.MemberOf = []goald.IUserGroup{}
-		return nil
+
 	}
 
 	return goald.Error("[ClearRelationshipValue] Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
 }
 
 // getting a single-valued relationship's target, given the relationship's name, without using reflection
-func (bo *User) GetSingleRelationshipValue(relationshipName string) (goald.IBusinessObject, error) {
+func (bo *AuthToken) GetSingleRelationshipValue(relationshipName string) (goald.IBusinessObject, error) {
 	switch relationshipName {
 
 	}
@@ -190,14 +172,9 @@ func (bo *User) GetSingleRelationshipValue(relationshipName string) (goald.IBusi
 }
 
 // getting a multi-valued relationship's targets, given the relationship's name, without using reflection
-func (bo *User) GetMultipleRelationshipValue(relationshipName string) ([]goald.IBusinessObject, error) {
+func (bo *AuthToken) GetMultipleRelationshipValue(relationshipName string) ([]goald.IBusinessObject, error) {
 	switch relationshipName {
-	case "MemberOf":
-		memberOf := make([]goald.IBusinessObject, len(bo.MemberOf))
-		for i, target := range bo.MemberOf {
-			memberOf[i] = target
-		}
-		return memberOf, nil
+
 	}
 
 	return nil, goald.Error("[GetMultipleRelationshipValue] Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
@@ -208,26 +185,7 @@ func (bo *User) GetMultipleRelationshipValue(relationshipName string) ([]goald.I
 // ------------------------------------------------------------------------------------------------
 
 // checking a business object's general validity, without using reflection
-func (bo *User) IsModelValid() error {
-	if bo.Email == "" {
-		return goald.Error("'Email' is mandatory and must have a non-zero value")
-	}
-	if err := goald.CheckStringSize(bo.Email, 64, 0); err != nil {
-		return goald.ErrorC(err, "Invalid value for 'Email'")
-	}
-	if bo.FirstName == "" {
-		return goald.Error("'FirstName' is mandatory and must have a non-zero value")
-	}
-	if err := goald.CheckStringSize(bo.FirstName, 24, 0); err != nil {
-		return goald.ErrorC(err, "Invalid value for 'FirstName'")
-	}
-	if bo.LastName == "" {
-		return goald.Error("'LastName' is mandatory and must have a non-zero value")
-	}
-	if err := goald.CheckStringSize(bo.LastName, 26, 0); err != nil {
-		return goald.ErrorC(err, "Invalid value for 'LastName'")
-	}
-
+func (bo *AuthToken) IsModelValid() error {
 	return nil
 }
 
@@ -236,15 +194,9 @@ func (bo *User) IsModelValid() error {
 // ------------------------------------------------------------------------------------------------
 
 // Creates 2 synthetic instances gathering the added and removed relationships
-func (bo *User) DiffWith(other goald.IBusinessObject, forLinks map[string]bool) (goald.IBusinessObject, goald.IBusinessObject) {
-	added := NewUser(bo.ID)
-	removed := NewUser(bo.ID)
-
-	otherBo := other.(*User)
-
-	if forLinks["MemberOf"] {
-		added.MemberOf, removed.MemberOf = goald.DiffBusinessObjectSlices(otherBo.MemberOf, bo.MemberOf, true)
-	}
+func (bo *AuthToken) DiffWith(other goald.IBusinessObject, forLinks map[string]bool) (goald.IBusinessObject, goald.IBusinessObject) {
+	added := NewAuthToken(bo.ID)
+	removed := NewAuthToken(bo.ID)
 
 	return added, removed
 }
@@ -254,13 +206,9 @@ func (bo *User) DiffWith(other goald.IBusinessObject, forLinks map[string]bool) 
 // ------------------------------------------------------------------------------------------------
 
 // removing any cycles from the business object, without using reflection
-func (bo *User) RemoveCycles() {
+func (bo *AuthToken) RemoveCycles() {
 }
 
 // setting the models names on all the business objects associated with this one
-func (bo *User) SetModelNames() {
-	for _, target := range bo.MemberOf {
-		target.SetMdl(target.GetModelName())
-		target.SetModelNames()
-	}
+func (bo *AuthToken) SetModelNames() {
 }

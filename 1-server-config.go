@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	core "github.com/aldesgroup/corego"
+	"github.com/aldesgroup/goald/features/auth"
 	"github.com/aldesgroup/goald/features/dbconn"
 	"github.com/aldesgroup/goald/features/logging"
 	"sigs.k8s.io/yaml"
@@ -50,6 +51,7 @@ type serverConfig struct {
 		resolvedLogLevel slog.Level
 	}
 	DBServers   map[string]*dbconn.DbServerConfig
+	Auth        map[string]*auth.ProviderConfig // authentication realms, e.g. "colleague" / "customer" -> their provider config; entirely optional
 	DataLoaders map[string]map[string]string
 	Version     string
 
@@ -137,6 +139,14 @@ func readAndCheckConfig(fromPath string) IServerConfig {
 		for schemaName, schemaConfig := range dbServer.Schemas {
 			schemaConfig.Name = schemaName
 			schemaConfig.DbServer = dbServer
+		}
+	}
+
+	// controlling the auth realms, if any - entirely optional; provider-specific requirements
+	// (e.g. azuread's TenantID / ClientID) are checked when the provider is resolved at startup
+	for realmID, providerCfg := range config.Auth {
+		if providerCfg.Type == "" {
+			core.PanicMsg("Auth realm '%s' has no provider type defined", realmID)
 		}
 	}
 

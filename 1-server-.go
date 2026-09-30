@@ -10,6 +10,7 @@ import (
 	"os"
 
 	core "github.com/aldesgroup/corego"
+	"github.com/aldesgroup/goald/features/auth"
 	"github.com/aldesgroup/goald/features/logging"
 	"github.com/aldesgroup/goald/features/utils"
 	"github.com/julienschmidt/httprouter"
@@ -64,9 +65,10 @@ func NewServer() ServerContext {
 
 	// new server
 	server := &server{
-		ILogger:  logging.NewLogger(loggerConfig.resolvedLogLevel, instanceID, loggerConfig.Type, loggerConfig.FNames),
-		instance: instanceID,
-		config:   serverConfig,
+		ILogger:       logging.NewLogger(loggerConfig.resolvedLogLevel, instanceID, loggerConfig.Type, loggerConfig.FNames),
+		instance:      instanceID,
+		config:        serverConfig,
+		authProviders: map[auth.Realm]*resolvedAuthProvider{},
 	}
 	server.Info("New server")
 
@@ -81,6 +83,9 @@ func NewServer() ServerContext {
 			server.resolveDbSchema(dbSchema) // ==> no config for Goald !!!!
 		}
 	}
+
+	// resolving the configured authentication providers, if any (e.g. Entra ID for colleagues and/or customers)
+	server.resolveAuthProviders()
 
 	// running the app in code generation mode, i.e. no server started here - should only be used by devs
 	if cgParams.codegen > 0 {
@@ -236,4 +241,9 @@ func (thisServer *server) daoFor(modelName utils.ModelName) IBusinessObjectDAO {
 // bObjCache implements [BloContext].
 func (thisServer *server) bObjCache() *BObjCache {
 	panic("unimplemented")
+}
+
+// GetCurrentUser implements [BloContext] - there is no authenticated caller at the server/startup level.
+func (thisServer *server) GetCurrentUser() IUser {
+	return nil
 }

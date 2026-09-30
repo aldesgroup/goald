@@ -8,6 +8,7 @@ import (
 	"time"
 
 	core "github.com/aldesgroup/corego"
+	"github.com/aldesgroup/goald/features/auth"
 	"github.com/aldesgroup/goald/features/logging"
 	r "github.com/julienschmidt/httprouter"
 )
@@ -17,11 +18,12 @@ import (
 // ------------------------------------------------------------------------------------------------
 
 type server struct {
-	logging.ILogger               // being able to log from the server
-	instance        string        // identifying this particular server instance
-	config          IServerConfig // keeping tracks of the server's configuration
-	router          *r.Router     // the HTTP router used to handle the incoming requests
-	reqCount        atomic.Int64  // the number of requests handled by this server instance since its startup
+	logging.ILogger                                      // being able to log from the server
+	instance        string                               // identifying this particular server instance
+	config          IServerConfig                        // keeping tracks of the server's configuration
+	router          *r.Router                            // the HTTP router used to handle the incoming requests
+	reqCount        atomic.Int64                         // the number of requests handled by this server instance since its startup
+	authProviders   map[auth.Realm]*resolvedAuthProvider // the configured authentication providers, by realm; empty when authentication isn't configured
 }
 
 // Implementing the interface AppContext

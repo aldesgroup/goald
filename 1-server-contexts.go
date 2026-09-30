@@ -26,6 +26,7 @@ type AppContext interface {
 type restContext interface { // TODO keep ?
 	AppContext
 	getResourceModel() IBusinessObjectModel // the business object model of the resource being requested
+	GetCurrentUser() IUser                  // the authenticated caller, or nil if there is none (public endpoint, or auth not configured)
 }
 
 // ------------------------------------------------------------------------------------------------

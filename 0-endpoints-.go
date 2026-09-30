@@ -59,6 +59,7 @@ type iEndpoint interface {
 	isCalledFromNativeApp() bool
 	trimBodyLoggingTo() int
 	getGroup() *EndpointGroup
+	isPublic() bool                // if true, this endpoint can be called without authentication
 	getOutputListLen(list any) int // the number of elements in a returned object list, whatever its concrete []ResourceType is
 	returnOne(webCtx WebContext) (any, hstatus.Code, string)
 	returnMany(webCtx WebContext) (any, hstatus.Code, string)
@@ -89,6 +90,7 @@ type endpoint[ResourceType IBusinessObject] struct {
 	calledFromNativeApp    bool                 // if true then this endpoint can be called from the native app, so the BOs involved might be synced through codegen
 	logBodyFirstCharsNb    int                  // if > 0, we're logging only the n-th first chars of the body, not it's entirety
 	group                  *EndpointGroup       // if not empty, this is the name of the group this endpoint belongs to, which can be used for documentation or other purposes
+	public                 bool                 // if true, this endpoint can be called without authentication (e.g. a login endpoint)
 }
 
 func (ep *endpoint[ResourceType]) getMethod() string {
@@ -187,6 +189,10 @@ func (ep *endpoint[ResourceType]) trimBodyLoggingTo() int {
 
 func (ep *endpoint[ResourceType]) getGroup() *EndpointGroup {
 	return ep.group
+}
+
+func (ep *endpoint[ResourceType]) isPublic() bool {
+	return ep.public
 }
 
 func (ep *endpoint[ResourceType]) returnOne(webCtx WebContext) (any, hstatus.Code, string) {
@@ -311,6 +317,13 @@ func (thisEndpoint *endpoint[ResourceType]) TrimBodyLogging(trimTo int) *endpoin
 // Putting the endpoint in a group, which can be used for documentation or other purposes
 func (thisEndpoint *endpoint[ResourceType]) InGroup(group *EndpointGroup) *endpoint[ResourceType] {
 	thisEndpoint.group = group
+
+	return thisEndpoint
+}
+
+// Marking this endpoint as callable without authentication, e.g. a login endpoint or a public health check
+func (thisEndpoint *endpoint[ResourceType]) Public() *endpoint[ResourceType] {
+	thisEndpoint.public = true
 
 	return thisEndpoint
 }

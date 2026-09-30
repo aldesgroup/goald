@@ -10,11 +10,13 @@ import (
 // static, reflect-free access to the definition of the User model
 type UserModel struct {
 	g.IBusinessObjectModel
-	email     *g.StringField
-	password  *g.StringField
-	firstName *g.StringField
-	lastName  *g.StringField
-	memberOf  *g.Relationship
+	email      *g.StringField
+	password   *g.StringField
+	firstName  *g.StringField
+	lastName   *g.StringField
+	externalId *g.StringField
+	realm      *g.StringField
+	memberOf   *g.Relationship
 }
 
 // this is the main way to refer to the User model in the applicative code
@@ -42,6 +44,8 @@ func NewUserModel() *UserModel {
 	thisModel.password = g.AddStringField(thisModel, "User", "Password", false)
 	thisModel.firstName = g.AddStringField(thisModel, "User", "FirstName", false)
 	thisModel.lastName = g.AddStringField(thisModel, "User", "LastName", false)
+	thisModel.externalId = g.AddStringField(thisModel, "User", "ExternalID", false)
+	thisModel.realm = g.AddStringField(thisModel, "User", "Realm", false)
 	thisModel.memberOf = g.AddPolyRelationship(thisModel, "User", "MemberOf", true)
 
 	return thisModel
@@ -68,6 +72,14 @@ func (U *UserModel) FirstName() *g.StringField {
 
 func (U *UserModel) LastName() *g.StringField {
 	return U.lastName
+}
+
+func (U *UserModel) ExternalID() *g.StringField {
+	return U.externalId
+}
+
+func (U *UserModel) Realm() *g.StringField {
+	return U.realm
 }
 
 func (U *UserModel) MemberOf() *g.Relationship {
