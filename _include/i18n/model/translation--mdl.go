@@ -18,6 +18,13 @@ type TranslationModel struct {
 
 // this is the main way to refer to the Translation model in the applicative code
 func Translation() *TranslationModel {
+	translationOnce.Do(func() {
+		translation = NewTranslationModel()
+
+		// this helps dynamically access to the Translation model
+		g.RegisterModel("Translation", translation)
+	})
+
 	return translation
 }
 
@@ -40,15 +47,10 @@ func NewTranslationModel() *TranslationModel {
 
 // making sure the Translation model exists at app startup
 func init() {
-	translationOnce.Do(func() {
-		translation = NewTranslationModel()
-	})
-
-	// this helps dynamically access to the Translation model
-	g.RegisterModel("Translation", translation)
+	Translation()
 }
 
-// accessing all the Translation model's properties and relationships
+// accessing all the Translation model's properties and relation	ships
 
 func (T *TranslationModel) Lang() *g.StringField {
 	return T.lang

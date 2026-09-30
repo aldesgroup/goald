@@ -19,6 +19,13 @@ type DeviceBootstrapModel struct {
 
 // this is the main way to refer to the DeviceBootstrap model in the applicative code
 func DeviceBootstrap() *DeviceBootstrapModel {
+	deviceBootstrapOnce.Do(func() {
+		deviceBootstrap = NewDeviceBootstrapModel()
+
+		// this helps dynamically access to the DeviceBootstrap model
+		g.RegisterModel("DeviceBootstrap", deviceBootstrap)
+	})
+
 	return deviceBootstrap
 }
 
@@ -42,15 +49,10 @@ func NewDeviceBootstrapModel() *DeviceBootstrapModel {
 
 // making sure the DeviceBootstrap model exists at app startup
 func init() {
-	deviceBootstrapOnce.Do(func() {
-		deviceBootstrap = NewDeviceBootstrapModel()
-	})
-
-	// this helps dynamically access to the DeviceBootstrap model
-	g.RegisterModel("DeviceBootstrap", deviceBootstrap)
+	DeviceBootstrap()
 }
 
-// accessing all the DeviceBootstrap model's properties and relationships
+// accessing all the DeviceBootstrap model's properties and relation	ships
 
 func (D *DeviceBootstrapModel) Status() *g.EnumField {
 	return D.status

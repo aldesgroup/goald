@@ -23,6 +23,13 @@ type DeviceLinkRequestModel struct {
 
 // this is the main way to refer to the DeviceLinkRequest model in the applicative code
 func DeviceLinkRequest() *DeviceLinkRequestModel {
+	deviceLinkRequestOnce.Do(func() {
+		deviceLinkRequest = NewDeviceLinkRequestModel()
+
+		// this helps dynamically access to the DeviceLinkRequest model
+		g.RegisterModel("DeviceLinkRequest", deviceLinkRequest)
+	})
+
 	return deviceLinkRequest
 }
 
@@ -50,15 +57,10 @@ func NewDeviceLinkRequestModel() *DeviceLinkRequestModel {
 
 // making sure the DeviceLinkRequest model exists at app startup
 func init() {
-	deviceLinkRequestOnce.Do(func() {
-		deviceLinkRequest = NewDeviceLinkRequestModel()
-	})
-
-	// this helps dynamically access to the DeviceLinkRequest model
-	g.RegisterModel("DeviceLinkRequest", deviceLinkRequest)
+	DeviceLinkRequest()
 }
 
-// accessing all the DeviceLinkRequest model's properties and relationships
+// accessing all the DeviceLinkRequest model's properties and relation	ships
 
 func (D *DeviceLinkRequestModel) Model() *g.StringField {
 	return D.model

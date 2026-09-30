@@ -14,4 +14,5 @@ type TranslationQuery struct {
 
 func init() {
 	model.TranslationQuery().SetDescription("The URL query parameters for the endpoint to retrieve translations")
+	model.TranslationQuery().SetNotPersisted()
 }

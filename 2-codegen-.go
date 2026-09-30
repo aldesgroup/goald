@@ -17,7 +17,7 @@ type packageName string
 
 const codeGenSOURCES codeGenLevel = 1
 const codeGenMODELS codeGenLevel = 2
-const codeGenUTILS codeGenLevel = 3
+const codeGenALLxUTILS codeGenLevel = 3
 const codeGenCHECK codeGenLevel = 4
 const dirtyFILENAME = "dirty"
 
@@ -52,7 +52,7 @@ func (thisServer *server) runCodeGen(cgp *codegenParams) {
 
 		thisServer.Info(fmt.Sprintf("done generating the BO models in %s", time.Since(start)))
 
-	case codeGenUTILS:
+	case codeGenALLxUTILS:
 		start := time.Now()
 
 		// now, using the models, we can generate useful utils

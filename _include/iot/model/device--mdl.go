@@ -19,6 +19,13 @@ type DeviceModel struct {
 
 // this is the main way to refer to the Device model in the applicative code
 func Device() *DeviceModel {
+	deviceOnce.Do(func() {
+		device = NewDeviceModel()
+
+		// this helps dynamically access to the Device model
+		g.RegisterModel("Device", device)
+	})
+
 	return device
 }
 
@@ -42,15 +49,10 @@ func NewDeviceModel() *DeviceModel {
 
 // making sure the Device model exists at app startup
 func init() {
-	deviceOnce.Do(func() {
-		device = NewDeviceModel()
-	})
-
-	// this helps dynamically access to the Device model
-	g.RegisterModel("Device", device)
+	Device()
 }
 
-// accessing all the Device model's properties and relationships
+// accessing all the Device model's properties and relation	ships
 
 func (D *DeviceModel) Status() *g.EnumField {
 	return D.status

@@ -58,6 +58,7 @@ type IBusinessObjectModel interface {
 	setUsedInWebApp()
 	getIdField() *BigIntField
 	getMaxListSize() int
+	getNaturalName() string
 
 	// utils
 	getPersistedProperties() []IBusinessObjectProperty
@@ -106,6 +107,7 @@ type businessObjectModel struct {
 	relationshipsWithRequiredBackref []*Relationship                      // all the relationships through which the target BOs cannot be persisted without a backref to this BO
 	maxListSize                      int                                  // the maximum number of items that can be listed for this business object model
 	listLoadingConfig                ILoadingConfig                       // the loading config suitable for loading lists of this business object type
+	naturalName                      string                               // the natural name of the business object model, used for display purposes
 }
 
 const BoFieldID = "ID"       // the name of the ID field, which is a special case in Goald
@@ -313,6 +315,14 @@ func (boModel *businessObjectModel) getMaxListSize() int {
 
 func (boModel *businessObjectModel) getListLoadingConfig() ILoadingConfig {
 	return boModel.listLoadingConfig
+}
+
+func (boModel *businessObjectModel) getNaturalName() string {
+	if boModel.naturalName == "" {
+		boModel.naturalName = core.PascalToNatural(string(boModel.name))
+	}
+
+	return boModel.naturalName
 }
 
 // ------------------------------------------------------------------------------------------------

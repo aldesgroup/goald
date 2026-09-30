@@ -10,7 +10,6 @@ import (
 	"time"
 
 	core "github.com/aldesgroup/corego"
-	"github.com/aldesgroup/goald/features/utils"
 )
 
 // ------------------------------------------------------------------------------------------------
@@ -21,8 +20,8 @@ func (thisServer *server) runCodeChecks() {
 	start := time.Now()
 
 	// checking each BO model
-	for modelName, model := range modelRegistry.items {
-		thisServer.checkModel(modelName, model)
+	for _, model := range core.GetSortedValues(modelRegistry.items) {
+		thisServer.checkModel(model)
 	}
 
 	// checking each endpoint
@@ -37,8 +36,9 @@ func (thisServer *server) runCodeChecks() {
 // BO model checking
 // ------------------------------------------------------------------------------------------------
 
-func (thisServer *server) checkModel(modelName utils.ModelName, model IBusinessObjectModel) {
+func (thisServer *server) checkModel(model IBusinessObjectModel) {
 	nbChildToParentRelationships := 0
+	modelName := model.GetName()
 
 	// model-level controls
 	if expected := core.ToPascal(string(modelName)); string(modelName) != expected {
@@ -107,8 +107,8 @@ func (thisServer *server) checkModel(modelName utils.ModelName, model IBusinessO
 		if model.isPersisted() || model.isUsedInNativeApp() || model.isUsedInWebApp() {
 			for _, relationship := range model.getRelationships() {
 				if relationship.relationType == 0 {
-					core.PanicMsg("Relationship '%s.%s' should have a defined type, with SetChildToParent(), "+
-						"SetSourceToTarget() or SetOneWay()", modelName, relationship.name)
+					core.PanicMsg("Relationship '%s' should have a defined type, with SetChildToParent(), "+
+						"SetSourceToTarget() or SetOneWay()", relationship.getKey())
 				}
 
 				if relationship.relationType == relationshipTypeCHILDxTOxPARENT {

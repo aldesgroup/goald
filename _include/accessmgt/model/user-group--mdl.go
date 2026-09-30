@@ -17,6 +17,13 @@ type UserGroupModel struct {
 
 // this is the main way to refer to the UserGroup model in the applicative code
 func UserGroup() *UserGroupModel {
+	userGroupOnce.Do(func() {
+		userGroup = NewUserGroupModel()
+
+		// this helps dynamically access to the UserGroup model
+		g.RegisterModel("UserGroup", userGroup)
+	})
+
 	return userGroup
 }
 
@@ -38,15 +45,10 @@ func NewUserGroupModel() *UserGroupModel {
 
 // making sure the UserGroup model exists at app startup
 func init() {
-	userGroupOnce.Do(func() {
-		userGroup = NewUserGroupModel()
-	})
-
-	// this helps dynamically access to the UserGroup model
-	g.RegisterModel("UserGroup", userGroup)
+	UserGroup()
 }
 
-// accessing all the UserGroup model's properties and relationships
+// accessing all the UserGroup model's properties and relation	ships
 
 func (U *UserGroupModel) Name() *g.StringField {
 	return U.name

@@ -9,11 +9,11 @@ import (
 // Provides a partial implementation of the User business object
 type User struct {
 	goald.BusinessObject
-	Email     string             `json:"email,omitempty"     io:"i*" desc:"the user's email address, which serves as her/his username"`
-	Password  string             `json:"password,omitempty"  io:"i*" desc:"the user's password"`
-	FirstName string             `json:"firstName,omitempty" io:"i*" desc:"the user's first name"`
-	LastName  string             `json:"lastName,omitempty"  io:"i*" desc:"the user's last name"`
-	MemberOf  []goald.IUserGroup `json:"memberOf,omitempty"  io:"in" desc:"the list of user groups the user is a member of"`
+	Email     string             `json:"email,omitempty"     io:"i*" desc:"the %s's email address, which serves as her/his username"`
+	Password  string             `json:"password,omitempty"  io:"i*" desc:"the %s's password"`
+	FirstName string             `json:"firstName,omitempty" io:"i*" desc:"the %s's first name"`
+	LastName  string             `json:"lastName,omitempty"  io:"i*" desc:"the %s's last name"`
+	MemberOf  []goald.IUserGroup `json:"memberOf,omitempty"  io:"in" desc:"the list of user groups the %s is a member of"`
 }
 
 func init() {

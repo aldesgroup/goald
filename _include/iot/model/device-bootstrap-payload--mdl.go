@@ -18,6 +18,13 @@ type DeviceBootstrapPayloadModel struct {
 
 // this is the main way to refer to the DeviceBootstrapPayload model in the applicative code
 func DeviceBootstrapPayload() *DeviceBootstrapPayloadModel {
+	deviceBootstrapPayloadOnce.Do(func() {
+		deviceBootstrapPayload = NewDeviceBootstrapPayloadModel()
+
+		// this helps dynamically access to the DeviceBootstrapPayload model
+		g.RegisterModel("DeviceBootstrapPayload", deviceBootstrapPayload)
+	})
+
 	return deviceBootstrapPayload
 }
 
@@ -40,15 +47,10 @@ func NewDeviceBootstrapPayloadModel() *DeviceBootstrapPayloadModel {
 
 // making sure the DeviceBootstrapPayload model exists at app startup
 func init() {
-	deviceBootstrapPayloadOnce.Do(func() {
-		deviceBootstrapPayload = NewDeviceBootstrapPayloadModel()
-	})
-
-	// this helps dynamically access to the DeviceBootstrapPayload model
-	g.RegisterModel("DeviceBootstrapPayload", deviceBootstrapPayload)
+	DeviceBootstrapPayload()
 }
 
-// accessing all the DeviceBootstrapPayload model's properties and relationships
+// accessing all the DeviceBootstrapPayload model's properties and relation	ships
 
 func (D *DeviceBootstrapPayloadModel) Serial() *g.StringField {
 	return D.serial

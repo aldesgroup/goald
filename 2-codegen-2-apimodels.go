@@ -15,7 +15,7 @@ import (
 	"github.com/aldesgroup/goald/features/utils"
 )
 
-const modelTEMPLATE = `// Generated file, do not edit!
+const modelTEMPLATE1 = `// Generated file, do not edit!
 package model
 
 import (
@@ -23,14 +23,23 @@ import (
 
 	g "github.com/aldesgroup/goald"$$imports$$
 )
+`
 
+const modelTEMPLATE2 = `
 // static, reflect-free access to the definition of the $$Upper$$ model
 type $$Upper$$Model struct {
 $$propdecl$$
 }
 
 // this is the main way to refer to the $$Upper$$ model in the applicative code
-func $$Upper$$() *$$Upper$$Model {
+func **modelPrefix**$$Upper$$() *$$Upper$$Model {
+	$$lower$$Once.Do(func() {
+		$$lower$$ = New$$Upper$$Model()
+
+		// this helps dynamically access to the $$Upper$$ model
+		g.RegisterModel("$$Upper$$", $$lower$$)
+	})
+ 
 	return $$lower$$
 }
 
@@ -47,15 +56,10 @@ func New$$Upper$$Model() *$$Upper$$Model {
 
 // making sure the $$Upper$$ model exists at app startup
 func init() {
-	$$lower$$Once.Do(func() {
-		$$lower$$ = New$$Upper$$Model()
-	})
-
-	// this helps dynamically access to the $$Upper$$ model
-	g.RegisterModel("$$Upper$$", $$lower$$)
+	**modelPrefix**$$Upper$$()
 }
 
-// accessing all the $$Upper$$ model's properties and relationships
+// accessing all the $$Upper$$ model's properties and relation	ships
 
 $$accessors$$
 
@@ -78,8 +82,7 @@ func (thisServer *server) generateAllObjectModels(srcdir string, regen bool) (co
 	modelSourceNames := core.GetSortedKeys(sourceRegistry.items)
 
 	// iterating over each package for which we've already got a registry
-	core.EnsureDir(srcdir, includePATH)
-	for _, includeDirEntry := range core.EnsureReadDir(srcdir, includePATH) {
+	for _, includeDirEntry := range core.EnsureReadDir(core.EnsureDir(srcdir, includePATH)) {
 		// if it's not a directory, we skip it
 		if !includeDirEntry.IsDir() || includeDirEntry.Name() == dbFOLDERNAME {
 			continue
@@ -127,13 +130,44 @@ func (thisServer *server) generateAllObjectModels(srcdir string, regen bool) (co
 			}
 		}
 
-		// removing the unneeded model files
-		for _, unneededModel := range existingModelFiles {
-			thisServer.Info(fmt.Sprintf("removing %s", unneededModel.filename))
-			if errRem := os.Remove(path.Join(modelDir, unneededModel.filename)); errRem != nil {
-				core.PanicMsgIfErr(errRem, "Could not delete model file '%s'", unneededModel.filename)
+		// // removing the unneeded model files
+		// for _, unneededModel := range existingModelFiles {
+		// 	thisServer.Info(fmt.Sprintf("removing %s", unneededModel.filename))
+		// 	if errRem := os.Remove(path.Join(modelDir, unneededModel.filename)); errRem != nil {
+		// 		core.PanicMsgIfErr(errRem, "Could not delete model file '%s'", unneededModel.filename)
+		// 	}
+		// }
+	}
+
+	// should we also take care of the BOs inside Goald?
+	if getCurrentSourceModuleName() == "goald" {
+		for _, goaldEntry := range core.EnsureReadDir(".") {
+			// checking we're dealing with a BO
+			if goaldEntry.IsDir() || !strings.HasSuffix(goaldEntry.Name(), boFILExSUFFIX) {
+				continue
 			}
+
+			// getting the model name from the Goald entry
+			modelName := utils.ModelName(core.KebabToPascal(strings.Replace(goaldEntry.Name(), boFILExSUFFIX, "", 1)))
+
+			// name of the XTD file that we'll append the model to
+			xtdFilename := strings.Replace(goaldEntry.Name(), boFILExSUFFIX, xtdFILExSUFFIX, 1)
+
+			// if the file does not exist, or has been updated "long" ago, then we do nothing
+			if fi, err := os.Stat(xtdFilename); err == nil && time.Since(fi.ModTime()) > 2*time.Second {
+				continue
+			}
+
+			// getting the source for this model
+			source := sourceRegistry.items[modelName]
+
+			// generating the missing or outdated model
+			thisServer.generateOneModel(".", source)
+
+			// the code has changed - without this, step 3 can run against a binary compiled before this step's changes
+			codeChanged = true
 		}
+
 	}
 
 	return
@@ -154,6 +188,18 @@ type modelGenPropertyInfo struct {
 func (thisServer *server) generateOneModel(modelDir string, source IBusinessObjectModelSource) {
 	// starting to build the file content, with the same context
 	context := &modelGenerationContext{propertiesMap: map[string]modelGenPropertyInfo{}}
+
+	// which template to use?
+	var modelTEMPLATE string
+	if !source.isInGoald() {
+		modelTEMPLATE = modelTEMPLATE1 + modelTEMPLATE2
+	} else {
+		modelTEMPLATE = `
+// -----------------------------------------------------------------------------
+// The MODEL part
+// -----------------------------------------------------------------------------
+` + modelTEMPLATE2
+	}
 
 	// trivial filling of the template
 	content := strings.ReplaceAll(modelTEMPLATE, "$$Upper$$", string(source.GetName()))
@@ -178,7 +224,20 @@ func (thisServer *server) generateOneModel(modelDir string, source IBusinessObje
 	}
 
 	// writing to file
-	core.WriteToFile(content, modelDir, core.PascalToKebab(string(source.GetName()))+modelFILExSUFFIX)
+	if !source.isInGoald() {
+		content = strings.ReplaceAll(content, "**modelPrefix**", "")
+		core.WriteToFile(content, modelDir, core.PascalToKebab(string(source.GetName()))+modelFILExSUFFIX)
+	} else {
+		content = strings.ReplaceAll(content, "**modelPrefix**", "model")
+		content = strings.ReplaceAll(content, "g.", "")
+
+		fileName := path.Join(modelDir, core.PascalToKebab(string(source.GetName()))+xtdFILExSUFFIX)
+
+		previousContent := string(core.ReadFile(fileName, true))
+		previousContent = strings.Replace(previousContent, "//$$imports$$", "//$$imports$$"+newline+"\"sync\"", 1) // setting the import above the SOURCE part
+
+		core.WriteToFile(previousContent+content, fileName)
+	}
 
 	thisServer.Info(fmt.Sprintf("(Re-)generated model %s", source.GetName()))
 }
@@ -196,11 +255,11 @@ func buildPropDecl(source IBusinessObjectModelSource, context *modelGenerationCo
 	}
 
 	if context.superType = superModelField.Type(); context.superType.Equals(typeBUSINESSxOBJECT) {
-		result += "g.IBusinessObjectModel"
-	} else if context.superType.Equals(typeSEARCHxPARAMxVALUES) {
-		result += "g.ISearchParamValuesModel"
+		result += "	g.IBusinessObjectModel"
+		// } else if context.superType.Equals(typeSEARCHxPARAMxVALUES) {
+		// 	result += "g.ISearchParamValuesModel"
 	} else {
-		result += "" + getImportPkg(imports, source, superModelField.Type().Name()) +
+		result += "	" + getImportPkg(imports, source, superModelField.Type().Name()) +
 			superModelField.Type().Name() + modelNAMExSUFFIX
 	}
 
@@ -229,9 +288,9 @@ func buildPropDecl(source IBusinessObjectModelSource, context *modelGenerationCo
 
 			// writing out the property's declaration inside the Model object it belong to
 			if propertyType.IsRelationship() {
-				result += newline + "" + core.PascalToCamel(field.Name()) + " *g.Relationship"
+				result += newline + "	" + core.PascalToCamel(field.Name()) + " *g.Relationship"
 			} else {
-				result += newline + "" + core.PascalToCamel(field.Name()) + " *g." + getFieldForType(propertyType)
+				result += newline + "	" + core.PascalToCamel(field.Name()) + " *g." + getFieldForType(propertyType)
 			}
 		}
 	}
@@ -244,8 +303,9 @@ func getImportPackageLine(source IBusinessObjectModelSource) string {
 }
 
 func getImportModelLine(source IBusinessObjectModelSource) string {
-	targetObjGoModule := core.Before(getImportPackageLine(source), source.getSrcPath())                     // e.g. github.com/aldesgroup/project/
-	return fmt.Sprintf("%[1]s_model \"%[2]s_include/%[1]s/model\"", source.getPackage(), targetObjGoModule) // e.g. packagename_model "github.com/aldesgroup/project/_include/packagename"
+	targetObjGoModule := core.Before(getImportPackageLine(source), source.getSrcPath())                              // e.g. github.com/aldesgroup/project/
+	toImport := fmt.Sprintf("%[1]s_model \"%[2]s_include/%[1]s/model\"", source.getSrcPathName(), targetObjGoModule) // e.g. packagename_model "github.com/aldesgroup/project/_include/packagename"
+	return toImport
 }
 
 func getFieldForType(propertyType propertyType) string {
@@ -277,10 +337,11 @@ func buildPropInit(source IBusinessObjectModelSource, context *modelGenerationCo
 	modelInit := "thisModel := &" + string(source.GetName()) + modelNAMExSUFFIX + "{%s: %s}"
 	superModelDecl := "IBusinessObjectModel"
 	superModelValue := "g.NewBusinessObjectModel()"
-	if context.superType.Equals(typeSEARCHxPARAMxVALUES) {
-		superModelDecl = "ISearchParamValuesModel"
-		superModelValue = "g.NewSearchParamValuesModel()"
-	} else if !context.superType.Equals(typeBUSINESSxOBJECT) {
+	// if context.superType.Equals(typeSEARCHxPARAMxVALUES) {
+	// 	superModelDecl = "ISearchParamValuesModel"
+	// 	superModelValue = "g.NewSearchParamValuesModel()"
+	// } else
+	if !context.superType.Equals(typeBUSINESSxOBJECT) {
 		superModelDecl = context.superType.Name() + modelNAMExSUFFIX
 		superModelValue = "*" + getImportPkg(imports, source, context.superType.Name()) + "New" + context.superType.Name() + "Model()"
 	}
@@ -292,7 +353,7 @@ func buildPropInit(source IBusinessObjectModelSource, context *modelGenerationCo
 	// valueing each model property
 	for _, propName := range context.propertyNames {
 		propInfo := context.propertiesMap[propName]
-		propLine := "thisModel." + core.PascalToCamel(propName) + " = "
+		propLine := "	thisModel." + core.PascalToCamel(propName) + " = "
 
 		multiple := "false"
 		if propInfo.multiple {
@@ -300,10 +361,10 @@ func buildPropInit(source IBusinessObjectModelSource, context *modelGenerationCo
 		}
 
 		if propInfo.propType == propertyTypeRELATIONSHIPxMONOM {
-			propLine += fmt.Sprintf("g.AddRelationship(%s, \"%s\", \"%s\", %s, \"%s\")",
+			propLine += fmt.Sprintf("	g.AddRelationship(%s, \"%s\", \"%s\", %s, \"%s\")",
 				"thisModel", source.GetName(), propName, multiple, propInfo.targetType)
 		} else if propInfo.propType == propertyTypeRELATIONSHIPxPOLYM {
-			propLine += fmt.Sprintf("g.AddPolyRelationship(%s, \"%s\", \"%s\", %s)",
+			propLine += fmt.Sprintf("	g.AddPolyRelationship(%s, \"%s\", \"%s\", %s)",
 				"thisModel", source.GetName(), propName, multiple)
 		} else {
 			if propInfo.propType == propertyTypeENUM {
@@ -325,12 +386,19 @@ func buildPropInit(source IBusinessObjectModelSource, context *modelGenerationCo
 func getImportPkg(imports map[string]string, fromSource IBusinessObjectModelSource, forSourceName string) string {
 	sourceName := utils.ModelName(forSourceName)
 	sourceObj := sourceRegistry.items[sourceName]
-	sourcePkg := sourceObj.getPackage()
+	core.PanicMsgIf(sourceObj == nil, "It looks like no model named '%s' has been registered, "+
+		"i.e. its package has probably not been 'included', i.e. imported in the start.go file,"+
+		" like this: import _ \"module_full_name/_include/package_name\"", sourceName)
+	if sourceObj.isInGoald() {
+		return "g."
+	}
+
+	sourcePkg := sourceObj.getSrcPathName()
 	sourceMod := sourceObj.getModule()
 	superImport := ""
-	if sourceMod != getCurrentSourceModuleName() || sourcePkg != fromSource.getPackage() {
-		if imports[sourceObj.getPackage()] == "" {
-			imports[sourceObj.getPackage()] = getImportModelLine(sourceObj) // the needed import
+	if sourceMod != getCurrentSourceModuleName() || sourcePkg != fromSource.getSrcPathName() {
+		if imports[sourceObj.getSrcPathName()] == "" {
+			imports[sourceObj.getSrcPathName()] = getImportModelLine(sourceObj) // the needed import
 		}
 		superImport = sourcePkg + "_model."
 	}
@@ -352,7 +420,7 @@ func buildAccessors(source IBusinessObjectModelSource, context *modelGenerationC
 			accType = "Relationship"
 		}
 		accessor := fmt.Sprintf("func (%s *%sModel) %s() *g.%s {"+
-			newline+"return %s.%s"+
+			newline+"	return %s.%s"+
 			newline+"}",
 			ownerShort, ownerName, propName, accType,
 			ownerShort, core.PascalToCamel(propName),

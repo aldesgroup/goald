@@ -17,6 +17,13 @@ type DeviceBootstrapRequestModel struct {
 
 // this is the main way to refer to the DeviceBootstrapRequest model in the applicative code
 func DeviceBootstrapRequest() *DeviceBootstrapRequestModel {
+	deviceBootstrapRequestOnce.Do(func() {
+		deviceBootstrapRequest = NewDeviceBootstrapRequestModel()
+
+		// this helps dynamically access to the DeviceBootstrapRequest model
+		g.RegisterModel("DeviceBootstrapRequest", deviceBootstrapRequest)
+	})
+
 	return deviceBootstrapRequest
 }
 
@@ -38,15 +45,10 @@ func NewDeviceBootstrapRequestModel() *DeviceBootstrapRequestModel {
 
 // making sure the DeviceBootstrapRequest model exists at app startup
 func init() {
-	deviceBootstrapRequestOnce.Do(func() {
-		deviceBootstrapRequest = NewDeviceBootstrapRequestModel()
-	})
-
-	// this helps dynamically access to the DeviceBootstrapRequest model
-	g.RegisterModel("DeviceBootstrapRequest", deviceBootstrapRequest)
+	DeviceBootstrapRequest()
 }
 
-// accessing all the DeviceBootstrapRequest model's properties and relationships
+// accessing all the DeviceBootstrapRequest model's properties and relation	ships
 
 func (D *DeviceBootstrapRequestModel) FactoryCertPEM() *g.StringField {
 	return D.factoryCertPem

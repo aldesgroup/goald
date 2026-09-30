@@ -8,13 +8,15 @@ import (
 	core "github.com/aldesgroup/corego"
 )
 
-const utilsFileTEMPLATE = `// Generated file, do not edit!
+const utilsFileTEMPLATE1 = `// Generated file, do not edit!
 package $$package$$
 
 import (
 	$$otherimports$$
 )
+`
 
+const utilsFileTEMPLATE2 = `
 // ------------------------------------------------------------------------------------------------
 // Instantiation / cache retrieval
 // ------------------------------------------------------------------------------------------------
@@ -187,7 +189,7 @@ $$removecycles$$}
 func (bo *$$Upper$$) SetModelNames() {
 $$setmodelnames$$}`
 
-const utilsFILExSUFFIX = "--xtd.go"
+const xtdFILExSUFFIX = "--xtd.go"
 
 type xtdGenerator struct{}
 
@@ -211,14 +213,14 @@ func (thisServer *server) generateAllObjectXTDs(srcdir, currentPath string, rege
 				model := thisServer.getModelFromFile(srcdir, currentPath, entry.Name())
 
 				// this file lives directly alongside the BO's own source file, within the BO's own package
-				utilsFilepath := path.Join(srcdir, model.getSrcPath(), strings.Replace(entry.Name(), boFILExSUFFIX, utilsFILExSUFFIX, 1))
+				xtdFilepath := path.Join(srcdir, model.getSrcPath(), strings.Replace(entry.Name(), boFILExSUFFIX, xtdFILExSUFFIX, 1))
 
 				// no xtd file for interfaces
 				if !model.isInterface() {
 
 					// generating the xtd file, if not existing yet, or too old
-					if regen || !core.FileExists(utilsFilepath) || core.EnsureModTime(utilsFilepath).Before(model.getLastBOMod()) {
-						(&xtdGenerator{}).generateObjectXtdForModel(model, utilsFilepath)
+					if regen || !core.FileExists(xtdFilepath) || core.EnsureModTime(xtdFilepath).Before(model.getLastBOMod()) {
+						(&xtdGenerator{}).generateObjectXtdForModel(model, xtdFilepath)
 						codeChanged = true
 					}
 				}
@@ -231,9 +233,18 @@ func (thisServer *server) generateAllObjectXTDs(srcdir, currentPath string, rege
 
 // generating the xtd file for a given model, at the given path
 func (thisGen *xtdGenerator) generateObjectXtdForModel(model IBusinessObjectModel, filepath string) {
+	// for Goald models, we make sure we're not appending the same code twice
+	if model.isInGoald() {
+		if _, line := core.FindLineInFile(filepath, func(line string) bool {
+			return strings.Contains(line, "GetModelName()")
+		}, false); line > 0 {
+			return
+		}
+	}
+
 	// need for some imports - goald & utils are always needed
 	importsMap := map[string]bool{
-		"github.com/aldesgroup/goald":                true,
+		"github.com/aldesgroup/goald":                !model.isInGoald(),
 		"github.com/aldesgroup/goald/features/utils": true,
 	}
 
@@ -255,8 +266,16 @@ func (thisGen *xtdGenerator) generateObjectXtdForModel(model IBusinessObjectMode
 	// this file lives within the BO's own package: it must never import that same package
 	delete(importsMap, path.Join(getCurrentSourceModule(), model.getSrcPath()))
 
+	// which template to use ?
+	var utilsFileTEMPLATE string
+	if !model.isInGoald() {
+		utilsFileTEMPLATE = utilsFileTEMPLATE1 + utilsFileTEMPLATE2
+	} else {
+		utilsFileTEMPLATE = utilsFileTEMPLATE2
+	}
+
 	// filling up the content
-	content := strings.ReplaceAll(utilsFileTEMPLATE, "$$package$$", model.getPackage())
+	content := strings.ReplaceAll(utilsFileTEMPLATE, "$$package$$", model.getSrcPathName())
 	content = strings.ReplaceAll(content, "$$Upper$$", string(model.GetName()))
 	content = strings.Replace(content, "$$copyfields$$", strings.Join(copyFields, newline), 1)
 	content = strings.Replace(content, "$$copyrelationships$$", strings.Join(copyRelationships, newline), 1)
@@ -293,10 +312,18 @@ func (thisGen *xtdGenerator) generateObjectXtdForModel(model IBusinessObjectMode
 	if len(importsMap) > 0 {
 		imports = "\"" + strings.Join(core.GetSortedKeys(importsMap), "\""+newline+"	"+"\"") + "\""
 	}
+
+	if model.isInGoald() {
+		content = strings.ReplaceAll(content, "goald.", "")
+	}
 	content = strings.Replace(content, "$$otherimports$$", imports, 1)
 
 	// write out the file
-	core.WriteToFile(content, filepath)
+	if !model.isInGoald() {
+		core.WriteToFile(content, filepath)
+	} else {
+		core.AppendToFile(content, filepath)
+	}
 }
 
 func (thisGen *xtdGenerator) buildUtilsCopyProperties(model IBusinessObjectModel) (copyFields []string, copyRelationships []string) {
@@ -326,7 +353,7 @@ func (thisGen *xtdGenerator) buildUtilsValueCases(model IBusinessObjectModel, im
 			if fieldName := field.GetName(); !field.IsMultiple() && fieldName != boFieldPreID {
 				// is the field type a type alias, or a built-in type? - stripping this package's own
 				// qualification, since we're generating code that lives directly within that package
-				fieldTypeAlias := stripSelfPackage(getNonBuiltInFieldType(model.getType(), fieldName, importsMap), model.getPackage())
+				fieldTypeAlias := stripSelfPackage(getNonBuiltInFieldType(model.getType(), fieldName, importsMap), model.getSrcPathName())
 
 				// case init
 				getCase := fmt.Sprintf("	case \"%s\":", fieldName)
@@ -403,7 +430,7 @@ func (bo *%[1]s) AddAndReturn%[2]s(added %[3]s) %[3]s {
 }`,
 				model.GetName(),
 				relationship.GetName(),
-				stripSelfPackage(getRelationshipFieldType(model.getType(), relationship.GetName(), importsMap), model.getPackage()),
+				stripSelfPackage(getRelationshipFieldType(model.getType(), relationship.GetName(), importsMap), model.getSrcPathName()),
 			))
 		} else if !relationship.IsMultiple() && relationship.isIndirectlyPersisted() {
 			withAddedMethods = append(withAddedMethods, fmt.Sprintf(`
@@ -413,7 +440,7 @@ func (bo *%[1]s) SetAndReturn%[2]s(related %[3]s) %[3]s {
 }`,
 				model.GetName(),
 				relationship.GetName(),
-				stripSelfPackage(getRelationshipFieldType(model.getType(), relationship.GetName(), importsMap), model.getPackage()),
+				stripSelfPackage(getRelationshipFieldType(model.getType(), relationship.GetName(), importsMap), model.getSrcPathName()),
 			))
 		}
 	}
@@ -427,7 +454,7 @@ func (thisGen *xtdGenerator) buildUtilsSetParent(model IBusinessObjectModel) str
 		return "	// no parent for this model"
 	}
 
-	targetType := stripSelfPackage(getRelationshipFieldType(model.getType(), model.getChildToParentRelationship().GetName(), nil), model.getPackage())
+	targetType := stripSelfPackage(getRelationshipFieldType(model.getType(), model.getChildToParentRelationship().GetName(), nil), model.getSrcPathName())
 	return fmt.Sprintf("	bo.%s = parent.(%s)", model.getChildToParentRelationship().GetName(), targetType)
 }
 
@@ -441,7 +468,7 @@ func (thisGen *xtdGenerator) buildUtilsRelationshipCases(model IBusinessObjectMo
 
 		// the Go type to assert the incoming value against, e.g. "domain.IContact" or "*domain.Employee" -
 		// stripping this package's own qualification, since we're generating code living within that package
-		targetType := stripSelfPackage(getRelationshipFieldType(model.getType(), relName, importsMap), model.getPackage())
+		targetType := stripSelfPackage(getRelationshipFieldType(model.getType(), relName, importsMap), model.getSrcPathName())
 
 		relCase := fmt.Sprintf("	case \"%s\":", relName)
 
@@ -499,7 +526,7 @@ func (thisGen *xtdGenerator) buildGetMultiRelCase(relName string, relationship *
 	getMultiCase := fmt.Sprintf("	case \"%s\":", relName)
 	getMultiCase += newline + fmt.Sprintf("		%s := make([]goald.IBusinessObject, len(bo.%s))", resultVar, relName)
 	getMultiCase += newline + fmt.Sprintf("		for i, target := range bo.%s {", relName)
-	core.PanicMsgIf(relationship.relationType == 0, "Relationship '%s' should have a defined type", relName)
+	core.PanicMsgIf(relationship.relationType == 0, "Relationship '%s' should have a defined type", relationship.getKey())
 	if !relationship.isMultipleSource() && relationship.relationType != relationshipTypeONExWAY {
 		getMultiCase += newline + fmt.Sprintf("			target.%s = bo // ensuring the unique backref is set", relationship.getBackRefName())
 	}

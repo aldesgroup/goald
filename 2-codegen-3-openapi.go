@@ -234,6 +234,15 @@ func addEndpointToDoc(doc *openapi3.T, ep iEndpoint) error {
 				return err
 			}
 
+			var action string
+			if ep.getMethod() == http.MethodPost {
+				action = "create"
+			} else if ep.getMethod() == http.MethodPut {
+				action = "update"
+			} else {
+				action = "send"
+			}
+
 			var description string
 			if ep.isMultipleInput() {
 				description = fmt.Sprintf("An array of %s objects", inModel.GetName())
@@ -245,7 +254,7 @@ func addEndpointToDoc(doc *openapi3.T, ep iEndpoint) error {
 					},
 				}
 			} else {
-				description = fmt.Sprintf("A %s object", inModel.GetName())
+				description = fmt.Sprintf("A %s object to %s", inModel.GetName(), action)
 			}
 
 			op.RequestBody = &openapi3.RequestBodyRef{
@@ -455,12 +464,13 @@ func paramsFromModel(model IBusinessObjectModel, path string) (openapi3.Paramete
 	var out openapi3.Parameters
 
 	for _, field := range core.GetSortedValues(model.getFields()) {
-		schema := schemaFromPrimitiveType(field, true)
+		schema := schemaFromPrimitiveType(field, false)
 		parameter := &openapi3.Parameter{
-			Name:     field.GetName(),
-			In:       "query",
-			Required: field.isMandatoryInput(),
-			Schema:   schema,
+			Name:        field.GetName(),
+			In:          "query",
+			Required:    field.isMandatoryInput(),
+			Schema:      schema,
+			Description: getDescriptionFromFieldWithModel(field, model),
 		}
 
 		out = append(out, &openapi3.ParameterRef{Value: parameter})
@@ -476,15 +486,26 @@ func withDescription(schema *openapi3.Schema, description string) *openapi3.Sche
 	return schema
 }
 
+func getDescriptionFromFieldWithModel(field IField, model IBusinessObjectModel) string {
+	if field.GetName() == BoFieldID {
+		return "the unique identifier of the " + string(model.getNaturalName())
+	}
+	desc := field.getTag("desc")
+	if strings.Contains(desc, "%s") {
+		desc = fmt.Sprintf(desc, string(model.getNaturalName()))
+	}
+	return desc
+}
+
+func getDescriptionFromField(field IField) string {
+	return getDescriptionFromFieldWithModel(field, field.ownerModel())
+}
+
 func schemaFromPrimitiveType(field IField, addDesc bool) *openapi3.SchemaRef {
 
 	var description string
 	if addDesc {
-		if field.GetName() == BoFieldID {
-			description = "the unique identifier of the " + string(field.ownerModel().GetName())
-		} else {
-			description = field.getTag("desc")
-		}
+		description = getDescriptionFromField(field)
 	}
 
 	switch field.getPropertyType() {

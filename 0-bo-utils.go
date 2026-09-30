@@ -23,12 +23,16 @@ var (
 // ------------------------------------------------------------------------------------------------
 
 func modelFor(modelName utils.ModelName, failIfNil ...bool) IBusinessObjectModel {
-	if modelRegistry.items[modelName] == nil && (len(failIfNil) > 0 && failIfNil[0]) {
+	modelRegistry.mx.Lock()
+	model := modelRegistry.items[modelName]
+	modelRegistry.mx.Unlock()
+
+	if model == nil && (len(failIfNil) > 0 && failIfNil[0]) {
 		panic(fmt.Sprintf("It looks like no model named '%s' has been registered, "+
 			"i.e. its package has probably not been 'included', i.e. imported in the start.go file,"+
 			" like this: import _ \"module_full_name/_include/package_name\"", modelName))
 	}
-	return modelRegistry.items[modelName]
+	return model
 }
 
 func NewBusinessObject(modelName utils.ModelName, id BObjID) IBusinessObject {

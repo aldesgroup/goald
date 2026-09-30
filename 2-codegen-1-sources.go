@@ -61,7 +61,7 @@ func (thisServer *server) generateAllSources(srcdir, currentPath string, _ bool,
 					thisServer.Warn("Found new package " + string(currentPackage))
 				}
 
-				// getting the business object entry for the egustry, from the current file
+				// getting the business object entry for the registry, from the current file
 				if source := thisServer.getSourceFromFile(srcdir, currentPath, entry.Name()); source != nil {
 					// checking the biz obj / file naming
 					if expected := core.PascalToKebab(string(source.modelName)) + boFILExSUFFIX; expected != entry.Name() {
@@ -159,30 +159,30 @@ const sourceFileTemplateBase = `// Generated file, do not edit!
 package %[1]s
 
 import (
-	"github.com/aldesgroup/goald"%[3]s
-)
+	%[3]s 
+)%[8]s
 
 type %[5]sModelSource struct {
-	goald.IBusinessObjectModelSource
+	%[7]sIBusinessObjectModelSource
 }
 
-func For%[5]s(srcPath, lastMod string) goald.IBusinessObjectModelSource {
-	return &%[5]sModelSource{IBusinessObjectModelSource: goald.NewBusinessObjectModelSource(srcPath, "%[5]s", lastMod)%[4]s}
+func For%[5]s(srcPath, lastMod string) %[7]sIBusinessObjectModelSource {
+	return &%[5]sModelSource{IBusinessObjectModelSource: %[7]sNewBusinessObjectModelSource(srcPath, "%[5]s", lastMod)%[4]s}
 }
 `
 
 const sourceFileTemplateConcrete = `
 func (this *%[5]sModelSource) NewObject() any {
-	return &%[6]s.%[5]s{}
+	return &%[6]s%[5]s{}
 }
 
 func (this *%[5]sModelSource) NewSlice() any {
-	return &[]*%[6]s.%[5]s{}
+	return &[]*%[6]s%[5]s{}
 }
 
 func (this *%[5]sModelSource) AppendToSlice(slicePtr any, bObj any) any {
-	s := slicePtr.(*[]*%[6]s.%[5]s)
-	*s = append(*s, bObj.(*%[6]s.%[5]s))
+	s := slicePtr.(*[]*%[6]s%[5]s)
+	*s = append(*s, bObj.(*%[6]s%[5]s))
 	return s
 }
 `
@@ -204,32 +204,56 @@ func (this *%[5]sModelSource) AppendToSlice(slicePtr any, bObj any) any {
 func (thisServer *server) genSourceFile(srcdir string, source *baseBusinessObjectModelSource, regen bool) (codeChanged bool) {
 	// the source filename - the "source" folder lives as a sibling of the "model" folder,
 	// inside the feature package's folder in the "_include" directory
-	sourceFilename := path.Join(srcdir, includePATH, path.Base(source.srcPath), sourceFOLDERxNAME,
-		core.PascalToKebab(string(source.modelName))+sourceFILExSUFFIX)
+	var sourceFilename, sourceFilePkg, importPkg, goaldPkg, extra string
+	if source.isInGoald() {
+		sourceFilename = path.Join(srcdir, core.PascalToKebab(string(source.modelName))+xtdFILExSUFFIX)
+		sourceFilePkg = "goald"
+		extra = `
+
+// -----------------------------------------------------------------------------
+// The SOURCE part
+// -----------------------------------------------------------------------------`
+	} else {
+		sourceFilename = path.Join(srcdir, includePATH, path.Base(source.srcPath), sourceFOLDERxNAME,
+			core.PascalToKebab(string(source.modelName))+sourceFILExSUFFIX)
+		sourceFilePkg = sourceFOLDERxNAME
+		importPkg = path.Join(getCurrentSourceModule(), source.srcPath)
+		goaldPkg = "goald."
+	}
 
 	// does it exist?
-	if !core.FileExists(sourceFilename) || regen {
+	if !core.FileExists(sourceFilename) || (regen && !source.isInGoald()) {
 		thisServer.Info(fmt.Sprintf("Will generate source: %s", sourceFilename))
 		content := sourceFileTemplateBase
-		importPkg := path.Join(getCurrentSourceModule(), source.srcPath)
-		toImport := ""
 		asInterface := ""
+		toImport := map[string]bool{}
+		if !source.isInGoald() {
+			toImport["\""+"github.com/aldesgroup/goald"+"\""] = true
+		} else {
+			toImport["//$$imports$$"] = true
+		}
 		if source.isInterface() {
 			content += sourceFileTemplateInterface
 			asInterface = ".AsInterface()"
 		} else {
 			content += sourceFileTemplateConcrete
-			toImport = fmt.Sprintf("\n\"%s\"", importPkg)
+			if !source.isInGoald() {
+				toImport["\""+importPkg+"\""] = true
+			}
 		}
 		content = fmt.Sprintf(content,
-			sourceFOLDERxNAME,        // 1
+			sourceFilePkg,            // 1
 			getCurrentSourceModule(), // 2
-			toImport,                 // 3
-			asInterface,              // 4
-			source.GetName(),         // 5
-			path.Base(importPkg),     // 6
+			strings.Join(core.GetSortedKeys(toImport), newline), // 3
+			asInterface,      // 4
+			source.GetName(), // 5
+			core.IfThenElse(importPkg != "", path.Base(importPkg)+".", ""), // 6
+			goaldPkg, // 7
+			extra,    // 8
 		)
+
 		core.WriteToFile(content, sourceFilename)
+
 		return true
 	}
 
@@ -241,14 +265,15 @@ func (thisServer *server) genSourceFile(srcdir string, source *baseBusinessObjec
 // ------------------------------------------------------------------------------------------------
 
 const goaldIMPORT = "g \"github.com/aldesgroup/goald\""
-const registryFileTemplate = `// Generated file, do not edit!
+const registryFileTemplate1 = `// Generated file, do not edit!
 package %s
-
-import (
+`
+const registryFileTemplate2 = `import (
 	` + goaldIMPORT + `
 %s
-)
+)`
 
+const registryFileTemplate3 = `
 func init() {
 %s
 }
@@ -288,7 +313,7 @@ func (thisServer *server) writeRegistryFilesIfNeeded(srcdir string, regen bool,
 		if !needRegen {
 			for modelName, source := range sourceRegistry.items {
 				if source.getModule() == getCurrentSourceModuleName() &&
-					source.getPackage() == string(currentPackage) &&
+					source.getSrcPathName() == string(currentPackage) &&
 					allSourcesInPackage[modelName] == nil {
 
 					needRegen = true
@@ -300,48 +325,55 @@ func (thisServer *server) writeRegistryFilesIfNeeded(srcdir string, regen bool,
 			}
 		}
 
+		// are we dealing with the goald package here?
+		isInGoald := currentPackage == "." && getCurrentSourceModuleName() == "goald"
+
 		// now let's write the registry file, if needed, and if we're at root
 		if nbEntries := len(allSourcesInPackage); nbEntries > 0 && needRegen {
 			// gathering the biz objs in order
-			registrationLines := []string{fmt.Sprintf("\tg.In(\"%s\")", getCurrentSourceModuleName())}
+			registrationLines := []string{fmt.Sprintf("\t%sIn(\"%s\")", core.IfThenElse(isInGoald, "", "g."), getCurrentSourceModuleName())}
 
 			// and the imports, but only once per import, hence the map
-			imports := []string{}
-			imported := map[string]bool{}
+			imports := map[string]bool{}
 
 			// going over all the sources
 			for _, source := range core.GetSortedValues(allSourcesInPackage) {
 				// adding 1 registration line per business object
 				boPath := path.Base(source.srcPath)
 				registrationLines = append(registrationLines,
-					fmt.Sprintf("%sRegister(source.For%s(\"%s\", \"%s\"))", "\t\t", source.modelName,
-						source.srcPath, source.getLastBOMod().Add(time.Second).Format(time.RFC3339)),
+					fmt.Sprintf("%sRegister(%sFor%s(\"%s\", \"%s\"))", "\t\t", core.IfThenElse(isInGoald, "", "source."),
+						source.modelName, source.srcPath, source.getLastBOMod().Add(time.Second).Format(time.RFC3339)),
 				)
 
 				// adding the corresponding import
-				if !imported[source.srcPath] {
-					imports = append(imports, "\""+path.Join(string(getCurrentSourceModule()), includePATH, boPath, sourceFOLDERxNAME)+"\"")
-					imports = append(imports, "_ \""+path.Join(string(getCurrentSourceModule()), includePATH, boPath, modelFOLDERxNAME)+"\"")
-					for dbFolder := range neededDBs {
-						imports = append(imports, "_ \""+path.Join(string(getCurrentSourceModule()), includePATH, dbFOLDERNAME, dbFolder)+"\"")
-					}
-					imported[source.srcPath] = true
+				imports["\""+path.Join(string(getCurrentSourceModule()), includePATH, boPath, sourceFOLDERxNAME)+"\""] = true
+				imports["_ \""+path.Join(string(getCurrentSourceModule()), includePATH, boPath, modelFOLDERxNAME)+"\""] = true
+				for dbFolder := range neededDBs {
+					imports["_ \""+path.Join(string(getCurrentSourceModule()), includePATH, dbFOLDERNAME, dbFolder)+"\""] = true
 				}
 			}
 
-			// which file?
-			filename := path.Join(srcdir, includePATH, string(currentPackage), registryFILExNAME)
+			// which file? well it depends where we are
+			if isInGoald {
+				// which content?
+				content := fmt.Sprintf(registryFileTemplate1+registryFileTemplate3,
+					"goald", strings.Join(registrationLines, "."+newline))
 
-			// which content?
-			dot := "." + newline
-			content := fmt.Sprintf(registryFileTemplate, string(currentPackage), strings.Join(imports, newline), strings.Join(registrationLines, dot))
+				// writing to the file, within goald
+				core.WriteToFile(content, path.Join(srcdir, registryFILExNAME))
 
-			// writing to the file
-			core.WriteToFile(content, filename)
+			} else {
+				// which content?
+				content := fmt.Sprintf(registryFileTemplate1+registryFileTemplate2+registryFileTemplate3,
+					string(currentPackage), strings.Join(core.GetSortedKeys(imports), newline), strings.Join(registrationLines, "."+newline))
 
-			// since we're importing the /model package, we make sure this package can be imported, i.e. it exists and has an index.go file
-			core.WriteStringToFile(path.Join(srcdir, includePATH, string(currentPackage), modelFOLDERxNAME, "index.go"),
-				"// Generated file, do not edit!"+newline+"package model")
+				// writing to the file
+				core.WriteToFile(content, path.Join(srcdir, includePATH, string(currentPackage), registryFILExNAME))
+
+				// since we're importing the /model package, we make sure this package can be imported, i.e. it exists and has an index.go file
+				core.WriteStringToFile(path.Join(srcdir, includePATH, string(currentPackage), modelFOLDERxNAME, "index.go"),
+					"// Generated file, do not edit!"+newline+"package model")
+			}
 
 			codeChanged = true
 		}

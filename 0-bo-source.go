@@ -25,9 +25,10 @@ type IBusinessObjectModelSource interface {
 	getModule() sourceModuleName       // the application or library in which the associated BO is developed
 	setModule(module sourceModuleName) // setting the module
 	getSrcPath() string                // source path of the associated Business Object
-	getPackage() string                // the name of the package the model is from
+	getSrcPathName() string            // the name of the package the model is from
 	isInterface() bool                 // tells if the model is a concrete one, or an interface
 	isFromDir(dirName string) bool     // tells if the model is from the given package
+	isInGoald() bool                   // tells if the model is part of the Goald framework
 
 	// public methods
 	AsInterface() IBusinessObjectModelSource  // sets the model as an interface
@@ -84,7 +85,7 @@ func (this *baseBusinessObjectModelSource) getSrcPath() string {
 	return this.srcPath
 }
 
-func (this *baseBusinessObjectModelSource) getPackage() string {
+func (this *baseBusinessObjectModelSource) getSrcPathName() string {
 	return path.Base(this.srcPath)
 }
 
@@ -93,7 +94,11 @@ func (this *baseBusinessObjectModelSource) isInterface() bool {
 }
 
 func (this *baseBusinessObjectModelSource) isFromDir(dirName string) bool {
-	return this.getModule() == getCurrentSourceModuleName() && this.getPackage() == dirName
+	return (this.getModule() == getCurrentSourceModuleName() && this.getSrcPathName() == dirName)
+}
+
+func (this *baseBusinessObjectModelSource) isInGoald() bool {
+	return this.getSrcPath() == "." && (getCurrentSourceModuleName() == "goald" || this.getModule() == "goald")
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -170,14 +175,17 @@ func (boModel *businessObjectModel) setModule(module sourceModuleName) {
 func (boModel *businessObjectModel) getSrcPath() string {
 	return boModel.source.getSrcPath()
 }
-func (boModel *businessObjectModel) getPackage() string {
-	return boModel.source.getPackage()
+func (boModel *businessObjectModel) getSrcPathName() string {
+	return boModel.source.getSrcPathName()
 }
 func (boModel *businessObjectModel) isInterface() bool {
 	return boModel.source.isInterface()
 }
 func (boModel *businessObjectModel) isFromDir(dirName string) bool {
 	return boModel.source.isFromDir(dirName)
+}
+func (boModel *businessObjectModel) isInGoald() bool {
+	return boModel.source.isInGoald()
 }
 func (boModel *businessObjectModel) AsInterface() IBusinessObjectModelSource {
 	return boModel.source.AsInterface()

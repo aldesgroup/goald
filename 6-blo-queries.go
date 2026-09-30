@@ -7,6 +7,18 @@ import (
 	core "github.com/aldesgroup/corego"
 )
 
+// ------------------------------------------------------------------------------------------------
+// Business objects for containing search parameter values, which are involved in queries
+// ------------------------------------------------------------------------------------------------
+
+// particular business object used for containing search parameter values
+type ISearchParamValues interface {
+	IBusinessObject
+	DoBeforeSearch(bloCtx BloContext) error
+	getPage() int
+	getPageSize() int
+}
+
 // ----------------------------------------------------------------------------
 // Query & clause definition
 // ----------------------------------------------------------------------------

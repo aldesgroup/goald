@@ -9,13 +9,20 @@ import (
 
 // static, reflect-free access to the definition of the TranslationQuery model
 type TranslationQueryModel struct {
-	g.ISearchParamValuesModel
+	g.SearchParamValuesModel
 	namespace *g.StringField
 	key       *g.StringField
 }
 
 // this is the main way to refer to the TranslationQuery model in the applicative code
 func TranslationQuery() *TranslationQueryModel {
+	translationQueryOnce.Do(func() {
+		translationQuery = NewTranslationQueryModel()
+
+		// this helps dynamically access to the TranslationQuery model
+		g.RegisterModel("TranslationQuery", translationQuery)
+	})
+
 	return translationQuery
 }
 
@@ -27,7 +34,7 @@ var (
 
 // fully describing each of this model's properties & relationships
 func NewTranslationQueryModel() *TranslationQueryModel {
-	thisModel := &TranslationQueryModel{ISearchParamValuesModel: g.NewSearchParamValuesModel()}
+	thisModel := &TranslationQueryModel{SearchParamValuesModel: *g.NewSearchParamValuesModel()}
 	thisModel.namespace = g.AddStringField(thisModel, "TranslationQuery", "Namespace", false)
 	thisModel.key = g.AddStringField(thisModel, "TranslationQuery", "Key", false)
 
@@ -36,15 +43,10 @@ func NewTranslationQueryModel() *TranslationQueryModel {
 
 // making sure the TranslationQuery model exists at app startup
 func init() {
-	translationQueryOnce.Do(func() {
-		translationQuery = NewTranslationQueryModel()
-	})
-
-	// this helps dynamically access to the TranslationQuery model
-	g.RegisterModel("TranslationQuery", translationQuery)
+	TranslationQuery()
 }
 
-// accessing all the TranslationQuery model's properties and relationships
+// accessing all the TranslationQuery model's properties and relation	ships
 
 func (T *TranslationQueryModel) Namespace() *g.StringField {
 	return T.namespace

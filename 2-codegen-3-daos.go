@@ -345,7 +345,7 @@ func (thisDAO *%[1]sDAO) ExecCreateQuery(bObjs ...goald.IBusinessObject) (map[in
 }`,
 		model.GetName(),           // 1
 		varName,                   // 2
-		model.getPackage(),        // 3
+		model.getSrcPathName(),    // 3
 		model.getTableName(false), // 4
 		columns,                   // 5
 		argAssignments,            // 6
@@ -356,7 +356,7 @@ func (thisDAO *%[1]sDAO) ExecCreateQuery(bObjs ...goald.IBusinessObject) (map[in
 // generateExecCreateLinksQueries builds the ExecCreateLinksQueries method for the given model
 func (thisGen *daoGenerator) generateExecCreateLinksQueries(model IBusinessObjectModel) string {
 	varName := core.PascalToCamel(string(model.GetName()))
-	pkg := model.getPackage()
+	pkg := model.getSrcPathName()
 
 	var blocks string
 	for _, relationship := range core.GetSortedValues(model.getRelationships()) {
@@ -659,7 +659,7 @@ func (thisGen *daoGenerator) generateExecReadRelationshipQuery(model IBusinessOb
 				// let's not forget this then:
 				extraImports["github.com/aldesgroup/goald/features/utils"] = true
 			} else { // or if it's a concrete model
-				cacheOrNewReceiver = rel.getUniqueTargetModel().getPackage()
+				cacheOrNewReceiver = rel.getUniqueTargetModel().getSrcPathName()
 				cacheOrNewObject = string(rel.getUniqueTargetName())
 				cacheOrNewArg = "cache"
 			}
@@ -679,7 +679,7 @@ func (thisGen *daoGenerator) generateExecReadRelationshipQuery(model IBusinessOb
 				sourceModelFilter,                          //  8: WHERE %[7]s" + inClause + "%[8]s"
 				mdlColScan,                                 //  9: var sourceID, targetID goald.BObjID%[9]s
 				selColVars,                                 // 10: if errScan := rows.Scan(%[10]s); errScan != nil {
-				model.getPackage(),                         // 11: return %[11]s.Get%[1]sFrom(cache, sourceID)
+				model.getSrcPathName(),                     // 11: return %[11]s.Get%[1]sFrom(cache, sourceID)
 				attachMethod,                               // 12: .%[12]s%[2]s(%[13]s.CachedOrNew%[14]s(%[15]s, targetID)%[16]s)
 				cacheOrNewReceiver,                         // 13: .%[12]s%[2]s(%[13]s.CachedOrNew%[14]s(%[15]s, targetID)%[16]s)
 				cacheOrNewObject,                           // 14: .%[12]s%[2]s(%[13]s.CachedOrNew%[14]s(%[15]s, targetID)%[16]s)
@@ -729,7 +729,7 @@ func (thisDAO *%[1]sDAO) ExecUpdateQuery(bObjs ...goald.IBusinessObject) error {
 }`,
 		model.GetName(),           // 1
 		varName,                   // 2
-		model.getPackage(),        // 3
+		model.getSrcPathName(),    // 3
 		model.getTableName(false), // 4
 		columns,                   // 5
 		argAssignments,            // 6
@@ -760,7 +760,7 @@ func (thisDAO *%[1]sDAO) ExecDeleteQuery(bObjs ...goald.IBusinessObject) error {
 // generateExecDeleteLinksQueries builds the ExecDeleteLinksQueries method for the given model
 func (thisGen *daoGenerator) generateExecDeleteLinksQueries(model IBusinessObjectModel) string {
 	varName := core.PascalToCamel(string(model.GetName()))
-	pkg := model.getPackage()
+	pkg := model.getSrcPathName()
 
 	var blocks string
 	for _, relationship := range core.GetSortedValues(model.getRelationships()) {
@@ -994,7 +994,7 @@ func %[1]s(values goald.ISearchParamValues) *goald.QueryArgs {
 	extraImports[getImportPackageLine(queryParamsModel)] = true
 
 	// making a string representing the query params type
-	queryParamsType := fmt.Sprintf("*%s.%s", queryParamsModel.getPackage(), queryParamsModel.GetName())
+	queryParamsType := fmt.Sprintf("*%s.%s", queryParamsModel.getSrcPathName(), queryParamsModel.GetName())
 
 	// building the clauses
 	var body strings.Builder
@@ -1102,7 +1102,7 @@ func (thisGen *daoGenerator) generateLeafClauseCode(cl IClause, model IBusinessO
 // *sql.Rows, in the same column order given to ExecSearchQuery above.
 func (thisGen *daoGenerator) generateScanRowFunc(model IBusinessObjectModel, extraImports map[string]bool) string {
 	varName := core.PascalToCamel(string(model.GetName()))
-	pkg := model.getPackage()
+	pkg := model.getSrcPathName()
 
 	var declarations []string
 	var scanTargets []string

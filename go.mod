@@ -3,7 +3,7 @@ module github.com/aldesgroup/goald
 go 1.27.1
 
 require (
-	github.com/aldesgroup/corego v1.0.12
+	github.com/aldesgroup/corego v1.0.15
 	github.com/getkin/kin-openapi v0.149.0
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/julienschmidt/httprouter v1.3.0

@@ -297,8 +297,8 @@ func (r *Relationship) getOnAllBackRefs[RESULT comparable](def RESULT, cherckFnN
 			continue
 		}
 		if getFn(backRef) != result {
-			core.PanicMsg("We have a problem here: %[1]s(%[2]s) is %[3]t while %[1]s(%[4]s) is not",
-				cherckFnName, r.backRefSlice[0], result, backRef)
+			core.PanicMsg("We have a problem here: %[1]s(%[2]s) is %[3]v while %[1]s(%[4]s) is not",
+				cherckFnName, r.backRefSlice[0].getKey(), result, backRef.getKey())
 		}
 	}
 	return result

@@ -45,7 +45,9 @@ func (bo *TranslationQuery) Clone(withFields, withRelationships bool) goald.IBus
 	clone.ID = bo.ID
 
 	if withFields {
+		clone.Creation = bo.Creation
 		clone.Key = bo.Key
+		clone.Modification = bo.Modification
 		clone.Namespace = bo.Namespace
 		clone.Page = bo.Page
 		clone.PageSize = bo.PageSize
@@ -74,8 +76,14 @@ func (bo *TranslationQuery) GetModelName() utils.ModelName {
 // getting a property's value as a string, without using reflection
 func (bo *TranslationQuery) GetValueAsString(propertyName string) string {
 	switch propertyName {
+	case "Creation":
+		return core.DateToString(bo.Creation)
+	case "ID":
+		return core.Int64ToString(int64(bo.ID))
 	case "Key":
 		return bo.Key
+	case "Modification":
+		return core.DateToString(bo.Modification)
 	case "Namespace":
 		return bo.Namespace
 	case "Page":
@@ -90,8 +98,14 @@ func (bo *TranslationQuery) GetValueAsString(propertyName string) string {
 // setting a property's value with a given string value, without using reflection
 func (bo *TranslationQuery) SetValueAsString(propertyName string, valueAsString string) error {
 	switch propertyName {
+	case "Creation":
+		bo.Creation = core.StringToDate(valueAsString, "Creation")
+	case "ID":
+		bo.ID = goald.BObjID(core.StringToInt64(valueAsString, "ID"))
 	case "Key":
 		bo.Key = valueAsString
+	case "Modification":
+		bo.Modification = core.StringToDate(valueAsString, "Modification")
 	case "Namespace":
 		bo.Namespace = valueAsString
 	case "Page":

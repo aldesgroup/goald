@@ -19,6 +19,13 @@ type UserModel struct {
 
 // this is the main way to refer to the User model in the applicative code
 func User() *UserModel {
+	userOnce.Do(func() {
+		user = NewUserModel()
+
+		// this helps dynamically access to the User model
+		g.RegisterModel("User", user)
+	})
+
 	return user
 }
 
@@ -42,15 +49,10 @@ func NewUserModel() *UserModel {
 
 // making sure the User model exists at app startup
 func init() {
-	userOnce.Do(func() {
-		user = NewUserModel()
-	})
-
-	// this helps dynamically access to the User model
-	g.RegisterModel("User", user)
+	User()
 }
 
-// accessing all the User model's properties and relationships
+// accessing all the User model's properties and relation	ships
 
 func (U *UserModel) Email() *g.StringField {
 	return U.email
