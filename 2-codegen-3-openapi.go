@@ -218,7 +218,27 @@ func addEndpointToDoc(doc *openapi3.T, ep iEndpoint) error {
 				In:          "path",
 				Required:    true,
 				Schema:      schemaFromPrimitiveType(idProp, false),
-				Description: "URL path parameter: " + idProp.getTag("desc"),
+				Description: "URL path parameter: " + getDescriptionFromFieldWithModel(idProp, idProp.ownerModel()),
+			},
+		})
+	}
+
+	// ---------- OUTPUT ----------
+	outModel := ep.getResourceModel()
+	if outModel != nil {
+		ref, err := getSchemaRef(doc, outModel)
+		if err != nil {
+			return err
+		}
+
+		op.Responses.Set("200", &openapi3.ResponseRef{
+			Value: &openapi3.Response{
+				Description: strPtr(fmt.Sprintf("'%s' was successful", ep.getLabel())),
+				Content: openapi3.Content{
+					"application/json": &openapi3.MediaType{
+						Schema: ref,
+					},
+				},
 			},
 		})
 	}
@@ -245,7 +265,7 @@ func addEndpointToDoc(doc *openapi3.T, ep iEndpoint) error {
 
 			var description string
 			if ep.isMultipleInput() {
-				description = fmt.Sprintf("An array of %s objects", inModel.GetName())
+				description = fmt.Sprintf("An array of '%s' instances to %s", inModel.GetName(), action)
 				// wrapping the schema in an array to match the plural description
 				ref = &openapi3.SchemaRef{
 					Value: &openapi3.Schema{
@@ -254,7 +274,7 @@ func addEndpointToDoc(doc *openapi3.T, ep iEndpoint) error {
 					},
 				}
 			} else {
-				description = fmt.Sprintf("A %s object to %s", inModel.GetName(), action)
+				description = fmt.Sprintf("A '%s' instance to %s", inModel.GetName(), action)
 			}
 
 			op.RequestBody = &openapi3.RequestBodyRef{
@@ -271,32 +291,12 @@ func addEndpointToDoc(doc *openapi3.T, ep iEndpoint) error {
 
 		} else {
 			// === URL PARAMS INPUT ===
-			params, err := paramsFromModel(inModel, openapiPath)
+			params, err := paramsFromModel(inModel, openapiPath, outModel)
 			if err != nil {
 				return err
 			}
 			op.Parameters = append(op.Parameters, params...)
 		}
-	}
-
-	// ---------- OUTPUT ----------
-	outModel := ep.getResourceModel()
-	if outModel != nil {
-		ref, err := getSchemaRef(doc, outModel)
-		if err != nil {
-			return err
-		}
-
-		op.Responses.Set("200", &openapi3.ResponseRef{
-			Value: &openapi3.Response{
-				Description: strPtr(fmt.Sprintf("'%s' was successful", ep.getLabel())),
-				Content: openapi3.Content{
-					"application/json": &openapi3.MediaType{
-						Schema: ref,
-					},
-				},
-			},
-		})
 	}
 
 	// ---------- METHOD BINDING ----------
@@ -458,19 +458,30 @@ func schemaFromModel(doc *openapi3.T, model IBusinessObjectModel) *openapi3.Sche
 	return schema
 }
 
+var notSearchParamsNames = map[string]bool{
+	"ID":           true,
+	"preID":        true,
+	"Creation":     true,
+	"Modification": true,
+}
+
 // building URL parameters from the given business object model that's associated with a SearchParamValues-derived BO
-func paramsFromModel(model IBusinessObjectModel, path string) (openapi3.Parameters, error) {
+func paramsFromModel(inModel IBusinessObjectModel, path string, outModel IBusinessObjectModel) (openapi3.Parameters, error) {
 	// pathVars := extractPathVars(path)
 	var out openapi3.Parameters
 
-	for _, field := range core.GetSortedValues(model.getFields()) {
+	for _, field := range core.GetSortedValues(inModel.getFields()) {
+		if notSearchParamsNames[field.GetName()] {
+			continue
+		}
+
 		schema := schemaFromPrimitiveType(field, false)
 		parameter := &openapi3.Parameter{
 			Name:        field.GetName(),
 			In:          "query",
 			Required:    field.isMandatoryInput(),
 			Schema:      schema,
-			Description: getDescriptionFromFieldWithModel(field, model),
+			Description: getDescriptionFromFieldWithModel(field, core.IfThenElse(outModel != nil, outModel, inModel)),
 		}
 
 		out = append(out, &openapi3.ParameterRef{Value: parameter})
@@ -487,9 +498,6 @@ func withDescription(schema *openapi3.Schema, description string) *openapi3.Sche
 }
 
 func getDescriptionFromFieldWithModel(field IField, model IBusinessObjectModel) string {
-	if field.GetName() == BoFieldID {
-		return "the unique identifier of the " + string(model.getNaturalName())
-	}
 	desc := field.getTag("desc")
 	if strings.Contains(desc, "%s") {
 		desc = fmt.Sprintf(desc, string(model.getNaturalName()))

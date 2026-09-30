@@ -7,8 +7,8 @@ package goald
 // default implem for ISearchParamValues
 type SearchParamValues struct {
 	BusinessObject
-	Page     int `json:"page,omitempty"     io:"in" desc:"the page number for pagination (default is 0)"`
-	PageSize int `json:"pageSize,omitempty" io:"in" desc:"the number of items per page for pagination (default is controlled by the server)"`
+	Page     int `json:"page,omitempty"     io:"in" desc:"the page number (default is 0) for the retrieved '%s' instances"`
+	PageSize int `json:"pageSize,omitempty" io:"in" desc:"the number of '%s' instances per page to retrieve (default is controlled by the server)"`
 }
 
 func init() {

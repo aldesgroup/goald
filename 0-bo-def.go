@@ -73,12 +73,12 @@ type boKey struct {
 
 type BusinessObject struct {
 	// properties common to all business objects
-	ID           BObjID              `json:"id,omitempty"           io:"o*" desc:"The unique identifier of %s"`
+	ID           BObjID              `json:"id,omitempty"           io:"o*" desc:"The unique identifier of this %s"`
 	Mdl          utils.ModelName     `json:"_mdl,omitempty"         io:"in" desc:"The name of the %s's model, sometimes used to resolve polymorphic relationships"`
 	Loaded       loadedRelationships `json:"_loaded,omitempty"      io:"o*" desc:"The direct relationships that have been loaded for this %s"`
 	Creation     *time.Time          `json:"creation,omitempty"     io:"o*" desc:"The creation timestamp of this %s"`
 	Modification *time.Time          `json:"modification,omitempty" io:"o*" desc:"The modification timestamp of this %s"`
-	preID        int                 `json:"-"                      io:"o*" desc:"A temporary identifier in Business Objects lists"`
+	preID        int                 `json:"-"                      io:"o*" desc:"A temporary identifier in lists of '%s' instances"`
 
 	// technical stuffgit restore --staged
 	model IBusinessObjectModel

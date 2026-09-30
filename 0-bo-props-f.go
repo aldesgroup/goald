@@ -15,7 +15,6 @@ import (
 
 type IField interface {
 	IBusinessObjectProperty
-	isBuiltIn() bool
 	getDefaultValue() string
 }
 
@@ -52,10 +51,6 @@ func newField(owner IBusinessObjectModel, declaringBO utils.ModelName, name stri
 func (f *field) SetNotPersisted() *field {
 	f.notPersisted = true
 	return f
-}
-
-func (f *field) isBuiltIn() bool {
-	return false
 }
 
 func (f *field) SetDefaultValue(val string) *field {
