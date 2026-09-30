@@ -8,7 +8,7 @@ import (
 )
 
 // static, reflect-free access to the definition of the Translation model
-type translationModel struct {
+type TranslationModel struct {
 	g.IBusinessObjectModel
 	lang      *g.StringField
 	namespace *g.StringField
@@ -17,51 +17,53 @@ type translationModel struct {
 }
 
 // this is the main way to refer to the Translation model in the applicative code
-func Translation() *translationModel {
+func Translation() *TranslationModel {
+	translationOnce.Do(func() {
+		translation = NewTranslationModel()
+
+		// this helps dynamically access to the Translation model
+		g.RegisterModel("Translation", translation)
+	})
+
 	return translation
 }
 
 // internal variables
 var (
-	translation     *translationModel
+	translation     *TranslationModel
 	translationOnce sync.Once
 )
 
-// fully describing each of this class' properties & relationships
-func newTranslationModel() *translationModel {
-	newModel := &translationModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
-	newModel.lang = g.NewStringField(newModel, "Lang", false)
-	newModel.namespace = g.NewStringField(newModel, "Namespace", false)
-	newModel.key = g.NewStringField(newModel, "Key", false)
-	newModel.value = g.NewStringField(newModel, "Value", false)
+// fully describing each of this model's properties & relationships
+func NewTranslationModel() *TranslationModel {
+	thisModel := &TranslationModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
+	thisModel.lang = g.AddStringField(thisModel, "Translation", "Lang", false)
+	thisModel.namespace = g.AddStringField(thisModel, "Translation", "Namespace", false)
+	thisModel.key = g.AddStringField(thisModel, "Translation", "Key", false)
+	thisModel.value = g.AddStringField(thisModel, "Translation", "Value", false)
 
-	return newModel
+	return thisModel
 }
 
 // making sure the Translation model exists at app startup
 func init() {
-	translationOnce.Do(func() {
-		translation = newTranslationModel()
-	})
-
-	// this helps dynamically access to the Translation model
-	g.RegisterModel("Translation", translation)
+	Translation()
 }
 
-// accessing all the Translation class' properties and relationships
+// accessing all the Translation model's properties and relation	ships
 
-func (t *translationModel) Lang() *g.StringField {
-	return t.lang
+func (T *TranslationModel) Lang() *g.StringField {
+	return T.lang
 }
 
-func (t *translationModel) Namespace() *g.StringField {
-	return t.namespace
+func (T *TranslationModel) Namespace() *g.StringField {
+	return T.namespace
 }
 
-func (t *translationModel) Key() *g.StringField {
-	return t.key
+func (T *TranslationModel) Key() *g.StringField {
+	return T.key
 }
 
-func (t *translationModel) Value() *g.StringField {
-	return t.value
+func (T *TranslationModel) Value() *g.StringField {
+	return T.value
 }

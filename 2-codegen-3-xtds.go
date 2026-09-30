@@ -1,0 +1,648 @@
+package goald
+
+import (
+	"fmt"
+	"path"
+	"strings"
+
+	core "github.com/aldesgroup/corego"
+)
+
+const utilsFileTEMPLATE1 = `// Generated file, do not edit!
+package $$package$$
+
+import (
+	$$otherimports$$
+)
+`
+
+const utilsFileTEMPLATE2 = `
+// ------------------------------------------------------------------------------------------------
+// Instantiation / cache retrieval
+// ------------------------------------------------------------------------------------------------
+
+func New$$Upper$$(id goald.BObjID) *$$Upper$$ {
+	// TODO use sync.Pool?
+	new$$Upper$$ := &$$Upper$${}
+	new$$Upper$$.ID = id
+
+	return new$$Upper$$
+}
+
+func Get$$Upper$$From(cache *goald.BObjCache, id goald.BObjID) *$$Upper$$ {
+	if cached$$Upper$$ := cache.Get("$$Upper$$", id); cached$$Upper$$ != nil {
+		return cached$$Upper$$.(*$$Upper$$)
+	}
+
+	return nil
+}
+
+func CachedOrNew$$Upper$$(cache *goald.BObjCache, id goald.BObjID) *$$Upper$$ {
+	if cached$$Upper$$ := Get$$Upper$$From(cache, id); cached$$Upper$$ != nil {
+		return cached$$Upper$$
+	}
+
+	return cache.Set(New$$Upper$$(id))
+}
+
+// ------------------------------------------------------------------------------------------------
+// Cloning
+// ------------------------------------------------------------------------------------------------
+
+// getting the name of the model for a $$Upper$$, without using reflection
+func (bo *$$Upper$$) Clone(withFields, withRelationships bool) goald.IBusinessObject {
+	clone := &$$Upper$${}
+	clone.ID = bo.ID
+
+	if withFields {
+$$copyfields$$
+	}
+
+	if withRelationships {
+$$copyrelationships$$
+	}
+
+	return clone
+}
+
+// ------------------------------------------------------------------------------------------------
+// Identification
+// ------------------------------------------------------------------------------------------------
+
+// getting the name of the model for a $$Upper$$, without using reflection
+func (bo *$$Upper$$) GetModelName() utils.ModelName {
+	return "$$Upper$$"
+}
+
+// ------------------------------------------------------------------------------------------------
+// Property values <-> string conversion
+// ------------------------------------------------------------------------------------------------
+
+// getting a property's value as a string, without using reflection
+func (bo *$$Upper$$) GetValueAsString(propertyName string) string {
+	switch propertyName {
+$$getcases$$
+	default:
+		return "unknown property: " + propertyName
+	}
+}
+
+// setting a property's value with a given string value, without using reflection
+func (bo *$$Upper$$) SetValueAsString(propertyName string, valueAsString string) error {
+	switch propertyName {
+$$setcases$$
+	}
+
+	return goald.Error("[SetValueAsString] Unknown property: %T.%s", bo, propertyName)
+}
+
+// ------------------------------------------------------------------------------------------------
+// Explicit relationship access
+// ------------------------------------------------------------------------------------------------
+$$withaddedmethods$$
+
+// ------------------------------------------------------------------------------------------------
+// Generic relationship access
+// ------------------------------------------------------------------------------------------------
+
+// setting this $$Upper$$'s parent
+func (bo *$$Upper$$) SetParent(parent goald.IBusinessObject) {
+$$setparent$$
+}
+
+// setting a single-valued relationship's target, given the relationship's name, without using reflection
+func (bo *$$Upper$$) SetRelationshipValue(relationshipName string, value goald.IBusinessObject) error {
+	switch relationshipName {
+$$setrelcases$$
+	}
+
+	return goald.Error("[SetRelationshipValue] Unknown or non-single-valued relationship: %T.%s", bo, relationshipName)
+}
+
+// appending a target to a multi-valued relationship, given the relationship's name, without using reflection
+func (bo *$$Upper$$) AddRelationshipValue(relationshipName string, value goald.IBusinessObject) error {
+	switch relationshipName {
+$$addrelcases$$
+	}
+
+	return goald.Error("[AddRelationshipValue] Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+}
+
+// resetting a multi-valued relationship to an empty slice, given the relationship's name, without using reflection
+func (bo *$$Upper$$) ClearRelationshipValue(relationshipName string) error {
+	switch relationshipName {
+$$clearrelcases$$
+	}
+
+	return goald.Error("[ClearRelationshipValue] Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+}
+
+// getting a single-valued relationship's target, given the relationship's name, without using reflection
+func (bo *$$Upper$$) GetSingleRelationshipValue(relationshipName string) (goald.IBusinessObject, error) {
+	switch relationshipName {
+$$getsinglerelcases$$
+	}
+
+	return nil, goald.Error("[GetSingleRelationshipValue]Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+}
+
+// getting a multi-valued relationship's targets, given the relationship's name, without using reflection
+func (bo *$$Upper$$) GetMultipleRelationshipValue(relationshipName string) ([]goald.IBusinessObject, error) {
+	switch relationshipName {
+$$getmultiplerelcases$$
+	}
+
+	return nil, goald.Error("[GetMultipleRelationshipValue] Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
+}
+
+// ------------------------------------------------------------------------------------------------
+// Model validity check
+// ------------------------------------------------------------------------------------------------
+
+// checking a business object's general validity, without using reflection
+func (bo *$$Upper$$) IsModelValid() error {
+$$modelchecks$$
+	return nil
+}
+
+// ------------------------------------------------------------------------------------------------
+// Diffing
+// ------------------------------------------------------------------------------------------------
+
+// Creates 2 synthetic instances gathering the added and removed relationships
+func (bo *$$Upper$$) DiffWith(other goald.IBusinessObject, forLinks map[string]bool) (goald.IBusinessObject, goald.IBusinessObject) {
+	added := New$$Upper$$(bo.ID)
+	removed := New$$Upper$$(bo.ID)
+$$diffedlinks$$
+	return added, removed
+}
+
+// ------------------------------------------------------------------------------------------------
+// Misc utils
+// ------------------------------------------------------------------------------------------------
+
+// removing any cycles from the business object, without using reflection
+func (bo *$$Upper$$) RemoveCycles() {
+$$removecycles$$}
+
+// setting the models names on all the business objects associated with this one
+func (bo *$$Upper$$) SetModelNames() {
+$$setmodelnames$$}`
+
+const xtdFILExSUFFIX = "--xtd.go"
+
+type xtdGenerator struct{}
+
+func (thisServer *server) generateAllObjectXTDs(srcdir, currentPath string, regen bool) (codeChanged bool) {
+	// the path we're currently reading at e.g. go/pkg1/pkg2
+	readingPath := path.Join(srcdir, currentPath)
+
+	// going through the resources found withing the current directory
+	// we got the BO & model registries, but we still need to browse the filesystem since we're updating it with files
+	for _, entry := range core.EnsureReadDir(readingPath) {
+		if entry.IsDir() {
+			// not going into the vendor
+			if entry.Name() != "vendor" && entry.Name() != ".git" {
+				// found another directory, let's dive deeper!
+				codeChanged = thisServer.generateAllObjectXTDs(srcdir, path.Join(currentPath, entry.Name()), regen) || codeChanged
+			}
+		} else {
+			// found a file... but we're only interested in files containing Business Objects, which must end with sourceFILExSUFFIX
+			if strings.HasSuffix(entry.Name(), boFILExSUFFIX) {
+				// getting the model - which should exist at this stage!
+				model := thisServer.getModelFromFile(srcdir, currentPath, entry.Name())
+
+				// this file lives directly alongside the BO's own source file, within the BO's own package
+				xtdFilepath := path.Join(srcdir, model.getSrcPath(), strings.Replace(entry.Name(), boFILExSUFFIX, xtdFILExSUFFIX, 1))
+
+				// no xtd file for interfaces
+				if !model.isInterface() {
+
+					// generating the xtd file, if not existing yet, or too old
+					if regen || !core.FileExists(xtdFilepath) || core.EnsureModTime(xtdFilepath).Before(model.getLastBOMod()) {
+						(&xtdGenerator{}).generateObjectXtdForModel(model, xtdFilepath)
+						codeChanged = true
+					}
+				}
+			}
+		}
+	}
+
+	return
+}
+
+// generating the xtd file for a given model, at the given path
+func (thisGen *xtdGenerator) generateObjectXtdForModel(model IBusinessObjectModel, filepath string) {
+	// for Goald models, we make sure we're not appending the same code twice
+	if model.isInGoald() {
+		if _, line := core.FindLineInFile(filepath, func(line string) bool {
+			return strings.Contains(line, "GetModelName()")
+		}, false); line > 0 {
+			return
+		}
+	}
+
+	// need for some imports - goald & utils are always needed
+	importsMap := map[string]bool{
+		"github.com/aldesgroup/goald":                !model.isInGoald(),
+		"github.com/aldesgroup/goald/features/utils": true,
+	}
+
+	// building the get/set cases, the relationship cases, and the validity checks
+	copyFields, copyRelationships := thisGen.buildUtilsCopyProperties(model)
+	getCases, setCases, importUtils := thisGen.buildUtilsValueCases(model, importsMap)
+	withAddedMethods := thisGen.buildUtilsWithAddedMethods(model, importsMap)
+	setParent := thisGen.buildUtilsSetParent(model)
+	setRelCases, addRelCases, clearRelCases, getSingleRelCases, getMultiRelCases := thisGen.buildUtilsRelationshipCases(model, importsMap)
+	modelChecks := thisGen.buildUtilsModelChecks(model, importsMap)
+	removeCyclesStatements := thisGen.buildUtilsRemoveCyclesStatements(model)
+	setModelNamesStatements := thisGen.buildUtilsSetModelNamesStatements(model)
+	diffedLinks := thisGen.buildUtilsDiffedLinks(model)
+
+	if importUtils {
+		importsMap["github.com/aldesgroup/corego"] = true
+	}
+
+	// this file lives within the BO's own package: it must never import that same package
+	delete(importsMap, path.Join(getCurrentSourceModule(), model.getSrcPath()))
+
+	// which template to use ?
+	var utilsFileTEMPLATE string
+	if !model.isInGoald() {
+		utilsFileTEMPLATE = utilsFileTEMPLATE1 + utilsFileTEMPLATE2
+	} else {
+		utilsFileTEMPLATE = utilsFileTEMPLATE2
+	}
+
+	// filling up the content
+	content := strings.ReplaceAll(utilsFileTEMPLATE, "$$package$$", model.getSrcPathName())
+	content = strings.ReplaceAll(content, "$$Upper$$", string(model.GetName()))
+	content = strings.Replace(content, "$$copyfields$$", strings.Join(copyFields, newline), 1)
+	content = strings.Replace(content, "$$copyrelationships$$", strings.Join(copyRelationships, newline), 1)
+	content = strings.Replace(content, "$$getcases$$", strings.Join(getCases, newline), 1)
+	content = strings.Replace(content, "$$setcases$$", strings.Join(setCases, newline), 1)
+	content = strings.Replace(content, "$$withaddedmethods$$", strings.Join(withAddedMethods, newline), 1)
+	content = strings.Replace(content, "$$setparent$$", setParent, 1)
+	content = strings.Replace(content, "$$setrelcases$$", strings.Join(setRelCases, newline), 1)
+	content = strings.Replace(content, "$$addrelcases$$", strings.Join(addRelCases, newline), 1)
+	content = strings.Replace(content, "$$clearrelcases$$", strings.Join(clearRelCases, newline), 1)
+	content = strings.Replace(content, "$$getsinglerelcases$$", strings.Join(getSingleRelCases, newline), 1)
+	content = strings.Replace(content, "$$getmultiplerelcases$$", strings.Join(getMultiRelCases, newline), 1)
+	content = strings.Replace(content, "$$diffedlinks$$", strings.Join(diffedLinks, newline), 1)
+
+	checksBody := ""
+	if len(modelChecks) > 0 {
+		checksBody = strings.Join(modelChecks, newline) + newline
+	}
+	content = strings.ReplaceAll(content, "$$modelchecks$$", checksBody)
+
+	removeCyclesBody := ""
+	if len(removeCyclesStatements) > 0 {
+		removeCyclesBody = strings.Join(removeCyclesStatements, newline) + newline
+	}
+	content = strings.ReplaceAll(content, "$$removecycles$$", removeCyclesBody)
+
+	setModelNamesBody := ""
+	if len(setModelNamesStatements) > 0 {
+		setModelNamesBody = strings.Join(setModelNamesStatements, newline) + newline
+	}
+	content = strings.ReplaceAll(content, "$$setmodelnames$$", setModelNamesBody)
+
+	imports := ""
+	if len(importsMap) > 0 {
+		imports = "\"" + strings.Join(core.GetSortedKeys(importsMap), "\""+newline+"	"+"\"") + "\""
+	}
+
+	if model.isInGoald() {
+		content = strings.ReplaceAll(content, "goald.", "")
+	}
+	content = strings.Replace(content, "$$otherimports$$", imports, 1)
+
+	// write out the file
+	if !model.isInGoald() {
+		core.WriteToFile(content, filepath)
+	} else {
+		core.AppendToFile(content, filepath)
+	}
+}
+
+func (thisGen *xtdGenerator) buildUtilsCopyProperties(model IBusinessObjectModel) (copyFields []string, copyRelationships []string) {
+	for _, field := range core.GetSortedValues(model.getFields()) {
+		if field.isExported() && field.GetName() != BoFieldID {
+			copyFields = append(copyFields, fmt.Sprintf("		clone.%[1]s = bo.%[1]s", field.GetName()))
+		}
+	}
+	for _, relationship := range core.GetSortedValues(model.getRelationships()) {
+		if relationship.isExported() {
+			copyRelationships = append(copyRelationships, fmt.Sprintf("		clone.%[1]s = bo.%[1]s", relationship.GetName()))
+		}
+	}
+
+	return
+}
+
+// building the get/set cases for GetValueAsString() / SetValueAsString(), reusing the same
+// per-property-type logic as the value mapper generator, but accessing fields directly on the
+// receiver (named "bo" in the generated code), since no casting is needed anymore
+func (thisGen *xtdGenerator) buildUtilsValueCases(model IBusinessObjectModel, importsMap map[string]bool) (getCases []string, setCases []string, importUtils bool) {
+	// browsing the entity's properties to fill the get / set cases in the 2 switch
+	for _, field := range core.GetSortedValues(model.getFields()) {
+		// adding to the context, and the model file content
+		if propertyType := field.getPropertyType(); propertyType != propertyTypeUNKNOWN && propertyType != propertyTypeRELATIONSHIPxMONOM {
+			// not handling multiple properties for now
+			if fieldName := field.GetName(); !field.IsMultiple() && fieldName != boFieldPreID {
+				// is the field type a type alias, or a built-in type? - stripping this package's own
+				// qualification, since we're generating code that lives directly within that package
+				fieldTypeAlias := stripSelfPackage(getNonBuiltInFieldType(model.getType(), fieldName, importsMap), model.getSrcPathName())
+
+				// case init
+				getCase := fmt.Sprintf("	case \"%s\":", fieldName)
+				setCase := getCase
+
+				switch propertyType {
+				case propertyTypeBOOL:
+					getBit, setBit, end := getBits(fieldTypeAlias, "bool")
+					getCase += newline + fmt.Sprintf("		return core.BoolToString(%sbo.%s%s)", getBit, fieldName, end)
+					importUtils = true
+					setCase += newline + fmt.Sprintf("		bo.%s = %score.StringToBool(valueAsString, \"%s\")%s", fieldName, setBit, fieldName, end)
+
+				case propertyTypeSTRING:
+					getBit, setBit, end := getBits(fieldTypeAlias, "string")
+					getCase += newline + fmt.Sprintf("		return %sbo.%s%s", getBit, fieldName, end)
+					setCase += newline + fmt.Sprintf("		bo.%s = %svalueAsString%s", fieldName, setBit, end)
+
+				case propertyTypeINT:
+					getBit, setBit, end := getBits(fieldTypeAlias, "int")
+					getCase += newline + fmt.Sprintf("		return core.IntToString(%sbo.%s%s)", getBit, fieldName, end)
+					importUtils = true
+					setCase += newline + fmt.Sprintf("		bo.%s = %score.StringToInt(valueAsString, \"%s\")%s", fieldName, setBit, fieldName, end)
+
+				case propertyTypeBIGINT:
+					getBit, setBit, end := getBits(fieldTypeAlias, "int64")
+					getCase += newline + fmt.Sprintf("		return core.Int64ToString(%sbo.%s%s)", getBit, fieldName, end)
+					importUtils = true
+					setCase += newline + fmt.Sprintf("		bo.%s = %score.StringToInt64(valueAsString, \"%s\")%s", fieldName, setBit, fieldName, end)
+
+				case propertyTypeREAL:
+					getBit, setBit, end := getBits(fieldTypeAlias, "float32")
+					getCase += newline + fmt.Sprintf("		return core.Float32ToString(%sbo.%s%s)", getBit, fieldName, end)
+					importUtils = true
+					setCase += newline + fmt.Sprintf("		bo.%s = %score.StringToFloat32(valueAsString, \"%s\")%s", fieldName, setBit, fieldName, end)
+
+				case propertyTypeDOUBLE:
+					getBit, setBit, end := getBits(fieldTypeAlias, "float64")
+					getCase += newline + fmt.Sprintf("		return core.Float64ToString(%sbo.%s%s)", getBit, fieldName, end)
+					importUtils = true
+					setCase += newline + fmt.Sprintf("		bo.%s = %score.StringToFloat64(valueAsString, \"%s\")%s", fieldName, setBit, fieldName, end)
+
+				case propertyTypeDATE:
+					getCase += newline + fmt.Sprintf("		return core.DateToString(bo.%s)", fieldName)
+					importUtils = true
+					setCase += newline + fmt.Sprintf("		bo.%s = core.StringToDate(valueAsString, \"%s\")", fieldName, fieldName)
+
+				case propertyTypeENUM:
+					getCase += newline + fmt.Sprintf("		return core.IntToString(bo.%s.Val())", fieldName)
+					importUtils = true
+					setCase += newline + fmt.Sprintf("		bo.%s = %s(core.StringToInt(valueAsString, \"%s\"))", fieldName, fieldTypeAlias, fieldName)
+					setCase += newline + fmt.Sprintf("		core.PanicMsgIf(bo.%s.String() == \"\", \"Could not set '%s' to %%s since it's not a listed value\", valueAsString)",
+						fieldName, fieldName)
+				}
+
+				// appending the case
+				getCases = append(getCases, getCase)
+				setCases = append(setCases, setCase)
+			}
+		}
+	}
+
+	return getCases, setCases, importUtils
+}
+
+// building the WithAdded* methods
+func (thisGen *xtdGenerator) buildUtilsWithAddedMethods(model IBusinessObjectModel, importsMap map[string]bool) (withAddedMethods []string) {
+	// browsing the entity's relationships to fill the set / add cases for the relationship setters
+	for _, relationship := range core.GetSortedValues(model.getRelationships()) {
+		if relationship.IsMultiple() {
+			withAddedMethods = append(withAddedMethods, fmt.Sprintf(`
+func (bo *%[1]s) AddAndReturn%[2]s(added %[3]s) %[3]s {
+	bo.%[2]s = append(bo.%[2]s, added)
+	return added
+}`,
+				model.GetName(),
+				relationship.GetName(),
+				stripSelfPackage(getRelationshipFieldType(model.getType(), relationship.GetName(), importsMap), model.getSrcPathName()),
+			))
+		} else if !relationship.IsMultiple() && relationship.isIndirectlyPersisted() {
+			withAddedMethods = append(withAddedMethods, fmt.Sprintf(`
+func (bo *%[1]s) SetAndReturn%[2]s(related %[3]s) %[3]s {
+	bo.%[2]s = related
+	return related
+}`,
+				model.GetName(),
+				relationship.GetName(),
+				stripSelfPackage(getRelationshipFieldType(model.getType(), relationship.GetName(), importsMap), model.getSrcPathName()),
+			))
+		}
+	}
+
+	return
+}
+
+// building the SetParent method for the business object
+func (thisGen *xtdGenerator) buildUtilsSetParent(model IBusinessObjectModel) string {
+	if model.getChildToParentRelationship() == nil {
+		return "	// no parent for this model"
+	}
+
+	targetType := stripSelfPackage(getRelationshipFieldType(model.getType(), model.getChildToParentRelationship().GetName(), nil), model.getSrcPathName())
+	return fmt.Sprintf("	bo.%s = parent.(%s)", model.getChildToParentRelationship().GetName(), targetType)
+}
+
+// building the cases for the relationship setters/getters, reusing the same logic as the value
+// mapper generator, but without any casting, since these methods are now attached to the BO itself
+func (thisGen *xtdGenerator) buildUtilsRelationshipCases(model IBusinessObjectModel, importsMap map[string]bool) (setRelCases, addRelCases, clearRelCases, getSingleRelCases, getMultiRelCases []string) {
+
+	// browsing the entity's relationships to fill the set / add cases for the relationship setters
+	for _, relationship := range core.GetSortedValues(model.getRelationships()) {
+		relName := relationship.GetName()
+
+		// the Go type to assert the incoming value against, e.g. "domain.IContact" or "*domain.Employee" -
+		// stripping this package's own qualification, since we're generating code living within that package
+		targetType := stripSelfPackage(getRelationshipFieldType(model.getType(), relName, importsMap), model.getSrcPathName())
+
+		relCase := fmt.Sprintf("	case \"%s\":", relName)
+
+		tab := ""
+		if !relationship.IsMultiple() {
+			relCase += newline + "		if value == nil {"
+			relCase += newline + fmt.Sprintf("			bo.%s = nil", relName)
+			relCase += newline + "		} else {"
+			tab = "	"
+		}
+
+		relCase += newline + tab + fmt.Sprintf("		targetValue, ok := value.(%s)", targetType)
+		relCase += newline + tab + "		if !ok {"
+		relCase += newline + tab + fmt.Sprintf("			return goald.Error(\"Expected a value of type '%s' for '%s.%s', got %%T\", value)", targetType, model.GetName(), relName)
+		relCase += newline + tab + "		}"
+
+		if relationship.IsMultiple() {
+			relCase += newline + fmt.Sprintf("		bo.%s = append(bo.%s, targetValue)", relName, relName)
+			relCase += newline + "		return nil"
+			addRelCases = append(addRelCases, relCase)
+
+			clearCase := fmt.Sprintf("	case \"%s\":", relName)
+			clearCase += newline + fmt.Sprintf("		bo.%s = []%s{}", relName, targetType)
+			clearCase += newline + "		return nil"
+			clearRelCases = append(clearRelCases, clearCase)
+
+			getMultiRelCases = append(getMultiRelCases, thisGen.buildGetMultiRelCase(relName, relationship))
+		} else {
+			relCase += newline + fmt.Sprintf("			bo.%s = targetValue", relName)
+			relCase += newline + "		}"
+			relCase += newline
+			relCase += newline + "		return nil"
+			setRelCases = append(setRelCases, relCase)
+
+			getSingleRelCases = append(getSingleRelCases, thisGen.buildGetSingleRelCase(relName))
+		}
+	}
+
+	return setRelCases, addRelCases, clearRelCases, getSingleRelCases, getMultiRelCases
+}
+
+// building the corresponding GetSingleRelationshipValue case
+func (thisGen *xtdGenerator) buildGetSingleRelCase(relName string) string {
+	getSingleCase := fmt.Sprintf("	case \"%s\":", relName)
+	getSingleCase += newline + fmt.Sprintf("		return bo.%s, nil", relName)
+	return getSingleCase
+}
+
+// building the corresponding GetMultipleRelationshipValue case; if there's a backref relationship
+// on the target side that's single-valued (i.e. each target uniquely points back to us), we
+// also make sure it's (re)set, since it might not have been loaded/set that way already - no
+// casting is needed here anymore, since "bo" is already of the right, concrete type
+func (thisGen *xtdGenerator) buildGetMultiRelCase(relName string, relationship *Relationship) string {
+	resultVar := core.PascalToCamel(relName)
+	getMultiCase := fmt.Sprintf("	case \"%s\":", relName)
+	getMultiCase += newline + fmt.Sprintf("		%s := make([]goald.IBusinessObject, len(bo.%s))", resultVar, relName)
+	getMultiCase += newline + fmt.Sprintf("		for i, target := range bo.%s {", relName)
+	core.PanicMsgIf(relationship.relationType == 0, "Relationship '%s' should have a defined type", relationship.getKey())
+	if !relationship.isMultipleSource() && relationship.relationType != relationshipTypeONExWAY {
+		getMultiCase += newline + fmt.Sprintf("			target.%s = bo // ensuring the unique backref is set", relationship.getBackRefName())
+	}
+	getMultiCase += newline + fmt.Sprintf("			%s[i] = target", resultVar)
+	getMultiCase += newline + "		}"
+	getMultiCase += newline + fmt.Sprintf("		return %s, nil", resultVar)
+	return getMultiCase
+}
+
+// building the statements for RemoveCycles(): for every multi-valued relationship whose targets hold a
+// single-valued backref pointing back to us (e.g. a PurchaseOrder's Items pointing back via OrderItem.PurchaseOrder),
+// we nil out that backref on each target, so that marshaling this BO to JSON doesn't loop forever; polymorphic
+// relationships are skipped, since the backref field then lives on an interface, not on a concrete type
+func (thisGen *xtdGenerator) buildUtilsRemoveCyclesStatements(model IBusinessObjectModel) []string {
+	statements := []string{}
+
+	for _, relationship := range core.GetSortedValues(model.getRelationships()) {
+		if relationship.IsMultiple() && !relationship.IsPolymorphic() && len(relationship.backRefSlice) > 0 && !relationship.isMultipleSource() {
+			relName := relationship.GetName()
+			backRefName := relationship.getBackRefName()
+
+			statements = append(statements, fmt.Sprintf("	for _, target := range bo.%s {", relName))
+			statements = append(statements, fmt.Sprintf("		target.%s = nil", backRefName))
+			statements = append(statements, "	}")
+		} else if !relationship.IsMultiple() && len(relationship.backRefSlice) > 0 && relationship.isIndirectlyPersisted() {
+			relName := relationship.GetName()
+			statements = append(statements, fmt.Sprintf("	if bo.%s != nil {", relName))
+			statements = append(statements, fmt.Sprintf("		core.PanicIfErr(bo.%s.SetRelationshipValue(\"%s\", nil))", relName, relationship.getBackRefName()))
+			statements = append(statements, "	}")
+		}
+	}
+
+	return statements
+}
+
+func (thisGen *xtdGenerator) buildUtilsSetModelNamesStatements(model IBusinessObjectModel) []string {
+	// statements := []string{"	bo.SetMdl(bo.GetModelName())"}
+	statements := []string{}
+	for _, relationship := range core.GetSortedValues(model.getRelationships()) {
+		if relationship.IsMultiple() {
+			statements = append(statements, fmt.Sprintf("	for _, target := range bo.%s {", relationship.GetName()))
+			if relationship.IsPolymorphic() {
+				statements = append(statements, "		target.SetMdl(target.GetModelName())")
+			}
+			statements = append(statements, "		target.SetModelNames()")
+			statements = append(statements, "	}")
+		} else {
+			statements = append(statements, fmt.Sprintf("	if bo.%[1]s != nil {", relationship.GetName()))
+			if relationship.IsPolymorphic() {
+				statements = append(statements, fmt.Sprintf("		bo.%[1]s.SetMdl(bo.%[1]s.GetModelName())", relationship.GetName()))
+			}
+			statements = append(statements, fmt.Sprintf("		bo.%[1]s.SetModelNames()", relationship.GetName()))
+			statements = append(statements, "	}")
+		}
+	}
+	return statements
+}
+
+// building the checks for IsModelValid(), simply reusing - unchanged - the check builders from the
+// checks (--chk.go) generator: they already produce code referring to a "bo" variable, which is
+// exactly the name we're using for this method's receiver, so no adaptation is needed there
+func (thisGen *xtdGenerator) buildUtilsModelChecks(model IBusinessObjectModel, importsMap map[string]bool) []string {
+	checks := []string{}
+
+	// checking that every required relationship is properly set on the BO
+	for _, relationship := range core.GetSortedValues(model.getRelationships()) {
+		checks = append(checks, buildRequiredRelationshipChecks(relationship)...)
+
+		// core.InSlice is used for polymorphic relationships' target model check
+		if relationship.IsRequiredInDb() && relationship.IsPolymorphic() {
+			importsMap["github.com/aldesgroup/corego"] = true
+		}
+	}
+
+	// going through the entity's fields once, letting each per-field check builder chime in;
+	// the mandatory-input check always comes first, before the other, more specific checks
+	for _, field := range core.GetSortedValues(model.getFields()) {
+		if check := buildMandatoryInputChecks(field); check != "" {
+			checks = append(checks, check)
+		}
+		if check := buildFloatFormatChecks(field); check != "" {
+			checks = append(checks, check)
+		}
+		if check := buildStringSizeChecks(field); check != "" {
+			checks = append(checks, check)
+		}
+		if check := buildIntRangeChecks(field); check != "" {
+			checks = append(checks, check)
+		}
+		if check := buildFloatRangeChecks(field); check != "" {
+			checks = append(checks, check)
+		}
+		if check := buildEnumValueChecks(field); check != "" {
+			checks = append(checks, check)
+		}
+		if check := buildEqualLenChecks(field); check != "" {
+			checks = append(checks, check)
+		}
+	}
+
+	return checks
+}
+
+// building the diffed links for the given model's relationships that require link tables
+func (thisGen *xtdGenerator) buildUtilsDiffedLinks(model IBusinessObjectModel) (result []string) {
+	for _, relationship := range core.GetSortedValues(model.getRelationships()) {
+		if relationship.needsLinkTable() || relationship.needsReverseLinkTable() {
+			result = append(result, fmt.Sprintf("	if forLinks[%q] {", relationship.GetName()))
+			result = append(result, fmt.Sprintf("		added.%[1]s, removed.%[1]s = goald.DiffBusinessObjectSlices(otherBo.%[1]s, bo.%[1]s, %t)",
+				relationship.GetName(), relationship.IsPolymorphic()))
+			result = append(result, "	}")
+		}
+	}
+	if len(result) > 0 {
+		result = append([]string{fmt.Sprintf("\n	otherBo := other.(*%s)\n", model.GetName())}, result...)
+		result = append(result, "")
+	}
+	return
+}

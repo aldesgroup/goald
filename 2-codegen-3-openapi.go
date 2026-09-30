@@ -5,7 +5,6 @@ package goald
 
 import (
 	"fmt"
-	"log/slog"
 	"net/http"
 	"path"
 	"strconv"
@@ -14,7 +13,7 @@ import (
 	"time"
 
 	core "github.com/aldesgroup/corego"
-	"github.com/aldesgroup/goald/features/utils"
+	"github.com/aldesgroup/goald/features/reflection"
 	"github.com/getkin/kin-openapi/openapi3"
 	"go.yaml.in/yaml/v3"
 )
@@ -54,7 +53,7 @@ func (thisServer *server) generateOpenAPIDoc(srcdirs []string, docpath string, r
 		docModified := core.EnsureModTime(docpath)
 
 		// let's check if a business object involved web exchanges has changed, or the endpoints code has changed
-		doRegen = doRegen || isWebModelsChanged(docModified) || isWebCodeChanged(srcdirs, docModified)
+		doRegen = doRegen || thisServer.isWebModelsChanged(docModified) || thisServer.isWebCodeChanged(srcdirs, docModified)
 	}
 
 	// let's do it if we must
@@ -66,7 +65,7 @@ func (thisServer *server) generateOpenAPIDoc(srcdirs []string, docpath string, r
 
 		// writing it out
 		core.WriteBytesToFile(docpath, doc)
-		slog.Info("New version for: " + docpath)
+		thisServer.Info("New version for: " + docpath)
 
 		// also writing the HTML version
 		core.WriteStringToFile(strings.Replace(docpath, ".yaml", ".html", 1), openAPIHTMLTemplate, string(doc))
@@ -74,15 +73,15 @@ func (thisServer *server) generateOpenAPIDoc(srcdirs []string, docpath string, r
 }
 
 // Checking if at least 1 business object involved in an endpoint has changed
-func isWebModelsChanged(docModified time.Time) bool {
+func (thisServer *server) isWebModelsChanged(docModified time.Time) bool {
 	// going over all the endpoints
 	for _, ep := range restRegistry.endpoints {
-		if classRegistry.items[ep.getResourceClass()].getLastBOMod().After(docModified) {
-			slog.Info(fmt.Sprintf("Output model '%s' for endpoint '%s %s' has changed!", ep.getResourceClass(), ep.getMethod(), ep.getLabel()))
+		if ep.getResourceModel().getLastBOMod().After(docModified) {
+			thisServer.Info(fmt.Sprintf("Output model '%s' for endpoint '%s %s' has changed!", ep.getResourceModel().GetName(), ep.getMethod(), ep.getLabel()))
 			return true
 		}
-		if inputClass := ep.getInputOrParamsClass(); inputClass != "" && classRegistry.items[inputClass].getLastBOMod().After(docModified) {
-			slog.Info(fmt.Sprintf("Input model '%s' for endpoint '%s %s' has changed!", ep.getResourceClass(), ep.getMethod(), ep.getLabel()))
+		if inputModel := ep.getInputOrParamsModel(); inputModel != nil && inputModel.getLastBOMod().After(docModified) {
+			thisServer.Info(fmt.Sprintf("Input model '%s' for endpoint '%s %s' has changed!", inputModel.GetName(), ep.getMethod(), ep.getLabel()))
 			return true
 		}
 	}
@@ -91,10 +90,10 @@ func isWebModelsChanged(docModified time.Time) bool {
 }
 
 // Checks in all the given source directories if some web code has changed and is more recent than the given date
-func isWebCodeChanged(srcdirs []string, docModified time.Time) bool {
+func (thisServer *server) isWebCodeChanged(srcdirs []string, docModified time.Time) bool {
 	for _, codedir := range srcdirs {
 		if core.DirExists(codedir) {
-			if checkWebCodeChanged(codedir, docModified) {
+			if thisServer.checkWebCodeChanged(codedir, docModified) {
 				return true
 			}
 		}
@@ -104,16 +103,16 @@ func isWebCodeChanged(srcdirs []string, docModified time.Time) bool {
 }
 
 // Checks in a the given source directory has some web code has changed more recent than the given date
-func checkWebCodeChanged(codedir string, docModified time.Time) bool {
+func (thisServer *server) checkWebCodeChanged(codedir string, docModified time.Time) bool {
 	for _, entry := range core.EnsureReadDir(codedir) {
 		if entry.IsDir() {
-			if checkWebCodeChanged(path.Join(codedir, entry.Name()), docModified) {
+			if thisServer.checkWebCodeChanged(path.Join(codedir, entry.Name()), docModified) {
 				return true
 			}
 		} else {
 			if strings.HasSuffix(entry.Name(), "--web.go") {
 				if filename := path.Join(codedir, entry.Name()); core.EnsureModTime(filename).After(docModified) {
-					slog.Info("Endpoints might have changed with the latest change to this file: " + filename)
+					thisServer.Info("Endpoints might have changed with the latest change to this file: " + filename)
 					return true
 				}
 			}
@@ -189,8 +188,8 @@ func addEndpointToDoc(doc *openapi3.T, ep iEndpoint) error {
 	openapiPath := basePath
 	operationID := strings.ToLower(ep.getMethod()) + basePath
 	if idProp := ep.getIDProp(); idProp != nil {
-		openapiPath += "/{" + idProp.getName() + "}"
-		operationID += "/" + idProp.getName()
+		openapiPath += "/{" + idProp.GetName() + "}"
+		operationID += "/" + idProp.GetName()
 	}
 
 	pathItem := doc.Paths.Find(openapiPath)
@@ -215,31 +214,67 @@ func addEndpointToDoc(doc *openapi3.T, ep iEndpoint) error {
 	if idProp := ep.getIDProp(); idProp != nil {
 		op.Parameters = append(op.Parameters, &openapi3.ParameterRef{
 			Value: &openapi3.Parameter{
-				Name:        idProp.getName(),
+				Name:        idProp.GetName(),
 				In:          "path",
 				Required:    true,
 				Schema:      schemaFromPrimitiveType(idProp, false),
-				Description: "URL path parameter: " + idProp.getTag("desc"),
+				Description: "URL path parameter: " + getDescriptionFromFieldWithModel(idProp, idProp.ownerModel()),
+			},
+		})
+	}
+
+	// ---------- OUTPUT ----------
+	outModel := ep.getResourceModel()
+	if outModel != nil {
+		ref, err := getSchemaRef(doc, outModel)
+		if err != nil {
+			return err
+		}
+
+		op.Responses.Set("200", &openapi3.ResponseRef{
+			Value: &openapi3.Response{
+				Description: strPtr(fmt.Sprintf("'%s' was successful", ep.getLabel())),
+				Content: openapi3.Content{
+					"application/json": &openapi3.MediaType{
+						Schema: ref,
+					},
+				},
 			},
 		})
 	}
 
 	// ---------- INPUT ----------
-	inClass := ep.getInputOrParamsClass()
-	if inClass != "" {
+	inModel := ep.getInputOrParamsModel()
+	if inModel != nil {
 
 		if ep.isBodyInputRequired() {
 			// === BODY INPUT ===
-			ref, err := getSchemaRef(doc, inClass)
+			ref, err := getSchemaRef(doc, inModel)
 			if err != nil {
 				return err
 			}
 
+			var action string
+			if ep.getMethod() == http.MethodPost {
+				action = "create"
+			} else if ep.getMethod() == http.MethodPut {
+				action = "update"
+			} else {
+				action = "send"
+			}
+
 			var description string
 			if ep.isMultipleInput() {
-				description = fmt.Sprintf("An array of %s objects", inClass)
+				description = fmt.Sprintf("An array of '%s' instances to %s", inModel.GetName(), action)
+				// wrapping the schema in an array to match the plural description
+				ref = &openapi3.SchemaRef{
+					Value: &openapi3.Schema{
+						Type:  &openapi3.Types{"array"},
+						Items: ref,
+					},
+				}
 			} else {
-				description = fmt.Sprintf("A %s object", inClass)
+				description = fmt.Sprintf("A '%s' instance to %s", inModel.GetName(), action)
 			}
 
 			op.RequestBody = &openapi3.RequestBodyRef{
@@ -256,32 +291,12 @@ func addEndpointToDoc(doc *openapi3.T, ep iEndpoint) error {
 
 		} else {
 			// === URL PARAMS INPUT ===
-			params, err := paramsFromClass(inClass, openapiPath)
+			params, err := paramsFromModel(inModel, openapiPath, outModel)
 			if err != nil {
 				return err
 			}
 			op.Parameters = append(op.Parameters, params...)
 		}
-	}
-
-	// ---------- OUTPUT ----------
-	outClass := ep.getResourceClass()
-	if outClass != "" {
-		ref, err := getSchemaRef(doc, outClass)
-		if err != nil {
-			return err
-		}
-
-		op.Responses.Set("200", &openapi3.ResponseRef{
-			Value: &openapi3.Response{
-				Description: strPtr("OK"),
-				Content: openapi3.Content{
-					"application/json": &openapi3.MediaType{
-						Schema: ref,
-					},
-				},
-			},
-		})
 	}
 
 	// ---------- METHOD BINDING ----------
@@ -308,49 +323,66 @@ func addEndpointToDoc(doc *openapi3.T, ep iEndpoint) error {
 // ------------------------------------------------------------------------------------------------
 
 // we'll put all the schemas here, and avoid repeating ourselves
-var schemaCache = map[className]*openapi3.SchemaRef{}
+var schemaCache = map[IBusinessObjectModel]*openapi3.SchemaRef{}
 
-// getting a schema REF for a given class, initializing it if needed
-func getSchemaRef(doc *openapi3.T, clsName className) (*openapi3.SchemaRef, error) {
+// jsonNameFor returns the JSON property name to use for the given property, honoring an explicit
+// `json:"name"` struct tag if present (dropping any options like `,omitempty`), and falling back
+// to a camelCase conversion of the property's Go field name otherwise. ok is false when the
+// property is explicitly excluded from JSON via a `json:"-"` tag, in which case it should be
+// skipped entirely rather than falling back to a generated name.
+func jsonNameFor(prop IBusinessObjectProperty) (name string, ok bool) {
+	jsonTag := prop.getTag("json")
+	if jsonTag == "-" {
+		return "", false
+	}
+
+	if jsonTag != "" {
+		if tagName, _, _ := strings.Cut(jsonTag, ","); tagName != "" {
+			return tagName, true
+		}
+	}
+
+	return core.PascalToCamel(prop.GetName()), true
+}
+
+// getting a schema REF for a given model, initializing it if needed
+func getSchemaRef(doc *openapi3.T, model IBusinessObjectModel) (*openapi3.SchemaRef, error) {
 	// fast returning if possible
-	if clsName == "" {
+	if model == nil {
 		return nil, nil
 	}
-	if ref, ok := schemaCache[clsName]; ok {
+	if ref, ok := schemaCache[model]; ok {
 		return ref, nil
 	}
 
-	// early caching of a new schema REF for the given class, to avoid cycles
+	// early caching of a new schema REF for the given model, to avoid cycles
 	ref := &openapi3.SchemaRef{
-		Ref: "#/components/schemas/" + string(clsName),
+		Ref: "#/components/schemas/" + string(model.GetName()),
 	}
-	schemaCache[clsName] = ref
+	schemaCache[model] = ref
 
-	// getting the associated model
-	model := modelForName(clsName)
-	if model == nil {
-		return nil, fmt.Errorf("No model associated with BO class '%s'", clsName)
-	}
-
-	// adding a schema (not juste a REF) for the given class to the doc's components
-	doc.Components.Schemas[string(clsName)] = &openapi3.SchemaRef{Value: schemaFromModel(doc, model)}
+	// adding a schema (not juste a REF) for the given model to the doc's components
+	doc.Components.Schemas[string(model.GetName())] = &openapi3.SchemaRef{Value: schemaFromModel(doc, model)}
 
 	return ref, nil
 }
 
 // building a schema for the given business object model
 func schemaFromModel(doc *openapi3.T, model IBusinessObjectModel) *openapi3.Schema {
-
 	// new schema
 	schema := &openapi3.Schema{
 		Type:        &openapi3.Types{"object"},
 		Properties:  openapi3.Schemas{},
-		Description: model.base().description,
+		Description: model.getDescription(),
 	}
 
 	// going over the basic properties, i.e. the fields
-	for _, field := range core.GetSortedValues(model.base().fields) {
-		fieldJSONName := core.PascalToCamel(field.getName())
+	for _, field := range core.GetSortedValues(model.getFields()) {
+		fieldJSONName, ok := jsonNameFor(field)
+		if !ok {
+			// this field is explicitly excluded from JSON (json:"-"), so it has no place in the schema
+			continue
+		}
 
 		var prop *openapi3.SchemaRef = schemaFromPrimitiveType(field, true)
 
@@ -366,15 +398,19 @@ func schemaFromModel(doc *openapi3.T, model IBusinessObjectModel) *openapi3.Sche
 	}
 
 	// going over the relationships, i.e. the object-type properties
-	for _, relationship := range core.GetSortedValues(model.base().relationships) {
-		relationshipJSONName := core.PascalToCamel(relationship.getName())
+	for _, relationship := range core.GetSortedValues(model.getRelationships()) {
+		relationshipJSONName, ok := jsonNameFor(relationship)
+		if !ok {
+			// this relationship is explicitly excluded from JSON (json:"-"), so it has no place in the schema
+			continue
+		}
 
-		if !relationship.polymorphic || len(relationship.targets) == 1 {
+		if !relationship.IsPolymorphic() || len(relationship.getTargetModelNames()) == 1 {
 
 			// getting the schema REF for the relationship target
-			prop, errRef := getSchemaRef(doc, relationship.targets[0].base().name)
+			prop, errRef := getSchemaRef(doc, modelFor(relationship.getUniqueTargetName(), true))
 			core.PanicMsgIfErr(errRef, "Error while getting schema ref for relationship '%s#%s'",
-				model.base().name, relationship.getName())
+				model.GetName(), relationship.GetName())
 
 			// linking this relationship to the schema
 			if relationship.isPureOutput() {
@@ -400,14 +436,14 @@ func schemaFromModel(doc *openapi3.T, model IBusinessObjectModel) *openapi3.Sche
 				},
 			}
 
-			if len(relationship.targets) == 0 {
-				core.PanicMsg("Polymorphic relationship '%s#%s' does not have any target model", model.base().name, relationship.getName())
+			if len(relationship.getTargetModelNames()) == 0 {
+				core.PanicMsg("Polymorphic relationship '%s#%s' does not have any target model", model.GetName(), relationship.GetName())
 			}
 
-			for _, target := range relationship.targets {
-				prop, errRef := getSchemaRef(doc, target.base().name)
+			for _, targetName := range relationship.getTargetModelNames() {
+				prop, errRef := getSchemaRef(doc, modelFor(targetName, true))
 				core.PanicMsgIfErr(errRef, "Error while getting schema ref for relationship '%s#%s'",
-					model.base().name, relationship.getName())
+					model.GetName(), relationship.GetName())
 				schema.Properties[relationshipJSONName].Value.OneOf = append(schema.Properties[relationshipJSONName].Value.OneOf, prop)
 			}
 
@@ -422,24 +458,30 @@ func schemaFromModel(doc *openapi3.T, model IBusinessObjectModel) *openapi3.Sche
 	return schema
 }
 
-// building URL parameters from the given business object model that's associated with a URLQueryParams-derived BO
-func paramsFromClass(clsName className, path string) (openapi3.Parameters, error) {
-	model := modelForName(clsName)
-	if model == nil {
-		return nil, fmt.Errorf("No model associated with URL Query Params class '%s'", clsName)
-	}
+var notSearchParamsNames = map[string]bool{
+	"ID":           true,
+	"preID":        true,
+	"Creation":     true,
+	"Modification": true,
+}
 
+// building URL parameters from the given business object model that's associated with a SearchParamValues-derived BO
+func paramsFromModel(inModel IBusinessObjectModel, path string, outModel IBusinessObjectModel) (openapi3.Parameters, error) {
 	// pathVars := extractPathVars(path)
 	var out openapi3.Parameters
 
-	for _, field := range core.GetSortedValues(model.base().fields) {
-		schema := schemaFromPrimitiveType(field, true)
+	for _, field := range core.GetSortedValues(inModel.getFields()) {
+		if notSearchParamsNames[field.GetName()] {
+			continue
+		}
+
+		schema := schemaFromPrimitiveType(field, false)
 		parameter := &openapi3.Parameter{
-			Name:        field.getName(),
+			Name:        field.GetName(),
 			In:          "query",
 			Required:    field.isMandatoryInput(),
 			Schema:      schema,
-			Description: "URL query Parameter: " + schema.Value.Description,
+			Description: getDescriptionFromFieldWithModel(field, core.IfThenElse(outModel != nil, outModel, inModel)),
 		}
 
 		out = append(out, &openapi3.ParameterRef{Value: parameter})
@@ -455,42 +497,50 @@ func withDescription(schema *openapi3.Schema, description string) *openapi3.Sche
 	return schema
 }
 
+func getDescriptionFromFieldWithModel(field IField, model IBusinessObjectModel) string {
+	desc := field.getTag("desc")
+	if strings.Contains(desc, "%s") {
+		desc = fmt.Sprintf(desc, string(model.getNaturalName()))
+	}
+	return desc
+}
+
+func getDescriptionFromField(field IField) string {
+	return getDescriptionFromFieldWithModel(field, field.ownerModel())
+}
+
 func schemaFromPrimitiveType(field IField, addDesc bool) *openapi3.SchemaRef {
 
 	var description string
 	if addDesc {
-		if field.getName() == "ID" {
-			description = "the unique identifier of the " + string(field.ownerModel().base().name)
-		} else {
-			description = field.getTag("desc")
-		}
+		description = getDescriptionFromField(field)
 	}
 
-	switch field.getTypeFamily() {
+	switch field.getPropertyType() {
 
-	case utils.TypeFamilyBOOL:
+	case propertyTypeBOOL:
 		return &openapi3.SchemaRef{Value: withDescription(openapi3.NewBoolSchema(), description)}
 
-	case utils.TypeFamilySTRING:
+	case propertyTypeSTRING:
 		return &openapi3.SchemaRef{Value: withDescription(openapi3.NewStringSchema(), description)}
 
-	case utils.TypeFamilyINT:
+	case propertyTypeINT:
 		return &openapi3.SchemaRef{Value: withDescription(openapi3.NewInt32Schema(), description)}
 
-	case utils.TypeFamilyBIGINT:
+	case propertyTypeBIGINT:
 		return &openapi3.SchemaRef{Value: withDescription(openapi3.NewInt64Schema(), description)}
 
-	case utils.TypeFamilyREAL, utils.TypeFamilyDOUBLE:
+	case propertyTypeREAL, propertyTypeDOUBLE:
 		return &openapi3.SchemaRef{Value: withDescription(openapi3.NewFloat64Schema(), description)}
 
-	// case utils.TypeFamilyDATE:               "date", // TODO
+	// case propertyTypeDATE:               "date", // TODO
 
-	case utils.TypeFamilyENUM:
+	case propertyTypeENUM:
 		// instantiating an instance of the owner of this field
-		enumOwner := getClass(field.ownerModel()).NewObject()
+		enumOwner := field.ownerModel().NewObject()
 
 		// this owner has a zero-value for this field, which is enough for us to do the rest
-		enumVal := utils.ValueOf(enumOwner).GetFieldValue(field.getName())
+		enumVal := reflection.ValueOf(enumOwner).GetFieldValue(field.GetName())
 
 		// controlling we do have an enum
 		if enum, ok := enumVal.(IEnum); ok {
@@ -516,18 +566,15 @@ func schemaFromPrimitiveType(field IField, addDesc bool) *openapi3.SchemaRef {
 
 		} else {
 			// should never happen
-			core.PanicMsg("It seems field '%s' is not a proper enum (does not implement goald.IEnum)", field.getName())
+			core.PanicMsg("It seems field '%s' is not a proper enum (does not implement goald.IEnum)", field.GetName())
 			return nil
 		}
 
-	// case "array":
-	// 	return &openapi3.SchemaRef{Value: &openapi3.Schema{
-	// 		Type:  &openapi3.Types{"array"},
-	// 		Items: schemaFromPrimitiveType(*t.ArrayItem),
-	// 	}}
+	case propertyTypeDATE:
+		return &openapi3.SchemaRef{Value: withDescription(openapi3.NewDateTimeSchema(), description)}
 
 	default:
-		panic("Unhandled type in Open API doc generation: " + field.getTypeFamily().String())
+		panic("Unhandled type in Open API doc generation: " + field.getPropertyType().String())
 	}
 }
 

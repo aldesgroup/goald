@@ -8,7 +8,7 @@ import (
 )
 
 // static, reflect-free access to the definition of the DeviceBootstrap model
-type deviceBootstrapModel struct {
+type DeviceBootstrapModel struct {
 	g.IBusinessObjectModel
 	status      *g.EnumField
 	iotCertPem  *g.StringField
@@ -18,56 +18,58 @@ type deviceBootstrapModel struct {
 }
 
 // this is the main way to refer to the DeviceBootstrap model in the applicative code
-func DeviceBootstrap() *deviceBootstrapModel {
+func DeviceBootstrap() *DeviceBootstrapModel {
+	deviceBootstrapOnce.Do(func() {
+		deviceBootstrap = NewDeviceBootstrapModel()
+
+		// this helps dynamically access to the DeviceBootstrap model
+		g.RegisterModel("DeviceBootstrap", deviceBootstrap)
+	})
+
 	return deviceBootstrap
 }
 
 // internal variables
 var (
-	deviceBootstrap     *deviceBootstrapModel
+	deviceBootstrap     *DeviceBootstrapModel
 	deviceBootstrapOnce sync.Once
 )
 
-// fully describing each of this class' properties & relationships
-func newDeviceBootstrapModel() *deviceBootstrapModel {
-	newModel := &deviceBootstrapModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
-	newModel.status = g.NewEnumField(newModel, "Status", false, "iot.BootstrapStatus")
-	newModel.iotCertPem = g.NewStringField(newModel, "IotCertPEM", false)
-	newModel.iotChainPem = g.NewStringField(newModel, "IotChainPEM", false)
-	newModel.deviceId = g.NewStringField(newModel, "DeviceID", false)
-	newModel.scopeId = g.NewStringField(newModel, "ScopeID", false)
+// fully describing each of this model's properties & relationships
+func NewDeviceBootstrapModel() *DeviceBootstrapModel {
+	thisModel := &DeviceBootstrapModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
+	thisModel.status = g.AddEnumField(thisModel, "DeviceBootstrap", "Status", false, "iot.BootstrapStatus")
+	thisModel.iotCertPem = g.AddStringField(thisModel, "DeviceBootstrap", "IotCertPEM", false)
+	thisModel.iotChainPem = g.AddStringField(thisModel, "DeviceBootstrap", "IotChainPEM", false)
+	thisModel.deviceId = g.AddStringField(thisModel, "DeviceBootstrap", "DeviceID", false)
+	thisModel.scopeId = g.AddStringField(thisModel, "DeviceBootstrap", "ScopeID", false)
 
-	return newModel
+	return thisModel
 }
 
 // making sure the DeviceBootstrap model exists at app startup
 func init() {
-	deviceBootstrapOnce.Do(func() {
-		deviceBootstrap = newDeviceBootstrapModel()
-	})
-
-	// this helps dynamically access to the DeviceBootstrap model
-	g.RegisterModel("DeviceBootstrap", deviceBootstrap)
+	DeviceBootstrap()
 }
 
-// accessing all the DeviceBootstrap class' properties and relationships
+// accessing all the DeviceBootstrap model's properties and relation	ships
 
-func (d *deviceBootstrapModel) Status() *g.EnumField {
-	return d.status
+func (D *DeviceBootstrapModel) Status() *g.EnumField {
+	return D.status
 }
 
-func (d *deviceBootstrapModel) IotCertPEM() *g.StringField {
-	return d.iotCertPem
+func (D *DeviceBootstrapModel) IotCertPEM() *g.StringField {
+	return D.iotCertPem
 }
 
-func (d *deviceBootstrapModel) IotChainPEM() *g.StringField {
-	return d.iotChainPem
+func (D *DeviceBootstrapModel) IotChainPEM() *g.StringField {
+	return D.iotChainPem
 }
 
-func (d *deviceBootstrapModel) DeviceID() *g.StringField {
-	return d.deviceId
+func (D *DeviceBootstrapModel) DeviceID() *g.StringField {
+	return D.deviceId
 }
 
-func (d *deviceBootstrapModel) ScopeID() *g.StringField {
-	return d.scopeId
+func (D *DeviceBootstrapModel) ScopeID() *g.StringField {
+	return D.scopeId
 }

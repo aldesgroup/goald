@@ -7,9 +7,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"runtime/debug"
+	"strconv"
+	"time"
 
 	core "github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald/features/hstatus"
@@ -20,11 +21,10 @@ import (
 // Serving the REST endpoints
 // ------------------------------------------------------------------------------------------------
 
-// TODO handle patching BOs with safeguards, like authorizing a limited list of fields (on the class for instance)
-
-var reqCount int // to remove
+// TODO handle patching BOs with safeguards, like authorizing a limited list of fields (on the model for instance)
 
 func (thisServer *server) ServeEndpoint(ep iEndpoint, w http.ResponseWriter, req *http.Request, params r.Params) {
+
 	var reqCtx *httpRequestContext
 
 	// Protecting against panics
@@ -41,7 +41,7 @@ func (thisServer *server) ServeEndpoint(ep iEndpoint, w http.ResponseWriter, req
 			if len(reqCtx.inputBodyBytes) > 0 {
 				reqBody = " with body: " + string(reqCtx.inputBodyBytes)
 			}
-			slog.Error(fmt.Sprintf("Internal error n°%s = '%v', while calling '%s'%s. Stack: %s", errorReference, err, req.RequestURI, reqBody, string(debug.Stack())))
+			thisServer.Error(false, fmt.Sprintf("Internal error n°%s = '%v', while calling '%s'%s. Stack: %s", errorReference, err, req.RequestURI, reqBody, string(debug.Stack())))
 
 			// responding to the client
 			reqCtx.write(&response{
@@ -55,12 +55,17 @@ func (thisServer *server) ServeEndpoint(ep iEndpoint, w http.ResponseWriter, req
 	// TODO defer : requestHandler release
 
 	// TODO sync.Pool
+	reqNum := thisServer.reqCount.Add(1)
 	reqCtx = &httpRequestContext{
 		server: thisServer,
+		reqNum: reqNum,
+		ILogger: thisServer.ILogger.WithPrefix(
+			fmt.Sprintf("%s|%06d", thisServer.instance, reqNum),
+		),
+		start: time.Now(),
 	}
 
 	reqCtx.serve(ep, w, req, params)
-
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -69,31 +74,34 @@ func (thisServer *server) ServeEndpoint(ep iEndpoint, w http.ResponseWriter, req
 
 // the type of response returned by all our REST endpoints
 type response struct {
-	Object     any          `json:"object,omitempty"`
-	ObjectList any          `json:"objectList,omitempty"`
-	statusObj  hstatus.Code `json:"-"`
-	StatusCode int          `json:"statusCode"`
-	Status     string       `json:"status"`
-	Message    string       `json:"message"`
-	Version    string       `json:"version"`
+	Object         any          `json:"object,omitempty"`
+	ObjectList     any          `json:"objectList,omitempty"`
+	ObjectListSize int          `json:"objectListSize,omitempty"`
+	statusObj      hstatus.Code `json:"-"`
+	StatusCode     int          `json:"statusCode"`
+	Status         string       `json:"status"`
+	Message        string       `json:"message"`
+	Version        string       `json:"version"`
 }
 
-func errResp(_ int, _ string, _ ...any) *response {
-	return &response{}
+func errResp(status hstatus.Code, msg string, args ...any) *response {
+	return &response{
+		statusObj:  status,
+		StatusCode: status.Val(),
+		Status:     status.String(),
+		Message:    fmt.Sprintf(msg, args...),
+	}
 }
 
-// main HTTP SERVING function
+// main HTTP SERVING functiont.De
 func (thisReqCtx *httpRequestContext) serve(ep iEndpoint, w http.ResponseWriter, req *http.Request, params r.Params) {
-
-	// TODO remove
-	reqCount++
-	prefix := fmt.Sprintf("%06d|%s", reqCount, thisReqCtx.instance) //
-	slog.Info(fmt.Sprintf("[%s] Serving %s (%s)", prefix, ep.getPathAsString(), ep.getLabel()))
+	// logging
+	thisReqCtx.Info(fmt.Sprintf("Serving %s (%s)", ep.getPathAsString(), ep.getLabel())) // TODO change
 
 	// initialising the web context that's going to be passed to the applicative handler
 	var targetRefOrID string
 	if ep.getIDProp() != nil {
-		targetRefOrID = params.ByName(ep.getIDProp().getName())
+		targetRefOrID = params.ByName(ep.getIDProp().GetName())
 	}
 
 	// prepping the context that's going to contain all the input data
@@ -130,9 +138,9 @@ func (thisReqCtx *httpRequestContext) serve(ep iEndpoint, w http.ResponseWriter,
 	// TODO only do this in verbose mode!
 	if len(webCtx.inputBodyBytes) > 0 {
 		if trimTo := ep.trimBodyLoggingTo(); trimTo > 0 && len(webCtx.inputBodyBytes) > trimTo {
-			slog.Debug(fmt.Sprintf("Body: %s [...]", string(webCtx.inputBodyBytes)[:trimTo]))
+			thisReqCtx.Debug(fmt.Sprintf("Body: %s [...]", string(webCtx.inputBodyBytes)[:trimTo]))
 		} else {
-			slog.Debug(fmt.Sprintf("Body: %s", string(webCtx.inputBodyBytes)))
+			thisReqCtx.Debug(fmt.Sprintf("Body: %s", string(webCtx.inputBodyBytes)))
 		}
 	}
 
@@ -159,6 +167,11 @@ func (thisReqCtx *httpRequestContext) serve(ep iEndpoint, w http.ResponseWriter,
 		}
 	}
 
+	// setting the size of the returned list, if any
+	if resp.ObjectList != nil {
+		resp.ObjectListSize = ep.getOutputListLen(resp.ObjectList)
+	}
+
 End:
 	// writing out the response
 	thisReqCtx.write(resp, w)
@@ -181,8 +194,15 @@ func (thisReqCtx *httpRequestContext) write(resp *response, w http.ResponseWrite
 	// JSON-marshaling of the response
 	jsonBytes, errMrsh := json.MarshalIndent(resp, "", "\t")
 	if errMrsh != nil {
-		resp = errResp(http.StatusInternalServerError, "Could not unmarshal the response: %s", errMrsh)
+		resp = errResp(hstatus.InternalServerError, "Could not unmarshal the response: %s", errMrsh)
 		jsonBytes, _ = json.MarshalIndent(resp, "", "\t")
+	}
+
+	// bit of logging
+	if resp.statusObj.Val() > hstatus.BadRequest.Val() {
+		thisReqCtx.Error(false, strconv.Itoa(resp.statusObj.Val())+": "+resp.Message+", in "+time.Since(thisReqCtx.start).String())
+	} else {
+		thisReqCtx.Info(strconv.Itoa(resp.statusObj.Val()) + ": " + resp.Message + ", in " + time.Since(thisReqCtx.start).String())
 	}
 
 	// writing the header before the body to avoid default HTTP code
@@ -190,8 +210,8 @@ func (thisReqCtx *httpRequestContext) write(resp *response, w http.ResponseWrite
 
 	// actual writing out of the response
 	if _, errWrite := w.Write(jsonBytes); errWrite != nil {
-		// TODO change logging
-		slog.Error(fmt.Sprintf("Error while writing out the JSON response: %s", errWrite))
+		// TODO change logging, make he request context a logger
+		thisReqCtx.server.Error(true, fmt.Sprintf("Error while writing out the JSON response: %s", errWrite))
 	}
 }
 
@@ -212,30 +232,19 @@ func retrieveInputData(request *http.Request, webContext *webContextImpl, ep iEn
 	webContext.inputBodyBytes = inputBodyBytes
 
 	if ep.isMultipleInput() {
-		// Handling array of bObj input: []*package.BObj
-		bObjClass := classRegistry.items[ep.getInputOrParamsClass()]
-		if bObjClass == nil {
-			return nil, Error("No '%s' class has been registered!", ep.getInputOrParamsClass())
-		}
-		bObjSlice := bObjClass.NewSlice()
-
-		// Unmarshaling *[]*package.BObj as an interface - which is expected by the Unmarshal function
-		if jsonErr := json.Unmarshal(inputBodyBytes, &bObjSlice); jsonErr != nil {
+		// Handling array of bObj input: []*package.BObj, resolving each element's own relationships too
+		bObjSlice, jsonErr := unmarshalBObjSlice(inputBodyBytes, ep.getInputOrParamsModel())
+		if jsonErr != nil {
 			return nil, ErrorC(jsonErr, "Could not unmarshall the JSON object array!")
 		}
 
-		// Not returning the reflect.Value, but the concrete instance associated with it
 		return bObjSlice, nil
 
 	} else {
 		// Handling single bObj input: *package.BObj
-		bObjClass := classRegistry.items[ep.getInputOrParamsClass()]
-		if bObjClass == nil {
-			return nil, Error("No '%s' class has been registered!", ep.getInputOrParamsClass())
-		}
-		bObj := bObjClass.NewObject()
+		bObj := ep.getInputOrParamsModel().NewObject()
 
-		if jsonErr := json.Unmarshal(inputBodyBytes, bObj); jsonErr != nil {
+		if jsonErr := unmarshalBObj(inputBodyBytes, bObj); jsonErr != nil {
 			return nil, ErrorC(jsonErr, "Could not unmarshall the JSON object!")
 		}
 
@@ -243,21 +252,18 @@ func retrieveInputData(request *http.Request, webContext *webContextImpl, ep iEn
 	}
 }
 
-// parsing the request's URL to build the expected URLQueryParams object
+// parsing the request's URL to build the expected SearchParamValues object
 func retrieveURLParams(request *http.Request, _ *webContextImpl, ep iEndpoint) (any, error) {
-	// getting the right class utils
-	classUtils := classRegistry.items[ep.getInputOrParamsClass()]
-
-	// new URLQueryParams object
-	urlParams := classUtils.NewObject().(IURLQueryParams)
+	// new SearchParamValues object
+	urlParams := ep.getInputOrParamsModel().NewObject().(ISearchParamValues)
 
 	// transferring the URL param values from the URL to the object
-	for _, field := range modelForName(ep.getInputOrParamsClass()).base().fields {
-		valueToSet := request.URL.Query().Get(field.getName())
+	for _, field := range urlParams.getModel(urlParams).getFields() {
+		valueToSet := request.URL.Query().Get(field.GetName())
 		if valueToSet == "" {
 			valueToSet = field.getDefaultValue()
 		}
-		classUtils.SetValueAsString(urlParams, field.getName(), valueToSet)
+		urlParams.SetValueAsString(field.GetName(), valueToSet)
 	}
 
 	return urlParams, nil

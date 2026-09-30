@@ -1,3 +1,4 @@
+// Generated file, do not edit!
 package i18n
 
 import (
@@ -7,10 +8,10 @@ import (
 
 type Translation struct {
 	goald.BusinessObject
-	Lang      string `json:"lang"      io:"i*" desc:"the language code (e.g. 'en', 'fr', 'de', etc.)"`
-	Namespace string `json:"namespace" io:"in" desc:"the namespace of the translation"`
-	Key       string `json:"key"       io:"o*" desc:"the key of the translation"`
-	Value     string `json:"value"     io:"o*" desc:"the value of the translation"`
+	Lang      string `json:"lang,omitempty"      io:"i*" desc:"the language code (e.g. 'en', 'fr', 'de', etc.)"`
+	Namespace string `json:"namespace,omitempty" io:"in" desc:"the namespace of the translation"`
+	Key       string `json:"key,omitempty"       io:"o*" desc:"the key of the translation"`
+	Value     string `json:"value,omitempty"     io:"o*" desc:"the value of the translation"`
 }
 
 func init() {

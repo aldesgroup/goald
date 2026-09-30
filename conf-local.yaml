@@ -1,2 +1,5 @@
 base:
     envtype: LOCAL
+    logging:
+        level: debug
+        type: text

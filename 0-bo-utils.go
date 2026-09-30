@@ -1,56 +1,70 @@
 // ------------------------------------------------------------------------------------------------
-// Some utilities to help build classes
+// Some utilities to help use business object models
 // ------------------------------------------------------------------------------------------------
 package goald
 
 import (
+	"fmt"
 	"sort"
 
+	"github.com/aldesgroup/goald/features/reflection"
 	"github.com/aldesgroup/goald/features/utils"
 )
 
 var (
-	typeBUSINESSxOBJECT   = utils.TypeOf((*BusinessObject)(nil), true)
-	typeURLxQUERYxOBJECT  = utils.TypeOf((*URLQueryParams)(nil), true)
-	typeIxBUSINESSxOBJECT = utils.TypeOf((*IBusinessObject)(nil), true)
-	typeIxENUM            = utils.TypeOf((*IEnum)(nil), true)
+	typeBUSINESSxOBJECT     = reflection.TypeOf((*BusinessObject)(nil), true)
+	typeSEARCHxPARAMxVALUES = reflection.TypeOf((*SearchParamValues)(nil), true)
+	typeIxBUSINESSxOBJECT   = reflection.TypeOf((*IBusinessObject)(nil), true)
+	typeIxENUM              = reflection.TypeOf((*IEnum)(nil), true)
 )
 
-// // GetAllProperties returns all this class' properties
-// func (model *businessObjectClass) GetAllProperties() []iBusinessObjectProperty {
-// 	if model.allProperties == nil {
-// 		for _, field := range model.fields {
-// 			model.allProperties = append(model.allProperties, field)
-// 		}
+// ------------------------------------------------------------------------------------------------
+// Retrieving models / instantiating business objects
+// ------------------------------------------------------------------------------------------------
 
-// 		for _, relationship := range model.getRelationshipsWithColumn() {
-// 			model.allProperties = append(model.allProperties, relationship)
-// 		}
+func modelFor(modelName utils.ModelName, failIfNil ...bool) IBusinessObjectModel {
+	modelRegistry.mx.Lock()
+	model := modelRegistry.items[modelName]
+	modelRegistry.mx.Unlock()
 
-// 		sort.SliceStable(model.allProperties, func(i, j int) bool {
-// 			return model.allProperties[i].getName() < model.allProperties[j].getName()
-// 		})
-// 	}
+	if model == nil && (len(failIfNil) > 0 && failIfNil[0]) {
+		panic(fmt.Sprintf("It looks like no model named '%s' has been registered, "+
+			"i.e. its package has probably not been 'included', i.e. imported in the start.go file,"+
+			" like this: import _ \"module_full_name/_include/package_name\"", modelName))
+	}
+	return model
+}
 
-// 	return model.allProperties
-// }
+func NewBusinessObject(modelName utils.ModelName, id BObjID) IBusinessObject {
+	bObj := modelFor(modelName, true).NewObject().(IBusinessObject)
+	bObj.setID(BObjID(id))
+	return bObj
+}
+
+// ------------------------------------------------------------------------------------------------
+// Some "views" on a model's fields and properties
+// ------------------------------------------------------------------------------------------------
 
 // getPersistedProperties returns the sorted list of the properties persisted
-// within the BO class' table, i.e. the persisted single Relationships + the persisted fields
-func (model *businessObjectModel) getPersistedProperties() []iBusinessObjectProperty {
+// within the BO model's table, i.e. the persisted single Relationships + the persisted fields
+func (model *businessObjectModel) getPersistedProperties() []IBusinessObjectProperty {
+	// initialising it, the first time we need it
 	if model.persistedProperties == nil {
-		// how many persisted properties - fields + single Relationships - do we have ?
-		// nbFields := len(model.fields)
-		// size := nbFields + len(model.getRelationshipsWithColumn())
-
-		// let's gather all the persisted properties
-		// model.persistedProperties = make([]iBusinessObjectProperty, size)
+		// let's gather all the persisted properties - the fields first
 		for _, field := range model.fields {
-			if !field.isNotPersisted() {
-				model.persistedProperties = append(model.persistedProperties, field)
+			// special case of the rowID field, which is only needed when the associated DB handles the RETURNING clause
+			if field.GetName() == boFieldPreID {
+				if model.db.is.SupportsReturningID() {
+					model.persistedProperties = append(model.persistedProperties, field)
+				}
+			} else {
+				if !field.isNotPersisted() {
+					model.persistedProperties = append(model.persistedProperties, field)
+				}
 			}
 		}
 
+		// and the relationships
 		for _, relationship := range model.getRelationshipsWithColumn() {
 			model.persistedProperties = append(model.persistedProperties, relationship)
 		}
@@ -58,12 +72,18 @@ func (model *businessObjectModel) getPersistedProperties() []iBusinessObjectProp
 		// now, let's sort them to have a nicely sorted list of columns for each table
 		// we make sure the ID column is always at 1st position
 		sort.SliceStable(model.persistedProperties, func(i, j int) bool {
-			property1Name := model.persistedProperties[i].getColumnName()
-			property2Name := model.persistedProperties[j].getColumnName()
-			if property1Name == "id" {
+			property1Name := model.persistedProperties[i].GetName()
+			property2Name := model.persistedProperties[j].GetName()
+			if property1Name == BoFieldID {
 				return true
 			}
-			if property2Name == "id" {
+			if property2Name == BoFieldID {
+				return false
+			}
+			if property1Name == boFieldPreID {
+				return true
+			}
+			if property2Name == boFieldPreID {
 				return false
 			}
 
@@ -74,30 +94,102 @@ func (model *businessObjectModel) getPersistedProperties() []iBusinessObjectProp
 	return model.persistedProperties
 }
 
-// getRelationshipsWithColumn returns the sorted list of the fields that are persisted
+// getRelationshipsWithColumn returns the sorted list of the relationships that are persisted using a column in the BO model's table
 func (model *businessObjectModel) getRelationshipsWithColumn() []*Relationship {
 	// initialising it, the first time we need it
 	if model.relationshipsWithColumn == nil {
-		// first, we retrieve a list of IDs of the Relationships that are persisted
-		relationshipsWithColumnNames := []string{}
-
-		for relationshipName, relationship := range model.relationships {
+		// we retrieve a list of the Relationships that are directly persisted
+		for _, relationship := range model.relationships {
 			if relationship.needsColumn() {
-				relationshipsWithColumnNames = append(relationshipsWithColumnNames, string(relationshipName))
+				model.relationshipsWithColumn = append(model.relationshipsWithColumn, relationship)
 			}
 		}
 
-		// sorting that list
-		sort.Strings(relationshipsWithColumnNames)
-
-		// creating the list of persisted relationships
-		model.relationshipsWithColumn = make([]*Relationship, len(relationshipsWithColumnNames))
-
-		// using that list to build a sorted list of persisted relationships
-		for i := 0; i < len(relationshipsWithColumnNames); i++ {
-			model.relationshipsWithColumn[i] = model.relationships[relationshipsWithColumnNames[i]]
-		}
+		// then, sorting that list
+		sort.SliceStable(model.relationshipsWithColumn, func(i, j int) bool {
+			return model.relationshipsWithColumn[i].GetName() < model.relationshipsWithColumn[j].GetName()
+		})
 	}
 
 	return model.relationshipsWithColumn
+}
+
+// getRelationshipsWithLinkTable returns the sorted list of the relationships that are persisted using a link table in the BO model's table
+func (model *businessObjectModel) getRelationshipsWithLinkTable() []*Relationship {
+	// initialising it, the first time we need it
+	if model.relationshipsWithLinkTable == nil {
+		// first, we retrieve a list of the Relationships that are persisted through a link table
+		for _, relationship := range model.relationships {
+			if relationship.needsLinkTable() {
+				model.relationshipsWithLinkTable = append(model.relationshipsWithLinkTable, relationship)
+			}
+		}
+
+		// then, sorting that list
+		sort.SliceStable(model.relationshipsWithLinkTable, func(i, j int) bool {
+			return model.relationshipsWithLinkTable[i].GetName() < model.relationshipsWithLinkTable[j].GetName()
+		})
+	}
+
+	return model.relationshipsWithLinkTable
+}
+
+func (model *businessObjectModel) getRelationshipsWithRequiredBackref() []*Relationship {
+	// initialising it, the first time we need it
+	if model.relationshipsWithRequiredBackref == nil {
+		// first, we retrieve a list of the relationships that have a required back reference
+		for _, relationship := range model.relationships {
+			if relationship.isSourceRequiredInDB() {
+				model.relationshipsWithRequiredBackref = append(model.relationshipsWithRequiredBackref, relationship)
+			}
+		}
+
+		// then, sorting that list
+		sort.SliceStable(model.relationshipsWithRequiredBackref, func(i, j int) bool {
+			return model.relationshipsWithRequiredBackref[i].GetName() < model.relationshipsWithRequiredBackref[j].GetName()
+		})
+
+	}
+
+	return model.relationshipsWithRequiredBackref
+}
+
+// ------------------------------------------------------------------------------------------------
+// Some "views" on a model's fields and properties
+// ------------------------------------------------------------------------------------------------
+
+// DiffBusinessObjectSlices compares 2 slices of business objects and returns what is added and what is removed.
+// Equality is based on each object's ID, plus its model name too when useModel is true (for polymorphic cases).
+func DiffBusinessObjectSlices[BOTYPE IBusinessObject](before, after []BOTYPE, useModel bool) (added, removed []BOTYPE) {
+	keyOf := func(bObj IBusinessObject) any {
+		if useModel {
+			return KeyFor(bObj)
+		}
+		return bObj.GetID()
+	}
+
+	// indexing the before objects by key, so each can be matched (and removed from the map) in one pass over 'updated'
+	beforeByKey := make(map[any]BOTYPE, len(before))
+	for _, bObj := range before {
+		beforeByKey[keyOf(bObj)] = bObj
+	}
+
+	// building the list of added business objects based on the 'after' slice
+	added = make([]BOTYPE, 0, len(after))
+	for _, bObj := range after {
+		k := keyOf(bObj)
+		if _, found := beforeByKey[k]; found {
+			delete(beforeByKey, k) // still present: neither added nor removed
+		} else {
+			added = append(added, bObj)
+		}
+	}
+
+	// whatever's left in the map was in-store but is no longer in 'after': it's been removed
+	removed = make([]BOTYPE, 0, len(beforeByKey))
+	for _, bObj := range beforeByKey {
+		removed = append(removed, bObj)
+	}
+
+	return added, removed
 }

@@ -4,14 +4,14 @@ package iot
 import (
 	g "github.com/aldesgroup/goald"
 	_ "github.com/aldesgroup/goald/_include/iot/model"
-	iot "github.com/aldesgroup/goald/features/iot/class"
+	"github.com/aldesgroup/goald/_include/iot/source"
 )
 
 func init() {
 	g.In("goald").
-		Register(iot.ClassForDevice("features/iot", "2026-04-28T15:07:04+02:00")).
-		Register(iot.ClassForDeviceBootstrap("features/iot", "2026-04-28T15:10:50+02:00")).
-		Register(iot.ClassForDeviceBootstrapPayload("features/iot", "2026-04-28T15:10:03+02:00")).
-		Register(iot.ClassForDeviceBootstrapRequest("features/iot", "2026-04-28T15:09:35+02:00")).
-		Register(iot.ClassForDeviceLinkRequest("features/iot", "2026-04-28T23:50:17+02:00"))
+		Register(source.ForDevice("features/iot", "2026-09-29T17:41:44+02:00")).
+		Register(source.ForDeviceBootstrap("features/iot", "2026-09-29T17:41:44+02:00")).
+		Register(source.ForDeviceBootstrapPayload("features/iot", "2026-09-29T17:41:44+02:00")).
+		Register(source.ForDeviceBootstrapRequest("features/iot", "2026-09-29T17:41:44+02:00")).
+		Register(source.ForDeviceLinkRequest("features/iot", "2026-09-29T17:41:44+02:00"))
 }

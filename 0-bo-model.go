@@ -1,13 +1,16 @@
 // ------------------------------------------------------------------------------------------------
-// The code here is about having tools to describe the properties (fields & relationships) of a
-// business object class, and specifying things for these properties
+// The code here is about having tools to describe business object models, and
+// their properties in a general sense
 // ------------------------------------------------------------------------------------------------
 package goald
 
 import (
-	"sync"
+	"fmt"
+	"sort"
 
 	core "github.com/aldesgroup/corego"
+	"github.com/aldesgroup/goald/features/dbconn"
+	"github.com/aldesgroup/goald/features/reflection"
 	"github.com/aldesgroup/goald/features/utils"
 )
 
@@ -17,45 +20,98 @@ import (
 // Model for a business object model
 // ------------------------------------------------------------------------------------------------
 type IBusinessObjectModel interface {
-	/* public generic methods */
+	// public generic methods
+	SetDescription(description string)                     // to set the description of the model
+	SetNotPersisted()                                      // to indicate this model has no instance persisted in a database
+	SetInDB(db *DB)                                        // to associate the model with the DB where its instances are stored
+	SetInDbByName(dbName string)                           // to associate the model with the DB where its instances are stored, using the name of the DB instead of its instance
+	SetAbstract()                                          // to indicate this model does not model concrete business objects, but most probably a super model
+	AddUniqueCombination(props ...IBusinessObjectProperty) // to indicate that a combination of properties must be unique in the DB
+	SetAutoCRUD()                                          // to automatically start the generic CRUD endpoints for this business object model
+	SetMaxListSize(int)                                    // to set the maximum number of items that can be listed for this business object model
+	SetListLoadingConfig(loadingConfig ILoadingConfig)     // to set the loading config suitable for loading lists of this business object type
 
-	SetDescription(description string) // to set the description of the model
-	SetNotPersisted()                  // to indicate this class has no instance persisted in a database
-	SetInDB(db *DB)                    // to associate the class with the DB where its instances are stored
-	SetAbstract()                      // to indicate this class does not model concrete business objects, but most probably a super class
-
-	// access to generic properties (fields & relationships)
-	ID() IField
+	// // access to generic properties (fields & relationships)
+	// ID() IField
 
 	// private methods
+	setName(name utils.ModelName)
+	isAbstract() bool
+	isPersistedHere() bool
 	isNotPersisted() bool
-	getInDB() *DB
-	getTableName() string
-
-	// access to the base implementation
-	base() *businessObjectModel
+	getDB() *DB
+	isPersisted() bool
+	getTableName(withSchema bool) string
+	getDescription() string
+	getUniqueCombinations() map[string][]IBusinessObjectProperty
+	getFields() map[string]IField
+	getField(name string) IField
 	addField(field IField) IField
-	getType() *utils.GoaldType
+	getRelationships() map[string]*Relationship
+	getRelationship(name string) *Relationship
+	setRelationship(name string, relationship *Relationship)
+	setChildToParentRelationship(r *Relationship)
+	getChildToParentRelationship() *Relationship
+	isUsedInNativeApp() bool
+	setUsedInNativeApp()
+	isUsedInWebApp() bool
+	setUsedInWebApp()
+	getIdField() *BigIntField
+	getMaxListSize() int
+	getNaturalName() string
+
+	// utils
+	getPersistedProperties() []IBusinessObjectProperty
+	getRelationshipsWithColumn() []*Relationship
+	getRelationshipsWithLinkTable() []*Relationship
+	getRelationshipsWithRequiredBackref() []*Relationship
+
+	// technical stuff
+	resolve() IBusinessObjectModel
+	getType() reflection.GoaldType
+
+	// this makes each model aware of its source, and capable of instantiating new business objects of its type
+	IBusinessObjectModelSource
+
+	// defining special load configurations for this model
+	ReadNoRelationship() ILoadingConfig   // returns a loading config that loads only the model's own properties, and no relationships
+	ReadWithFirstLayer() ILoadingConfig   // returns a loading config that loads only the direct relationships of this business object type
+	getListLoadingConfig() ILoadingConfig // returns a loading config suitable for loading lists of this business object type
 }
 
-type className string
+// ------------------------------------------------------------------------------------------------
+// Generic implementation with public methods
+// ------------------------------------------------------------------------------------------------
 
 type businessObjectModel struct {
-	name                    className                 // the corresponding class name
-	description             string                    // the model description
-	fields                  map[string]IField         // the objet's simple properties
-	relationships           map[string]*Relationship  // the relationships to other classes
-	inDB                    *DB                       // the associated DB, if any
-	inNoDB                  bool                      // if true, then no associated DB
-	abstract                bool                      // if true, then is class is mainly used as a super class for others
-	tableName               string                    // if persisted, the name of the corresponding DB table - should be the same as the class name most of the time
-	persistedProperties     []iBusinessObjectProperty // all the properties - fields or relationships - persisted on this class
-	relationshipsWithColumn []*Relationship           // all the relationships for which this class has a column in its table
-	idField                 IField                    // accessor to the ID field
-	usedInNativeApp         bool                      // true if this class is used in the native app
-	usedInWebApp            bool                      // true if this class is used in the web app
-	boType                  *utils.GoaldType          // the Go type associated with this BO model
+	name                             utils.ModelName                      // the corresponding model name
+	source                           IBusinessObjectModelSource           // the corresponding source object
+	description                      string                               // the model description
+	fields                           map[string]IField                    // the objet's simple properties
+	relationships                    map[string]*Relationship             // the relationships to other models
+	db                               *DB                                  // the associated DB, if any
+	inNoDB                           bool                                 // if true, then no associated DB
+	abstract                         bool                                 // if true, then this model is mainly used as a super model for others
+	tableName                        string                               // if persisted, the name of the corresponding DB table - should be the same as the model name most of the time
+	persistedProperties              []IBusinessObjectProperty            // all the properties - fields or relationships - persisted on this model
+	uniqueCombinations               map[string][]IBusinessObjectProperty // a combination of properties that must be unique in the DB
+	idField                          *BigIntField                         // accessor to the ID field
+	usedInNativeApp                  bool                                 // true if this model is used in the native app
+	usedInWebApp                     bool                                 // true if this model is used in the web app
+	boType                           *reflection.GoaldType                // the Go type associated with this BO model
+	relationshipsWithColumn          []*Relationship                      // all the relationships for which this model has a column in its table
+	relationshipsWithLinkTable       []*Relationship                      // all the relationships for which this model has a column in its table
+	resolved                         bool                                 // if true, then this model has been resolved, i.e. all its properties have been detected and registered
+	autoCRUD                         bool                                 // if true, then the generic CRUD endpoints will be automatically started for this business object model
+	childToParentRelationship        *Relationship                        // if this model is a child in a parent-child relationship, then this is the relationship to the parent
+	relationshipsWithRequiredBackref []*Relationship                      // all the relationships through which the target BOs cannot be persisted without a backref to this BO
+	maxListSize                      int                                  // the maximum number of items that can be listed for this business object model
+	listLoadingConfig                ILoadingConfig                       // the loading config suitable for loading lists of this business object type
+	naturalName                      string                               // the natural name of the business object model, used for display purposes
 }
+
+const BoFieldID = "ID"       // the name of the ID field, which is a special case in Goald
+const boFieldPreID = "preID" // the name of the row ID field, which is a special case in Goald
 
 func NewBusinessObjectModel() IBusinessObjectModel {
 	model := &businessObjectModel{
@@ -64,519 +120,317 @@ func NewBusinessObjectModel() IBusinessObjectModel {
 	}
 
 	// adding the generic fields
-	model.idField = NewBigIntField(model, "ID", false)
+	model.idField = AddBigIntField(model, "BusinessObject", BoFieldID, false)
+	preIDField := AddIntField(model, "BusinessObject", boFieldPreID, false)
+	creationField := AddDateField(model, "BusinessObject", "Creation", false)
+	AddDateField(model, "BusinessObject", "Modification", false)
+
+	// some tweaking
+	preIDField.setTechnical()
+	creationField.SetRequiredInDb()
 
 	return model
 }
 
-func (boClass *businessObjectModel) SetInDB(db *DB) {
-	boClass.inNoDB = false
-	boClass.inDB = db
+func (boModel *businessObjectModel) SetInDB(db *DB) {
+	boModel.inNoDB = false
+	boModel.db = db
 }
 
-func (boClass *businessObjectModel) SetDescription(description string) {
-	boClass.description = description
+func (boModel *businessObjectModel) SetInDbByName(dbName string) {
+	boModel.SetInDB(GetDB(dbconn.DbSchemaName(dbName)))
 }
 
-func (boClass *businessObjectModel) SetNotPersisted() {
-	boClass.inNoDB = true
-	boClass.inDB = nil
+func (boModel *businessObjectModel) SetDescription(description string) {
+	boModel.description = description
 }
 
-func (boClass *businessObjectModel) SetAbstract() {
-	boClass.abstract = true
+func (boModel *businessObjectModel) SetNotPersisted() {
+	boModel.inNoDB = true
+	boModel.db = nil
 }
 
-func (boClass *businessObjectModel) getInDB() *DB {
-	return boClass.inDB
+func (boModel *businessObjectModel) SetAbstract() {
+	boModel.abstract = true
 }
 
-func (boClass *businessObjectModel) isNotPersisted() bool {
-	return boClass.inNoDB
-}
+func (boModel *businessObjectModel) AddUniqueCombination(props ...IBusinessObjectProperty) {
+	// bit of control
+	core.PanicMsgIf(len(props) <= 1, "AddUniqueCombination() should be used with at least 2 properties of model '%s'", boModel.name)
 
-func (boClass *businessObjectModel) isPersisted() bool {
-	return !boClass.isNotPersisted()
-}
+	// sorting the props
+	sort.Slice(props, func(i, j int) bool {
+		return props[i].GetName() < props[j].GetName()
+	})
 
-func (boClass *businessObjectModel) ID() IField {
-	return boClass.idField
-}
-
-func (boClass *businessObjectModel) getTableName() string {
-	if boClass.tableName == "" {
-		boClass.tableName = core.PascalToSnake(string(boClass.name))
+	// building the ck constraint name
+	constraintName := string(prefixCK + boModel.getTableName(false))
+	for _, prop := range props {
+		constraintName = constraintName + "_" + core.PascalToShort(prop.GetName())
 	}
 
-	return boClass.tableName
+	// adding this constraint to the model
+	if boModel.uniqueCombinations == nil {
+		boModel.uniqueCombinations = map[string][]IBusinessObjectProperty{}
+	}
+
+	boModel.uniqueCombinations[constraintName] = props
 }
 
-func (boClass *businessObjectModel) base() *businessObjectModel {
-	return boClass
+func (boModel *businessObjectModel) SetAutoCRUD() {
+	boModel.autoCRUD = true
 }
 
-func (boClass *businessObjectModel) addField(field IField) IField {
-	boClass.fields[field.getName()] = field
+func (boModel *businessObjectModel) SetMaxListSize(maxListSize int) {
+	boModel.maxListSize = maxListSize
+}
+
+func (boModel *businessObjectModel) SetListLoadingConfig(loadingConfig ILoadingConfig) {
+	boModel.listLoadingConfig = loadingConfig
+}
+
+// ------------------------------------------------------------------------------------------------
+// Generic implementation with private methods
+// ------------------------------------------------------------------------------------------------
+
+func (boModel *businessObjectModel) GetName() utils.ModelName {
+	return boModel.name
+}
+
+func (boModel *businessObjectModel) setName(name utils.ModelName) {
+	boModel.name = name
+}
+
+func (boModel *businessObjectModel) isAbstract() bool {
+	return boModel.abstract
+}
+
+func (boModel *businessObjectModel) isNotPersisted() bool {
+	return boModel.inNoDB
+}
+
+func (boModel *businessObjectModel) getDB() *DB {
+	return boModel.db
+}
+
+func (boModel *businessObjectModel) isPersisted() bool {
+	return !boModel.isNotPersisted()
+}
+
+func (boModel *businessObjectModel) isPersistedHere() bool {
+	// a bit of control here
+	if boModel.isPersisted() && boModel.db == nil {
+		core.PanicMsg("Model '%s' should be SetNotPersisted, SetAbstract, or associated with a DB", boModel.GetName())
+	}
+
+	return boModel.isPersisted() && boModel.db.schema != nil
+}
+
+func (boModel *businessObjectModel) getTableName(withSchema bool) string {
+	if boModel.tableName == "" {
+		boModel.tableName = core.PascalToSnake(string(boModel.name))
+	}
+
+	if withSchema {
+		return string(boModel.db.name) + "." + boModel.tableName
+	}
+
+	return boModel.tableName
+}
+
+func (boModel *businessObjectModel) getDescription() string {
+	return boModel.description
+}
+
+func (boModel *businessObjectModel) getUniqueCombinations() map[string][]IBusinessObjectProperty {
+	return boModel.uniqueCombinations
+}
+
+func (boModel *businessObjectModel) getFields() map[string]IField {
+	return boModel.fields
+}
+
+func (boModel *businessObjectModel) getField(name string) IField {
+	return boModel.fields[name]
+}
+
+func (boModel *businessObjectModel) addField(field IField) IField {
+	boModel.fields[field.GetName()] = field
 
 	return field
 }
 
-func (boClass *businessObjectModel) getType() *utils.GoaldType {
-	if boClass.boType == nil {
-		boType := utils.TypeOf(getClass(boClass).NewObject(), true)
-		boClass.boType = &boType
+func (boModel *businessObjectModel) getRelationships() map[string]*Relationship {
+	return boModel.relationships
+}
+
+func (boModel *businessObjectModel) getRelationship(name string) *Relationship {
+	return boModel.relationships[name]
+}
+
+func (boModel *businessObjectModel) setRelationship(name string, relationship *Relationship) {
+	boModel.relationships[name] = relationship
+}
+
+func (boModel *businessObjectModel) setChildToParentRelationship(rel *Relationship) {
+	if boModel.childToParentRelationship != nil {
+		panic(fmt.Sprintf("Business object model '%s' already has a parent relationship '%s', cannot set another one '%s'",
+			boModel.name, boModel.childToParentRelationship.GetName(), rel.GetName()))
 	}
 
-	return boClass.boType
+	boModel.childToParentRelationship = rel
+}
+
+func (boModel *businessObjectModel) getChildToParentRelationship() *Relationship {
+	return boModel.childToParentRelationship
+}
+
+func (boModel *businessObjectModel) isUsedInNativeApp() bool {
+	return boModel.usedInNativeApp
+}
+
+func (boModel *businessObjectModel) setUsedInNativeApp() {
+	boModel.usedInNativeApp = true
+}
+
+func (boModel *businessObjectModel) isUsedInWebApp() bool {
+	return boModel.usedInWebApp
+}
+
+func (boModel *businessObjectModel) setUsedInWebApp() {
+	boModel.usedInWebApp = true
+}
+
+func (boModel *businessObjectModel) getIdField() *BigIntField {
+	return boModel.idField
+}
+
+func (boModel *businessObjectModel) getMaxListSize() int {
+	if boModel.maxListSize <= 0 {
+		boModel.maxListSize = 100
+	}
+
+	return boModel.maxListSize
+}
+
+func (boModel *businessObjectModel) getListLoadingConfig() ILoadingConfig {
+	return boModel.listLoadingConfig
+}
+
+func (boModel *businessObjectModel) getNaturalName() string {
+	if boModel.naturalName == "" {
+		boModel.naturalName = core.PascalToNatural(string(boModel.name))
+	}
+
+	return boModel.naturalName
 }
 
 // ------------------------------------------------------------------------------------------------
-// Business object properties, whether fields or relationships
+// Technical stuff
 // ------------------------------------------------------------------------------------------------
-type iBusinessObjectProperty interface {
-	ownerModel() IBusinessObjectModel
-	setOwner(IBusinessObjectModel)
-	getName() string
-	getTypeFamily() utils.TypeFamily
-	isMultiple() bool
-	getColumnName() string
-	isNotPersisted() bool
-	getStructField() *utils.GoaldField
-	getTag(tagName string) string
-	isMandatoryInput() bool
-	isPureOutput() bool
+
+// WARNING: don't use it at init time, as the model might not be fully initialized yet
+func (boModel *businessObjectModel) getType() reflection.GoaldType {
+	if boModel.boType == nil {
+		tmpBoType := reflection.TypeOf(boModel.NewObject(), true)
+		boModel.boType = &tmpBoType
+	}
+
+	return *boModel.boType
 }
 
-type ioType string
+// ------------------------------------------------------------------------------------------------
+// Business Object Model resolution =
+// - allowing some kind of "inheritance" between models
+// ------------------------------------------------------------------------------------------------
 
-const ioTypeINPUT ioType = "in"
-const ioTypeINPUTxMANDATORY ioType = "i*"
-const ioTypePURExOUTPUT ioType = "o*"
+func (boModel *businessObjectModel) resolve() IBusinessObjectModel {
+	// if the model hasn't been resolved yet
+	if boModel == nil || !boModel.resolved {
 
-type businessObjectProperty struct {
-	owner        IBusinessObjectModel // the property's owner class
-	name         string               // the property's name, as declared in the struct
-	typeFamily   utils.TypeFamily     // the property's type, as detected by the codegen phase
-	multiple     bool                 // the property's multiplicity; false = 1, true = N
-	columnName   string               // if this property - field or relationship - is persisted on the owner's table
-	notPersisted bool                 // if true, then this property does not have a corresponding column in the BO's table
-	structField  *utils.GoaldField    // the struct field corresponding to this property, as detected by the codegen phase
+		// first thing first: let's connect the model to its source, if any
+		boModel.source = sourceRegistry.items[boModel.name]
+
+		// checking all the fields, and "importing" the configuration of the super models, if any
+		for _, field := range boModel.fields {
+			if field.getDeclaringBO() != boModel.name {
+				// making sure the "parent" model is resolved first
+				if parentModel := modelFor(field.getDeclaringBO()); parentModel != nil {
+					// getting the field from the parent model
+					parentField := parentModel.resolve().getField(field.GetName())
+
+					// importing the configuration of the super model's property
+					boModel.importConfig(parentField, field)
+				}
+			}
+		}
+
+		// checking all the relationships, and "importing" the configuration of the super models, if any
+		for _, rel := range boModel.relationships {
+			if rel.getDeclaringBO() != boModel.name {
+				// making sure the "parent" model is resolved first
+				if parentModel := modelFor(rel.getDeclaringBO()); parentModel != nil {
+					// getting the relationship from the parent model
+					parentRel := parentModel.resolve().getRelationship(rel.GetName())
+
+					// importing the configuration of the super model's property
+					boModel.importConfig(parentRel, rel)
+				}
+			}
+		}
+
+		// TODO check if we have to do something with the unique combinations here
+
+		// tagging this model as resolved
+		boModel.resolved = true
+	}
+
+	return boModel
 }
 
-func (prop *businessObjectProperty) ownerModel() IBusinessObjectModel {
-	return prop.owner
-}
+func (boModel *businessObjectModel) importConfig(from, to IBusinessObjectProperty) {
+	// generic configuration
+	if from.IsRequiredInDb() {
+		to.SetRequiredInDb()
+	}
+	if from.isUnique() {
+		to.SetUnique()
+	}
+	if from.isSecret() {
+		to.SetSecret()
+	}
+	if from.isPersonal() {
+		to.SetPersonal()
+	}
 
-func (prop *businessObjectProperty) setOwner(owner IBusinessObjectModel) {
-	prop.owner = owner
-}
-
-func (prop *businessObjectProperty) getName() string {
-	return prop.name
-}
-
-func (prop *businessObjectProperty) getTypeFamily() utils.TypeFamily {
-	return prop.typeFamily
-}
-
-func (prop *businessObjectProperty) getColumnName() string {
-	if prop.columnName == "" {
-		prop.columnName = core.PascalToSnake(prop.name)
-		if prop.typeFamily == utils.TypeFamilyRELATIONSHIPxMONOM {
-			prop.columnName += "_id"
+	// specific configuration for fields
+	switch field := to.(type) {
+	case *StringField:
+		if field.size == 0 {
+			field.size = from.(*StringField).size
+		}
+	case *DoubleField:
+		if field.totalDigits+field.decimals == 0 {
+			fromField := from.(*DoubleField)
+			field.totalDigits = fromField.totalDigits
+			field.decimals = fromField.decimals
+		}
+	case *RealField:
+		if field.totalDigits+field.decimals == 0 {
+			fromField := from.(*RealField)
+			field.totalDigits = fromField.totalDigits
+			field.decimals = fromField.decimals
 		}
 	}
 
-	return prop.columnName
-}
-
-func (prop *businessObjectProperty) isMultiple() bool {
-	return prop.multiple
-}
-
-func (prop *businessObjectProperty) isNotPersisted() bool {
-	return prop.notPersisted
-}
-
-func (prop *businessObjectProperty) getStructField() *utils.GoaldField {
-	if prop.structField == nil {
-		structField := prop.ownerModel().getType().FieldByName(prop.name)
-		prop.structField = &structField
+	// specific configuration for relationships
+	if relationship, ok := to.(*Relationship); ok {
+		if relationship.relationType == 0 {
+			relationship.relationType = from.(*Relationship).relationType
+		}
+		if len(relationship.backRefSlice) == 0 {
+			relationship.backRefSlice = from.(*Relationship).backRefSlice
+			relationship.backRefMap = from.(*Relationship).backRefMap
+		}
 	}
-	return prop.structField
-}
-
-func (prop *businessObjectProperty) getTag(tagName string) string {
-	return prop.getStructField().Tag().Get(tagName)
-}
-
-func (prop *businessObjectProperty) isMandatoryInput() bool {
-	return prop.getTag("io") == string(ioTypeINPUTxMANDATORY)
-}
-
-func (prop *businessObjectProperty) isPureOutput() bool {
-	return prop.getTag("io") == string(ioTypePURExOUTPUT)
-}
-
-// ------------------------------------------------------------------------------------------------
-// Fields (simple properties) of business object classes
-// ------------------------------------------------------------------------------------------------
-
-type IField interface {
-	iBusinessObjectProperty
-	isBuiltIn() bool
-	getDefaultValue() string
-	// SetDefaultValue(string) IField
-}
-
-type iNumericField interface {
-	IField
-	isMinSet() bool
-	isMaxSet() bool
-}
-
-// base implementation
-type field struct {
-	businessObjectProperty
-	defaultStringValue string
-}
-
-type numericField struct {
-	field
-	minSet bool
-	maxSet bool
-}
-
-func newField(owner IBusinessObjectModel, name string, multiple bool, typeFamily utils.TypeFamily) field {
-	return field{
-		businessObjectProperty: businessObjectProperty{
-			owner:      owner,
-			name:       name,
-			typeFamily: typeFamily,
-			multiple:   multiple,
-		},
-	}
-}
-
-func (f *field) SetNotPersisted() *field {
-	f.notPersisted = true
-	return f
-}
-
-func (f *field) isBuiltIn() bool {
-	return false
-}
-
-func (f *field) SetDefaultValue(val string) *field {
-	f.defaultStringValue = val
-	return f
-}
-
-func (f *field) getDefaultValue() string {
-	return f.defaultStringValue
-}
-
-func (f *numericField) isMinSet() bool {
-	return f.minSet
-}
-
-func (f *numericField) isMaxSet() bool {
-	return f.maxSet
-}
-
-type BoolField struct {
-	field
-}
-
-type StringField struct {
-	field
-	size    int
-	atLeast int
-}
-
-func (sf *StringField) SetSize(size int, atLeast ...int) *field {
-	sf.size = size
-	if len(atLeast) > 0 {
-		sf.atLeast = atLeast[0]
-	}
-	return &sf.field
-}
-
-type IntField struct {
-	numericField
-	min int
-	max int
-}
-
-func (f *IntField) Min(min int) *IntField {
-	f.min = min
-	f.minSet = true
-	return f
-}
-
-func (f *IntField) Max(max int) *IntField {
-	f.max = max
-	f.maxSet = true
-	return f
-}
-
-type BigIntField struct {
-	numericField
-	min int64
-	max int64
-}
-
-func (f *BigIntField) Min(min int64) *BigIntField {
-	f.min = min
-	f.minSet = true
-	return f
-}
-
-func (f *BigIntField) Max(max int64) *BigIntField {
-	f.max = max
-	return f
-}
-
-type RealField struct {
-	numericField
-	min float32
-	max float32
-	// digits   int // number of digits before the decimal points, e.g. 4 in 9876.06
-	// decimals int // number of digits after the decimal points, e.g. 2 in 9876.06
-}
-
-func (f *RealField) Min(min float32) *RealField {
-	f.min = min
-	f.minSet = true
-	return f
-}
-
-func (f *RealField) Max(max float32) *RealField {
-	f.max = max
-	return f
-}
-
-type DoubleField struct {
-	numericField
-	min float64
-	max float64
-	// digits   int // number of digits before the decimal points, e.g. 4 in 9876.06
-	// decimals int // number of digits after the decimal points, e.g. 2 in 9876.06
-}
-
-func (f *DoubleField) Min(min float64) *DoubleField {
-	f.min = min
-	f.minSet = true
-	return f
-}
-
-func (f *DoubleField) Max(max float64) *DoubleField {
-	f.max = max
-	return f
-}
-
-// func (rf *realField) SetFormat(digits, decimals int) *realField {
-// 	rf.digits = digits
-// 	rf.decimals = decimals
-// 	return rf
-// }
-
-type DateField struct {
-	field
-}
-
-type EnumField struct {
-	field
-	enumName   string
-	onlyValues []IEnum
-}
-
-func (f *EnumField) Only(values ...IEnum) *EnumField {
-	f.onlyValues = values
-	return f
-}
-
-func NewBoolField(owner IBusinessObjectModel, name string, multiple bool) *BoolField {
-	return owner.addField(&BoolField{
-		field: newField(owner, name, multiple, utils.TypeFamilyBOOL),
-	}).(*BoolField)
-}
-
-func NewStringField(owner IBusinessObjectModel, name string, multiple bool) *StringField {
-	return owner.addField(&StringField{
-		field: newField(owner, name, multiple, utils.TypeFamilySTRING),
-	}).(*StringField)
-}
-
-func NewIntField(owner IBusinessObjectModel, name string, multiple bool) *IntField {
-	return owner.addField(&IntField{numericField: numericField{
-		field: newField(owner, name, multiple, utils.TypeFamilyINT),
-	}}).(*IntField)
-}
-
-func NewBigIntField(owner IBusinessObjectModel, name string, multiple bool) *BigIntField {
-	return owner.addField(&BigIntField{numericField: numericField{
-		field: newField(owner, name, multiple, utils.TypeFamilyBIGINT),
-	}}).(*BigIntField)
-}
-
-func NewRealField(owner IBusinessObjectModel, name string, multiple bool) *RealField {
-	return owner.addField(&RealField{numericField: numericField{
-		field: newField(owner, name, multiple, utils.TypeFamilyREAL),
-	}}).(*RealField)
-}
-
-func NewDoubleField(owner IBusinessObjectModel, name string, multiple bool) *DoubleField {
-	return owner.addField(&DoubleField{numericField: numericField{
-		field: newField(owner, name, multiple, utils.TypeFamilyDOUBLE),
-	}}).(*DoubleField)
-}
-
-func NewDateField(owner IBusinessObjectModel, name string, multiple bool) *DateField {
-	return owner.addField(&DateField{
-		field: newField(owner, name, multiple, utils.TypeFamilyDATE),
-	}).(*DateField)
-}
-
-func NewEnumField(owner IBusinessObjectModel, name string, multiple bool, enumName string) *EnumField {
-	return owner.addField(&EnumField{
-		field:    newField(owner, name, multiple, utils.TypeFamilyENUM),
-		enumName: enumName,
-	}).(*EnumField)
-}
-
-// ------------------------------------------------------------------------------------------------
-// Relationships with other business object classes
-// ------------------------------------------------------------------------------------------------
-
-// relationshipType is used to define the type of the relationship between 2 classes
-type relationshipType int
-
-const (
-	// relationshipTypeONExWAY : the entity owning the link is pointing to a target entity
-	// There's no backref in this case, but there is in all other cases
-	relationshipTypeONExWAY relationshipType = 1 + iota
-
-	// relationshipTypeSOURCExTOxTARGET : the entity owning the link is pointing to a target entity, retaining its ID in DB
-	relationshipTypeSOURCExTOxTARGET
-
-	// relationshipTypeTARGETxTOxSOURCE : the entity owning the link is pointed by another entity, from another table
-	relationshipTypeTARGETxTOxSOURCE
-
-	// relationshipTypePARENTxTOxCHILDREN : the entity owning the link is pointed by children entities
-	relationshipTypePARENTxTOxCHILDREN
-
-	// relationshipTypeCHILDxTOxPARENT : the entity owning the link points to a parent entity
-	relationshipTypeCHILDxTOxPARENT
-)
-
-type Relationship struct {
-	businessObjectProperty
-	targets      []IBusinessObjectModel // the type of BO pointed by this relationship
-	relationType relationshipType       // valued from the business object's init
-	backRefs     []*Relationship        // valued from the business object's init
-	polymorphic  bool                   // if true, then it's a polymorphic relationship
-	mx           sync.Mutex             // a mutex for the operations on the slices in here
-}
-
-// Allows to declare a new monomorphic relationship on a given class
-func NewRelationship(owner IBusinessObjectModel, name string, multiple bool, target IBusinessObjectModel) *Relationship {
-	relationship := &Relationship{
-		businessObjectProperty: businessObjectProperty{
-			owner:    owner,
-			name:     name,
-			multiple: multiple,
-		},
-		targets:     []IBusinessObjectModel{target},
-		polymorphic: false,
-	}
-
-	owner.base().relationships[name] = relationship
-
-	return relationship
-}
-
-// Allows to declare a new polymorphic relationship on a given class
-func NewPolyRelationship(owner IBusinessObjectModel, name string, multiple bool) *Relationship {
-	relationship := &Relationship{
-		businessObjectProperty: businessObjectProperty{
-			owner:    owner,
-			name:     name,
-			multiple: multiple,
-		},
-		polymorphic: true,
-	}
-
-	owner.base().relationships[name] = relationship
-
-	return relationship
-}
-
-func (r *Relationship) addBackRef(backRef *Relationship) {
-	r.mx.Lock()
-	if r.polymorphic || len(r.backRefs) == 0 {
-		r.backRefs = append(r.backRefs, backRef)
-	}
-	r.mx.Unlock()
-}
-
-// Sets a relationship as a "child to parent" one; the backref relationship is needed
-func (r *Relationship) SetChildToParent(backRefRelation *Relationship) *Relationship {
-	r.relationType = relationshipTypeCHILDxTOxPARENT
-
-	// taking the opportunity here to enrich the backref relationship...
-	r.addBackRef(backRefRelation)
-
-	// ... like automatically setting on the backref the inverse relation type and this relationship as the backref
-	backRefRelation.relationType = relationshipTypePARENTxTOxCHILDREN
-	backRefRelation.addBackRef(r)
-
-	return r
-}
-
-// Sets a relationship as a "parent to children" one; the backref relationship is needed
-func (r *Relationship) SetSourceToTarget(backRefRelation *Relationship) *Relationship {
-	r.relationType = relationshipTypeSOURCExTOxTARGET
-
-	// taking the opportunity here to enrich the backref relationship...
-	r.addBackRef(backRefRelation)
-
-	// automatically setting on the backref the inverse relation type and this relationship as the backref
-	backRefRelation.relationType = relationshipTypeTARGETxTOxSOURCE
-	backRefRelation.addBackRef(r)
-
-	return r
-}
-
-// Sets a relationship as a "one way" one; is with no back ref
-func (r *Relationship) SetOneWay() *Relationship {
-	r.relationType = relationshipTypeONExWAY
-
-	return r
-}
-
-// returns true if this relationships, should it be persisted, needs a column on its owner's table for it
-func (r *Relationship) needsColumn() bool {
-	if r.multiple {
-		return false
-	}
-
-	return r.relationType == relationshipTypeSOURCExTOxTARGET ||
-		r.relationType == relationshipTypeCHILDxTOxPARENT ||
-		r.relationType == relationshipTypeONExWAY
-}
-
-func (r *Relationship) SetTargets(targets ...IBusinessObjectModel) *Relationship {
-	// only using it once, for polymorphic relationships
-	if !r.polymorphic {
-		panic("SetTargets can only be used for polymorphic relationships")
-	}
-	if len(targets) == 0 {
-		panic("SetTargets must be called with at least one target")
-	}
-	if len(r.targets) > 0 {
-		panic("SetTargets can only be called once")
-	}
-	r.targets = targets
-	return r
 }

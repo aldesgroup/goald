@@ -8,7 +8,7 @@ import (
 )
 
 // static, reflect-free access to the definition of the Device model
-type deviceModel struct {
+type DeviceModel struct {
 	g.IBusinessObjectModel
 	status          *g.EnumField
 	statusString    *g.StringField
@@ -18,56 +18,58 @@ type deviceModel struct {
 }
 
 // this is the main way to refer to the Device model in the applicative code
-func Device() *deviceModel {
+func Device() *DeviceModel {
+	deviceOnce.Do(func() {
+		device = NewDeviceModel()
+
+		// this helps dynamically access to the Device model
+		g.RegisterModel("Device", device)
+	})
+
 	return device
 }
 
 // internal variables
 var (
-	device     *deviceModel
+	device     *DeviceModel
 	deviceOnce sync.Once
 )
 
-// fully describing each of this class' properties & relationships
-func newDeviceModel() *deviceModel {
-	newModel := &deviceModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
-	newModel.status = g.NewEnumField(newModel, "Status", false, "iot.DeviceStatus")
-	newModel.statusString = g.NewStringField(newModel, "StatusString", false)
-	newModel.model = g.NewStringField(newModel, "Model", false)
-	newModel.serial = g.NewStringField(newModel, "Serial", false)
-	newModel.associatedUsers = g.NewPolyRelationship(newModel, "AssociatedUsers", true)
+// fully describing each of this model's properties & relationships
+func NewDeviceModel() *DeviceModel {
+	thisModel := &DeviceModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
+	thisModel.status = g.AddEnumField(thisModel, "Device", "Status", false, "iot.DeviceStatus")
+	thisModel.statusString = g.AddStringField(thisModel, "Device", "StatusString", false)
+	thisModel.model = g.AddStringField(thisModel, "Device", "Model", false)
+	thisModel.serial = g.AddStringField(thisModel, "Device", "Serial", false)
+	thisModel.associatedUsers = g.AddPolyRelationship(thisModel, "Device", "AssociatedUsers", true)
 
-	return newModel
+	return thisModel
 }
 
 // making sure the Device model exists at app startup
 func init() {
-	deviceOnce.Do(func() {
-		device = newDeviceModel()
-	})
-
-	// this helps dynamically access to the Device model
-	g.RegisterModel("Device", device)
+	Device()
 }
 
-// accessing all the Device class' properties and relationships
+// accessing all the Device model's properties and relation	ships
 
-func (d *deviceModel) Status() *g.EnumField {
-	return d.status
+func (D *DeviceModel) Status() *g.EnumField {
+	return D.status
 }
 
-func (d *deviceModel) StatusString() *g.StringField {
-	return d.statusString
+func (D *DeviceModel) StatusString() *g.StringField {
+	return D.statusString
 }
 
-func (d *deviceModel) Model() *g.StringField {
-	return d.model
+func (D *DeviceModel) Model() *g.StringField {
+	return D.model
 }
 
-func (d *deviceModel) Serial() *g.StringField {
-	return d.serial
+func (D *DeviceModel) Serial() *g.StringField {
+	return D.serial
 }
 
-func (d *deviceModel) AssociatedUsers() *g.Relationship {
-	return d.associatedUsers
+func (D *DeviceModel) AssociatedUsers() *g.Relationship {
+	return D.associatedUsers
 }

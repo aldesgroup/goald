@@ -11,16 +11,16 @@ import (
 var GenericEPs = g.NewEndpointGroup("General", "Generic endpoints for common behaviors")
 
 func init() {
-	g.GetManyWithParams[*Translation, *TranslationUrlParams](listTranslations, "").
+	g.GetManyWithParams(listTranslations, nil).
 		InGroup(GenericEPs).
 		TargetWith(model.Translation().Lang()).
 		Label("List translations").
 		Description("Returns the translations for the given route")
 }
 
-func listTranslations(webCtx g.WebContext, params *TranslationUrlParams) ([]*Translation, hstatus.Code, string) {
+func listTranslations(webCtx g.WebContext, params *TranslationQuery) ([]*Translation, hstatus.Code, string) {
 	// getting the targeted language
-	langStr := webCtx.GetTargetRefOrID()
+	langStr := webCtx.GetResourceRefOrID()
 
 	// not translating english - FOR NOW // TODO refine
 	if langStr == "en" {

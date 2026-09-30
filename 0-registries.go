@@ -4,192 +4,70 @@
 package goald
 
 import (
-	"path"
+	"fmt"
 	"sort"
 	"strings"
 	"sync"
-	"time"
 
 	core "github.com/aldesgroup/corego"
+	"github.com/aldesgroup/goald/features/dbconn"
+	"github.com/aldesgroup/goald/features/reflection"
 	"github.com/aldesgroup/goald/features/utils"
 )
 
 // ------------------------------------------------------------------------------------------------
-// Generic definition for the class core
-// ------------------------------------------------------------------------------------------------
-
-// A Class Core is a set of information fields that are common to all the Class objects.
-type IClassCore interface {
-	getClassName() className                                // class of the associated Business Object
-	getLastBOMod() time.Time                                // last modification of the associated Business Object
-	getModule() moduleName                                  // the application or library in which the associated BO is developed
-	setModule(module moduleName)                            // setting the module
-	getSrcPath() string                                     // source path of the associated Business Object
-	getPackage() string                                     // the name of the package the class is from
-	isInterface() bool                                      // tells if the class is a concrete one, or an interface
-	AsInterface() IClassCore                                // sets the class as an interface
-	GetValueAsString(IBusinessObject, string) string        // returning a BO's field's value, given the field's name
-	SetValueAsString(IBusinessObject, string, string) error // setting a BO's field's value, given the field's name
-}
-
-// An internal struct that should implement IClassCore
-type classCore struct {
-	class     className
-	lastBOMod time.Time
-	module    moduleName
-	srcPath   string
-	intrface  bool
-}
-
-func NewClassCore(srcPath, class, lastModification string) IClassCore {
-	date, errParse := time.Parse(time.RFC3339, lastModification)
-	core.PanicMsgIfErr(errParse, "'%s' has an invalid date format (which is: 2006-01-02 15:04:05)", lastModification)
-
-	return &classCore{
-		class:     className(class),
-		lastBOMod: date,
-		srcPath:   srcPath,
-	}
-}
-
-func (thisCore *classCore) getClassName() className {
-	return thisCore.class
-}
-
-func (thisCore *classCore) getLastBOMod() time.Time {
-	return thisCore.lastBOMod
-}
-
-func (thisCore *classCore) setModule(module moduleName) {
-	thisCore.module = module
-}
-
-func (thisCore *classCore) getModule() moduleName {
-	return thisCore.module
-}
-
-func (thisCore *classCore) getSrcPath() string {
-	return thisCore.srcPath
-}
-
-func (thisCore *classCore) getPackage() string {
-	return path.Base(thisCore.srcPath)
-}
-
-func (thisCore *classCore) isInterface() bool {
-	return thisCore.intrface
-}
-
-func (thisCore *classCore) AsInterface() IClassCore {
-	thisCore.intrface = true
-	return thisCore
-}
-
-func (thisCore *classCore) GetValueAsString(IBusinessObject, string) string {
-	panic("GetValueAsString has to be implemented by a concrete Class__UTILS__ object")
-}
-
-func (thisCore *classCore) SetValueAsString(IBusinessObject, string, string) error {
-	panic("SetValueAsString has to be implemented by a concrete Class__UTILS__ object")
-}
-
-// ------------------------------------------------------------------------------------------------
-// Defining and registering classes
-// ------------------------------------------------------------------------------------------------
-
-// A Class is an object associated with a specific Business Object type that
-// provides automatically STATIC, generated utility methods to:
-// - instantiate 1 or a slice of this BO type
-// - help serializing / deserializing instances of this BO type
-// - quickly perform ORM operations such as Insert(), Select(), Update(), Delete(), etc...
-// - ...by containing methods such as GetSelectAllQuery(), GetInsertQuery(), etc
-//
-// Each Class is loosely coupled to the corresponding BO type through a registry, using
-// the BO class as key.
-type IClass interface {
-	IClassCore
-
-	NewObject() any // a function to instantiate 1 BO corresponding to this entry
-	NewSlice() any  // a function to instantiate an empty slice of BOs corresponding to this entry
-}
-
-// The registry for all the app's business objects.
-// This helps registering 1 instance of each business object type, which is then used
-// by code generation mechanisms to generate the business object classes, using reflection
-var classRegistry = &struct {
-	items map[className]IClass // all the business objects! mapped by the name
-	mx    sync.Mutex
-}{
-	items: map[className]IClass{},
-}
-
-type moduleName string
-
-type moduleClassRegitry struct {
-	module moduleName
-}
-
-// allows to declare a new module where to register Classes
-func In(module moduleName) *moduleClassRegitry {
-	return &moduleClassRegitry{module}
-}
-
-// registering happens in all the applicative packages, gence the public function
-func (m *moduleClassRegitry) Register(class IClass) *moduleClassRegitry {
-	classRegistry.mx.Lock()
-	defer classRegistry.mx.Unlock()
-
-	class.setModule(m.module)
-
-	// registering the business object type globally
-	classRegistry.items[class.getClassName()] = class
-
-	return m
-}
-
-func classForName(clsName className) IClass {
-	return classRegistry.items[clsName]
-}
-
-// 1 Class for 1 Business Object Model
-func getClass(model IBusinessObjectModel) IClass {
-	return classRegistry.items[model.base().name]
-}
-
-// ------------------------------------------------------------------------------------------------
-// The registry for all the app's business object models
+// Registering Business Object Models
 // ------------------------------------------------------------------------------------------------
 
 var modelRegistry = struct {
-	items map[className]IBusinessObjectModel
+	items map[utils.ModelName]IBusinessObjectModel
 	mx    sync.Mutex
 }{
-	items: map[className]IBusinessObjectModel{},
+	items: map[utils.ModelName]IBusinessObjectModel{},
 }
 
-// registering happens in the "model" package, gence the public function
-func RegisterModel(name className, model IBusinessObjectModel) {
+func RegisterModel(name utils.ModelName, model IBusinessObjectModel) {
 	modelRegistry.mx.Lock()
 
-	// setting the class name
-	model.base().name = name
+	// setting the model name
+	model.setName(name)
 
-	// making sure this class own its fields, including the inherited ones
-	for _, field := range model.base().fields {
-		field.setOwner(model)
-	}
-
-	// making sure this model own its relationships, including the inherited ones
-	for _, relationship := range model.base().relationships {
-		relationship.setOwner(model)
-	}
+	// actual registration
 	modelRegistry.items[name] = model
 	modelRegistry.mx.Unlock()
 }
 
-func modelForName(clsName className) IBusinessObjectModel {
-	// not using the MX for now, but will have to do if there's any possibility for race condition
-	return modelRegistry.items[clsName]
+// ------------------------------------------------------------------------------------------------
+// Registering Business Object Model Sources
+// ------------------------------------------------------------------------------------------------
+
+// The registry for all the app's business object model sources
+var sourceRegistry = &struct {
+	items map[utils.ModelName]IBusinessObjectModelSource // all the business objects! mapped by the name
+	mx    sync.Mutex
+}{
+	items: map[utils.ModelName]IBusinessObjectModelSource{},
+}
+
+type sourceModuleRegitry struct {
+	module sourceModuleName
+}
+
+// allows to declare a new module where to register business object model sources
+func In(module sourceModuleName) *sourceModuleRegitry {
+	return &sourceModuleRegitry{module}
+}
+
+func (m *sourceModuleRegitry) Register(source IBusinessObjectModelSource) *sourceModuleRegitry {
+	sourceRegistry.mx.Lock()
+	defer sourceRegistry.mx.Unlock()
+
+	source.setModule(m.module)
+
+	// registering the business object type globally
+	sourceRegistry.items[source.GetName()] = source
+
+	return m
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -201,7 +79,7 @@ var restRegistry = &struct {
 	mx        sync.Mutex
 }{}
 
-// registering happens in the "goald" package, gence the private function
+// registering happens in the "goald" package, hence the private function
 func registerEndpoint(ep iEndpoint) iEndpoint {
 	restRegistry.mx.Lock()
 	restRegistry.endpoints = append(restRegistry.endpoints, ep)
@@ -216,10 +94,9 @@ func getSortedEndpointList() []iEndpoint {
 	sort.Slice(restRegistry.endpoints, func(i, j int) bool {
 		epI := restRegistry.endpoints[i]
 		epJ := restRegistry.endpoints[j]
-		if epI.getPathAsString() != epJ.getPathAsString() {
-			return epI.getPathAsString() < epJ.getPathAsString()
+		if epI.getOperationPath(false) != epJ.getOperationPath(false) {
+			return epI.getOperationPath(false) < epJ.getOperationPath(false)
 		}
-
 		return epI.getMethod() < epJ.getMethod()
 	})
 
@@ -227,41 +104,59 @@ func getSortedEndpointList() []iEndpoint {
 }
 
 // ------------------------------------------------------------------------------------------------
+// DB Adapters registry
+// ------------------------------------------------------------------------------------------------
+
+var dbAdapterRegistry = &struct {
+	dbAdapters map[dbconn.DatabaseType]iDBAdapter
+	mx         sync.Mutex
+}{
+	dbAdapters: map[dbconn.DatabaseType]iDBAdapter{},
+}
+
+func RegisterDbAdapter(dbAdapter iDBAdapter) iDBAdapter {
+	dbAdapterRegistry.mx.Lock()
+	if dbAdapterRegistry.dbAdapters[dbAdapter.DatabaseType()] != nil {
+		panic(fmt.Sprintf("There's already a DB adapter registered for database type '%s'", dbAdapter.DatabaseType()))
+	}
+	dbAdapterRegistry.dbAdapters[dbAdapter.DatabaseType()] = dbAdapter
+	dbAdapterRegistry.mx.Unlock()
+	return dbAdapter
+}
+
+// returning the right adapter for the given database type, or panicking if not found
+func getDbAdapter(dbType dbconn.DatabaseType) iDBAdapter {
+	dbAdapterRegistry.mx.Lock()
+	defer dbAdapterRegistry.mx.Unlock()
+
+	dbAdapter := dbAdapterRegistry.dbAdapters[dbType]
+	if dbAdapter == nil {
+		panic(fmt.Sprintf("No DB adapter found for database type '%s'. "+
+			"You should add this import: _ \"github.com/aldesgroup/goald/features/dbconn/%s\"",
+			dbType, getPackageForDbServerType(dbType)))
+	}
+
+	return dbAdapter
+}
+
+// ------------------------------------------------------------------------------------------------
 // DB registry
 // ------------------------------------------------------------------------------------------------
 
 var dbRegistry = &struct {
-	databases map[DatabaseID]*DB
+	databases map[dbconn.DbSchemaName]*DB
 	mx        sync.Mutex
 }{
-	databases: map[DatabaseID]*DB{},
+	databases: map[dbconn.DbSchemaName]*DB{},
 }
 
-func initAndRegisterDB(config *dbConfig) {
-	dbRegistry.mx.Lock()
-	defer dbRegistry.mx.Unlock()
-
-	// init the instance if needed
-	db := dbRegistry.databases[config.DbID]
-	if db == nil {
-		db = &DB{}
-	}
-
-	// init the DB driver
-	db.DB, db.adapter = openDB(config)
-	db.config = config
-
-	// back into the registry (not needed if already done
-	dbRegistry.databases[config.DbID] = db
-}
-
-func GetDB(dbID DatabaseID) *DB {
+func GetDB(dbID dbconn.DbSchemaName) *DB {
 	dbRegistry.mx.Lock()
 	defer dbRegistry.mx.Unlock()
 
 	db := dbRegistry.databases[dbID]
 	if db == nil {
-		db = &DB{}
+		db = &DB{name: dbID}
 		dbRegistry.databases[dbID] = db
 	}
 
@@ -282,7 +177,7 @@ var dataLoaderRegistry = &struct {
 }
 
 func RegisterDataLoader(fn dataLoader, migrationPhase bool) {
-	fnName := utils.GetFnName(fn)
+	fnName := reflection.GetFnName(fn)
 	fnName = fnName[strings.LastIndex(fnName, ".")+1:]
 	dataLoaderRegistry.mx.Lock()
 	if migrationPhase {
@@ -293,4 +188,75 @@ func RegisterDataLoader(fn dataLoader, migrationPhase bool) {
 		dataLoaderRegistry.appServerLoaders[fnName] = fn
 	}
 	dataLoaderRegistry.mx.Unlock()
+}
+
+// ------------------------------------------------------------------------------------------------
+// Data Access Objects (DAO) registry
+// ------------------------------------------------------------------------------------------------
+
+var daoRegistry = &struct {
+	daos map[utils.ModelName]IBusinessObjectDAO
+	mx   sync.Mutex
+}{
+	daos: map[utils.ModelName]IBusinessObjectDAO{},
+}
+
+func RegisterDAO(modelName utils.ModelName, dao IBusinessObjectDAO) IBusinessObjectDAO {
+	daoRegistry.mx.Lock()
+	if daoRegistry.daos[modelName] != nil {
+		panic(fmt.Sprintf("There's already a DAO registered for model '%s'", modelName))
+	}
+	daoRegistry.daos[modelName] = dao
+	daoRegistry.mx.Unlock()
+	return dao
+}
+
+func newDaoFor(modelName utils.ModelName) IBusinessObjectDAO {
+	daoRegistry.mx.Lock()
+	defer daoRegistry.mx.Unlock()
+
+	dao := daoRegistry.daos[modelName]
+	if dao == nil {
+		panic(fmt.Sprintf("No DAO found for model '%s'", modelName))
+	}
+
+	// a DAO is somehow its own factory
+	return dao.NewDAO()
+}
+
+// ------------------------------------------------------------------------------------------------
+// Queries registry
+// ------------------------------------------------------------------------------------------------
+
+type queryName string
+
+// QueryName is the exported alias of queryName, letting DAOs implemented outside of this package (e.g.
+// generated DAOs living in an application's own module) reference this type when implementing
+// [IBusinessObjectDAO]'s ExecSearchQuery method.
+type QueryName = queryName
+
+var queryRegistry = &struct {
+	queries map[queryName]IQuery    // all the queries registered in the system, mapped by their name
+	counter map[utils.ModelName]int // a counter for each model, to generate unique query names
+	mx      sync.Mutex
+}{
+	queries: map[queryName]IQuery{},
+	counter: map[utils.ModelName]int{},
+}
+
+func registerQuery(query IQuery) {
+	queryRegistry.mx.Lock()
+
+	// new query for the model being searched here
+	currentCount := queryRegistry.counter[query.getSearchedObjectsModel().GetName()]
+	currentCount++
+
+	// let's give it a little name
+	qName := queryName(fmt.Sprintf("SearchFor%s%d", query.getSearchedObjectsModel().GetName(), currentCount))
+
+	// registering the query, and its index
+	queryRegistry.counter[query.getSearchedObjectsModel().GetName()] = currentCount
+	queryRegistry.queries[qName] = query.withName(qName)
+
+	queryRegistry.mx.Unlock()
 }

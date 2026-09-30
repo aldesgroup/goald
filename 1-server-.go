@@ -6,11 +6,12 @@ package goald
 import (
 	"flag"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"os"
 
 	core "github.com/aldesgroup/corego"
+	"github.com/aldesgroup/goald/features/logging"
+	"github.com/aldesgroup/goald/features/utils"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -44,7 +45,7 @@ func NewServer() ServerContext {
 	flag.BoolVar(&migrate, "migrate", false, "activates the auto-migration of the configured databases")
 	flag.StringVar(&cgParams.srcdir, "srcdir", "api", "where to find all the Go code, from the project's root")
 	flag.StringVar(&cgParams.othersrcdirs, "othersrcdirs", "", "where to find secondary go source code directories, eg. path/to/dir1,dir2,etc")
-	flag.IntVar(&cgParams.codegen, "codegen", 0, "if > 0, runs code generation and exits; 1 = objects, 2 = classes")
+	flag.IntVar(&cgParams.codegen, "codegen", 0, "if > 0, runs code generation and exits; 1 = BO sources, 2 = BO models, 3 = BO utils")
 	flag.StringVar(&cgParams.docpath, "docpath", "", "the path of the API doc file to generate, i.e. data/api-doc.yaml")
 	flag.StringVar(&cgParams.webdir, "webdir", "webapp", "where to find all the Web app code, from the project's root")
 	flag.StringVar(&cgParams.nativedir, "nativedir", "webapp", "where to find all the Native app code, from the project's root")
@@ -56,15 +57,30 @@ func NewServer() ServerContext {
 
 	// reading the config file
 	serverConfig := readAndCheckConfig(confPath)
+	loggerConfig := serverConfig.base().Logging
+
+	// new instance ID for the server
+	instanceID := core.RandomString(3)
 
 	// new server
 	server := &server{
+		ILogger:  logging.NewLogger(loggerConfig.resolvedLogLevel, instanceID, loggerConfig.Type, loggerConfig.FNames),
+		instance: instanceID,
 		config:   serverConfig,
-		instance: core.RandomString(3), // TODO remove ?
+	}
+	server.Info("New server")
+
+	// resolving all the business object models
+	for _, boModel := range modelRegistry.items {
+		boModel.resolve()
 	}
 
-	// init the logger
-	slog.SetLogLoggerLevel(slog.LevelDebug) // TODO configure
+	// resolving all the DBs, i.e. knowing their type and configuration, which come from the config file
+	for _, dbConfig := range serverConfig.base().DBServers {
+		for _, dbSchema := range dbConfig.Schemas {
+			server.resolveDbSchema(dbSchema) // ==> no config for Goald !!!!
+		}
+	}
 
 	// running the app in code generation mode, i.e. no server started here - should only be used by devs
 	if cgParams.codegen > 0 {
@@ -73,18 +89,24 @@ func NewServer() ServerContext {
 		os.Exit(0)
 	}
 
-	// initialising the DBs
-	for _, dbConfig := range serverConfig.base().Databases {
-		initAndRegisterDB(dbConfig)
+	// initialising the DB servers
+	if migrate {
+		for _, dbConfig := range serverConfig.base().DBServers {
+			server.initDbServer(dbConfig)
+		}
 	}
 
-	// bit of logging // TODO remove
-	slog.Info(fmt.Sprintf("Instance: %s", server.instance))
+	// connecting the DB schemas
+	for _, dbConfig := range serverConfig.base().DBServers {
+		for _, dbSchema := range dbConfig.Schemas {
+			server.connectDbSchema(dbSchema)
+		}
+	}
 
 	// migrating the DBs + injecting some data into the DBs
 	if migrate {
 		// making sure the DBs are in sync with the code
-		autoMigrateDBs()
+		server.migrateDBs()
 
 		// loading some data into the DBs
 		server.loadData(true)
@@ -108,28 +130,23 @@ func NewServer() ServerContext {
 const apiPath = "/rest"
 
 func (thisServer *server) initRoutes() {
-	// // no HTTP configured? Let's WARN about it
-	// if thisServer.config.base().HTTP == nil {
-	// 	core.PanicMsg("No \"HTTP\" section configured!")
-	// }
-
 	// new router
 	thisServer.router = httprouter.New()
 	thisServer.router.RedirectTrailingSlash = false
 
-	// serving the API doc
-	slog.Info("Serving: GET /doc/api")
-	thisServer.router.Handle(http.MethodGet, "/doc/api", serveDocForAPI)
-
 	// locally, we also serve the API doc from the root path, for easier access
 	if thisServer.IsLocal() {
-		slog.Info("Serving: GET /")
+		thisServer.Info("Serving:  GET /")
 		thisServer.router.Handle(http.MethodGet, "/", serveDocForAPI)
 	}
 
+	// serving the API doc
+	thisServer.Info("Serving:  GET /doc/api")
+	thisServer.router.Handle(http.MethodGet, "/doc/api", serveDocForAPI)
+
 	// configuring & adding the REST API endpoints - should we have to serve an API
-	for _, endpoint := range restRegistry.endpoints {
-		slog.Info(fmt.Sprintf("Serving: %s", endpoint.getPathAsString()))
+	for _, endpoint := range getSortedEndpointList() {
+		thisServer.Info(fmt.Sprintf("Serving: %s", core.PadLeft(endpoint.getMethod(), 4, " ")+" "+endpoint.getOperationPath(true)))
 		thisServer.router.Handle(endpoint.getMethod(), endpoint.getOperationPath(true), thisServer.handleFor(endpoint))
 	}
 }
@@ -139,7 +156,7 @@ func (thisServer *server) initRoutes() {
 // ------------------------------------------------------------------------------------------------
 func (thisServer *server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// this is a place for potential middlewares
-	slog.Debug(fmt.Sprintf("%+v", req.Header))
+	thisServer.Debug(fmt.Sprintf("%+v", req.Header))
 
 	// w.Header().Set("Access-Control-Allow-Origin", "*")
 	// TODO do better / probably through the config
@@ -168,7 +185,7 @@ func (thisServer *server) Start() {
 	// TODO fill the requestHandler pool
 
 	if len(restRegistry.endpoints) == 0 {
-		slog.Warn("No endpoint configured, so no starting of the HTTP server!")
+		thisServer.Warn("No endpoint configured, so no starting of the HTTP server!")
 		return
 	}
 
@@ -176,7 +193,7 @@ func (thisServer *server) Start() {
 
 	// listening to HTTP requests (blocking process)
 	addr := fmt.Sprintf(":%d", thisServer.config.base().Port)
-	slog.Info(fmt.Sprintf("Serving at: http://localhost:%d/", thisServer.config.base().Port))
+	thisServer.Info(fmt.Sprintf("Serving at: http://localhost:%d/", thisServer.config.base().Port))
 	if errListen := http.ListenAndServe(addr, thisServer); errListen != nil && errListen != http.ErrServerClosed {
 		core.PanicMsgIfErr(errListen, "Could not start the server!")
 	}
@@ -188,4 +205,35 @@ func (thisServer *server) handleFor(ep iEndpoint) httprouter.Handle {
 	return func(w http.ResponseWriter, req *http.Request, params httprouter.Params) {
 		thisServer.ServeEndpoint(ep, w, req, params)
 	}
+}
+
+// ------------------------------------------------------------------------------------------------
+// Making the server a Business Logic context
+// ------------------------------------------------------------------------------------------------
+
+var _ BloContext = (*server)(nil)
+
+// BeginTransaction implements [ServerContext].
+func (thisServer *server) BeginTransaction(model IBusinessObjectModel) (bool, error) {
+	panic("unimplemented")
+}
+
+// EndTransaction implements [ServerContext].
+func (thisServer *server) EndTransaction(err error) error {
+	panic("unimplemented")
+}
+
+// IsTransactionStarted implements [ServerContext].
+func (thisServer *server) IsTransactionStarted() bool {
+	panic("unimplemented")
+}
+
+// DaoFor implements [BloContext].
+func (thisServer *server) daoFor(modelName utils.ModelName) IBusinessObjectDAO {
+	panic("unimplemented")
+}
+
+// bObjCache implements [BloContext].
+func (thisServer *server) bObjCache() *BObjCache {
+	panic("unimplemented")
 }

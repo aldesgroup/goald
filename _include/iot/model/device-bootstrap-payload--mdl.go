@@ -8,7 +8,7 @@ import (
 )
 
 // static, reflect-free access to the definition of the DeviceBootstrapPayload model
-type deviceBootstrapPayloadModel struct {
+type DeviceBootstrapPayloadModel struct {
 	g.IBusinessObjectModel
 	serial    *g.StringField
 	model     *g.StringField
@@ -17,51 +17,53 @@ type deviceBootstrapPayloadModel struct {
 }
 
 // this is the main way to refer to the DeviceBootstrapPayload model in the applicative code
-func DeviceBootstrapPayload() *deviceBootstrapPayloadModel {
+func DeviceBootstrapPayload() *DeviceBootstrapPayloadModel {
+	deviceBootstrapPayloadOnce.Do(func() {
+		deviceBootstrapPayload = NewDeviceBootstrapPayloadModel()
+
+		// this helps dynamically access to the DeviceBootstrapPayload model
+		g.RegisterModel("DeviceBootstrapPayload", deviceBootstrapPayload)
+	})
+
 	return deviceBootstrapPayload
 }
 
 // internal variables
 var (
-	deviceBootstrapPayload     *deviceBootstrapPayloadModel
+	deviceBootstrapPayload     *DeviceBootstrapPayloadModel
 	deviceBootstrapPayloadOnce sync.Once
 )
 
-// fully describing each of this class' properties & relationships
-func newDeviceBootstrapPayloadModel() *deviceBootstrapPayloadModel {
-	newModel := &deviceBootstrapPayloadModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
-	newModel.serial = g.NewStringField(newModel, "Serial", false)
-	newModel.model = g.NewStringField(newModel, "Model", false)
-	newModel.timestamp = g.NewBigIntField(newModel, "Timestamp", false)
-	newModel.nonce = g.NewStringField(newModel, "Nonce", false)
+// fully describing each of this model's properties & relationships
+func NewDeviceBootstrapPayloadModel() *DeviceBootstrapPayloadModel {
+	thisModel := &DeviceBootstrapPayloadModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
+	thisModel.serial = g.AddStringField(thisModel, "DeviceBootstrapPayload", "Serial", false)
+	thisModel.model = g.AddStringField(thisModel, "DeviceBootstrapPayload", "Model", false)
+	thisModel.timestamp = g.AddBigIntField(thisModel, "DeviceBootstrapPayload", "Timestamp", false)
+	thisModel.nonce = g.AddStringField(thisModel, "DeviceBootstrapPayload", "Nonce", false)
 
-	return newModel
+	return thisModel
 }
 
 // making sure the DeviceBootstrapPayload model exists at app startup
 func init() {
-	deviceBootstrapPayloadOnce.Do(func() {
-		deviceBootstrapPayload = newDeviceBootstrapPayloadModel()
-	})
-
-	// this helps dynamically access to the DeviceBootstrapPayload model
-	g.RegisterModel("DeviceBootstrapPayload", deviceBootstrapPayload)
+	DeviceBootstrapPayload()
 }
 
-// accessing all the DeviceBootstrapPayload class' properties and relationships
+// accessing all the DeviceBootstrapPayload model's properties and relation	ships
 
-func (d *deviceBootstrapPayloadModel) Serial() *g.StringField {
-	return d.serial
+func (D *DeviceBootstrapPayloadModel) Serial() *g.StringField {
+	return D.serial
 }
 
-func (d *deviceBootstrapPayloadModel) Model() *g.StringField {
-	return d.model
+func (D *DeviceBootstrapPayloadModel) Model() *g.StringField {
+	return D.model
 }
 
-func (d *deviceBootstrapPayloadModel) Timestamp() *g.BigIntField {
-	return d.timestamp
+func (D *DeviceBootstrapPayloadModel) Timestamp() *g.BigIntField {
+	return D.timestamp
 }
 
-func (d *deviceBootstrapPayloadModel) Nonce() *g.StringField {
-	return d.nonce
+func (D *DeviceBootstrapPayloadModel) Nonce() *g.StringField {
+	return D.nonce
 }

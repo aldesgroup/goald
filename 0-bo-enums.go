@@ -1,5 +1,5 @@
 // ------------------------------------------------------------------------------------------------
-// Here are the enums used for building business object classes
+// Here are the enums used for building business object models
 // ------------------------------------------------------------------------------------------------
 package goald
 

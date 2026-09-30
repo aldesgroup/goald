@@ -10,7 +10,6 @@ package goald
 
 import (
 	"fmt"
-	"log/slog"
 	"sync"
 	"time"
 
@@ -35,11 +34,11 @@ func (thisServer *server) loadData(migrationPhase bool) {
 		wg.Add(1)
 		go func(fnNameArg string, dataLoadingFnArg dataLoader) {
 			defer wg.Done()
-			defer RecoverError("Error while running data loader '%s'", fnNameArg)
+			defer RecoverError(thisServer, "Error while running data loader '%s'", fnNameArg)
 
-			slog.Info(fmt.Sprintf("Starting runner: %s", fnNameArg))
+			thisServer.Info(fmt.Sprintf("Starting runner: %s", fnNameArg))
 			startTime := time.Now()
-			defer func() { slog.Info(fmt.Sprintf("Runner '%s' finished in %s", fnNameArg, time.Since(startTime))) }()
+			defer func() { thisServer.Info(fmt.Sprintf("Runner '%s' finished in %s", fnNameArg, time.Since(startTime))) }()
 
 			// actual
 			if errLoad := dataLoadingFnArg(thisServer, thisServer.config.base().DataLoaders[fnNameArg]); errLoad != nil {
@@ -55,6 +54,6 @@ func (thisServer *server) loadData(migrationPhase bool) {
 
 	// for now, only logging the errors, but we might end up stopping the server in case of error
 	for fnName, errLoad := range errors {
-		slog.Error(fmt.Sprintf("Error in data loader '%s': %s", fnName, errLoad))
+		thisServer.Error(true, fmt.Sprintf("Error in data loader '%s': %s", fnName, errLoad))
 	}
 }

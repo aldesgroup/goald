@@ -9,13 +9,13 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
-	"log/slog"
 	"time"
 
 	core "github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald"
 	g "github.com/aldesgroup/goald"
 	"github.com/aldesgroup/goald/features/iot"
+	"github.com/aldesgroup/goald/features/logging"
 )
 
 // ----------------------------------------------------------------------------
@@ -43,7 +43,7 @@ func init() {
 // Main bootstrapping function
 // ----------------------------------------------------------------------------
 
-func doBootstrapDevice(bloContext g.BloContext, req *iot.DeviceBootstrapRequest) (*iot.DeviceBootstrap, error) {
+func doBootstrapDevice(logger logging.ILogger, bloContext g.BloContext, req *iot.DeviceBootstrapRequest) (*iot.DeviceBootstrap, error) {
 	// loading the device's public factory cert
 	factoryCert, errLoadCert := loadCert([]byte(req.FactoryCertPEM))
 	if errLoadCert != nil {
@@ -86,7 +86,7 @@ func doBootstrapDevice(bloContext g.BloContext, req *iot.DeviceBootstrapRequest)
 	// Here, we can enforce having (CN/SAN = serial) in the certs
 	// Not doing it for now.
 
-	slog.Debug(fmt.Sprintf("Device %s n°%s is correctly authenticated!", payload.Model, payload.Serial))
+	logger.Debug(fmt.Sprintf("Device %s n°%s is correctly authenticated!", payload.Model, payload.Serial))
 
 	// AT THIS POINT, the device has made a legit bootstrap call,
 	// and we can materialise it's will to bootstrap by saving its bootrapping state
@@ -98,7 +98,7 @@ func doBootstrapDevice(bloContext g.BloContext, req *iot.DeviceBootstrapRequest)
 	// TODO better with workers etc
 	if getDevice(payload.Serial) != nil && currentBootstrap.Status == iot.BootstrapStatusAUTHENTICATEDxONLY {
 		// TODO better : ENQUEUE A JOB
-		go startProvisioning(payload.Serial, currentBootstrap)
+		go startProvisioning(logger, payload.Serial, currentBootstrap)
 	}
 
 	return currentBootstrap, nil
@@ -185,16 +185,16 @@ func isFreshCall(payload *iot.DeviceBootstrapPayload) bool {
 }
 
 // Contacting the device provisioning service on behalf of the device
-func startProvisioning(serial string, bootstrap *iot.DeviceBootstrap) {
+func startProvisioning(logger logging.ILogger, serial string, bootstrap *iot.DeviceBootstrap) {
 	// TODO better with DB
 	bootstrap.Status = iot.BootstrapStatusPENDING
 	// update in DB
 
 	// TODO contacting the DPS
 
-	slog.Info("----------------------------------------------------------------")
-	slog.Info("CONTACTING THE DPS")
-	slog.Info("----------------------------------------------------------------")
+	logger.Info("----------------------------------------------------------------")
+	logger.Info("CONTACTING THE DPS")
+	logger.Info("----------------------------------------------------------------")
 
 	// implement a retry logic
 	// TODO what if this fails ?

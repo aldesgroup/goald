@@ -5,11 +5,10 @@ import (
 	"sync"
 
 	g "github.com/aldesgroup/goald"
-	i18n_model "github.com/aldesgroup/goald/_include/i18n/model"
 )
 
 // static, reflect-free access to the definition of the DeviceLinkRequest model
-type deviceLinkRequestModel struct {
+type DeviceLinkRequestModel struct {
 	g.IBusinessObjectModel
 	model            *g.StringField
 	serial           *g.StringField
@@ -23,76 +22,78 @@ type deviceLinkRequestModel struct {
 }
 
 // this is the main way to refer to the DeviceLinkRequest model in the applicative code
-func DeviceLinkRequest() *deviceLinkRequestModel {
+func DeviceLinkRequest() *DeviceLinkRequestModel {
+	deviceLinkRequestOnce.Do(func() {
+		deviceLinkRequest = NewDeviceLinkRequestModel()
+
+		// this helps dynamically access to the DeviceLinkRequest model
+		g.RegisterModel("DeviceLinkRequest", deviceLinkRequest)
+	})
+
 	return deviceLinkRequest
 }
 
 // internal variables
 var (
-	deviceLinkRequest     *deviceLinkRequestModel
+	deviceLinkRequest     *DeviceLinkRequestModel
 	deviceLinkRequestOnce sync.Once
 )
 
-// fully describing each of this class' properties & relationships
-func newDeviceLinkRequestModel() *deviceLinkRequestModel {
-	newModel := &deviceLinkRequestModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
-	newModel.model = g.NewStringField(newModel, "Model", false)
-	newModel.serial = g.NewStringField(newModel, "Serial", false)
-	newModel.verificationCode = g.NewStringField(newModel, "VerificationCode", false)
-	newModel.userId = g.NewIntField(newModel, "UserID", false)
-	newModel.userFullName = g.NewStringField(newModel, "UserFullName", false)
-	newModel.users = g.NewPolyRelationship(newModel, "Users", true)
-	newModel.mainContact = g.NewPolyRelationship(newModel, "MainContact", false)
-	newModel.forWho = g.NewPolyRelationship(newModel, "ForWho", false)
-	newModel.enTranslation = g.NewRelationship(newModel, "ENTranslation", false, i18n_model.Translation())
+// fully describing each of this model's properties & relationships
+func NewDeviceLinkRequestModel() *DeviceLinkRequestModel {
+	thisModel := &DeviceLinkRequestModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
+	thisModel.model = g.AddStringField(thisModel, "DeviceLinkRequest", "Model", false)
+	thisModel.serial = g.AddStringField(thisModel, "DeviceLinkRequest", "Serial", false)
+	thisModel.verificationCode = g.AddStringField(thisModel, "DeviceLinkRequest", "VerificationCode", false)
+	thisModel.userId = g.AddIntField(thisModel, "DeviceLinkRequest", "UserID", false)
+	thisModel.userFullName = g.AddStringField(thisModel, "DeviceLinkRequest", "UserFullName", false)
+	thisModel.users = g.AddPolyRelationship(thisModel, "DeviceLinkRequest", "Users", true)
+	thisModel.mainContact = g.AddPolyRelationship(thisModel, "DeviceLinkRequest", "MainContact", false)
+	thisModel.forWho = g.AddPolyRelationship(thisModel, "DeviceLinkRequest", "ForWho", false)
+	thisModel.enTranslation = g.AddRelationship(thisModel, "DeviceLinkRequest", "ENTranslation", false, "Translation")
 
-	return newModel
+	return thisModel
 }
 
 // making sure the DeviceLinkRequest model exists at app startup
 func init() {
-	deviceLinkRequestOnce.Do(func() {
-		deviceLinkRequest = newDeviceLinkRequestModel()
-	})
-
-	// this helps dynamically access to the DeviceLinkRequest model
-	g.RegisterModel("DeviceLinkRequest", deviceLinkRequest)
+	DeviceLinkRequest()
 }
 
-// accessing all the DeviceLinkRequest class' properties and relationships
+// accessing all the DeviceLinkRequest model's properties and relation	ships
 
-func (d *deviceLinkRequestModel) Model() *g.StringField {
-	return d.model
+func (D *DeviceLinkRequestModel) Model() *g.StringField {
+	return D.model
 }
 
-func (d *deviceLinkRequestModel) Serial() *g.StringField {
-	return d.serial
+func (D *DeviceLinkRequestModel) Serial() *g.StringField {
+	return D.serial
 }
 
-func (d *deviceLinkRequestModel) VerificationCode() *g.StringField {
-	return d.verificationCode
+func (D *DeviceLinkRequestModel) VerificationCode() *g.StringField {
+	return D.verificationCode
 }
 
-func (d *deviceLinkRequestModel) UserID() *g.IntField {
-	return d.userId
+func (D *DeviceLinkRequestModel) UserID() *g.IntField {
+	return D.userId
 }
 
-func (d *deviceLinkRequestModel) UserFullName() *g.StringField {
-	return d.userFullName
+func (D *DeviceLinkRequestModel) UserFullName() *g.StringField {
+	return D.userFullName
 }
 
-func (d *deviceLinkRequestModel) Users() *g.Relationship {
-	return d.users
+func (D *DeviceLinkRequestModel) Users() *g.Relationship {
+	return D.users
 }
 
-func (d *deviceLinkRequestModel) MainContact() *g.Relationship {
-	return d.mainContact
+func (D *DeviceLinkRequestModel) MainContact() *g.Relationship {
+	return D.mainContact
 }
 
-func (d *deviceLinkRequestModel) ForWho() *g.Relationship {
-	return d.forWho
+func (D *DeviceLinkRequestModel) ForWho() *g.Relationship {
+	return D.forWho
 }
 
-func (d *deviceLinkRequestModel) ENTranslation() *g.Relationship {
-	return d.enTranslation
+func (D *DeviceLinkRequestModel) ENTranslation() *g.Relationship {
+	return D.enTranslation
 }
