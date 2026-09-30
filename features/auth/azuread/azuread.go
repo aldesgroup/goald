@@ -24,6 +24,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
+
 	"github.com/aldesgroup/goald"
 	"github.com/aldesgroup/goald/features/auth"
 )
@@ -33,13 +35,13 @@ const ProviderType auth.ProviderType = "azuread"
 
 func init() {
 	goald.RegisterAuthProvider(&provider{
-		jwks:       newJWKSCache(&http.Client{Timeout: 10 * time.Second}),
+		keyfuncs:   newKeyfuncCache(&http.Client{Timeout: 10 * time.Second}),
 		httpClient: &http.Client{Timeout: 10 * time.Second},
 	})
 }
 
 type provider struct {
-	jwks       *jwksCache
+	keyfuncs   *keyfuncCache
 	httpClient *http.Client
 }
 
@@ -78,61 +80,42 @@ func (p *provider) issuer(cfg *auth.ProviderConfig) string {
 // Validating an incoming bearer token
 // ------------------------------------------------------------------------------------------------
 
-// ValidateToken implements [goald.IAuthProvider].
+// ValidateToken implements [goald.IAuthProvider]. Signature verification, issuer/audience
+// matching and expiry are all delegated to github.com/golang-jwt/jwt/v5, using a jwt.Keyfunc
+// backed by the issuer's JWKS (github.com/MicahParks/keyfunc) - we just map the resulting claims.
 func (p *provider) ValidateToken(ctx context.Context, cfg *auth.ProviderConfig, rawToken string) (*auth.Claims, error) {
-	header, err := parseJWTHeader(rawToken)
-	if err != nil {
-		return nil, err
-	}
-
-	if header.Alg != "RS256" {
-		return nil, fmt.Errorf("unsupported signing algorithm '%s'", header.Alg)
+	if cfg.TenantID == "" || cfg.Audience == "" {
+		return nil, fmt.Errorf("realm '%s' is missing its tenantId or audience", cfg.Realm)
 	}
 
 	issuer := p.issuer(cfg)
 
-	signingKey, err := p.jwks.getKey(ctx, issuer, header.Kid)
+	kf, err := p.keyfuncs.get(ctx, issuer)
 	if err != nil {
-		return nil, fmt.Errorf("could not get the signing key: %w", err)
+		return nil, fmt.Errorf("could not get the signing keys: %w", err)
 	}
 
-	rawClaims, err := verifyRS256(rawToken, signingKey)
-	if err != nil {
-		return nil, err
+	claims := jwt.MapClaims{}
+	if _, err := jwt.ParseWithClaims(rawToken, claims, kf.Keyfunc,
+		jwt.WithValidMethods([]string{"RS256"}),
+		jwt.WithIssuer(issuer),
+		jwt.WithAudience(cfg.Audience),
+		jwt.WithExpirationRequired(),
+	); err != nil {
+		return nil, fmt.Errorf("invalid token: %w", err)
 	}
 
-	if iss, _ := rawClaims["iss"].(string); iss != issuer {
-		return nil, fmt.Errorf("unexpected issuer '%s'", iss)
-	}
-
-	if !audienceMatches(rawClaims["aud"], cfg.Audience) {
-		return nil, errors.New("unexpected audience")
-	}
-
-	now := time.Now()
-
-	exp, hasExp := numberClaim(rawClaims, "exp")
-	if !hasExp {
-		return nil, errors.New("token has no 'exp' claim")
-	}
-	expiry := time.Unix(exp, 0)
-	if now.After(expiry) {
-		return nil, errors.New("token has expired")
-	}
-
-	if nbf, hasNbf := numberClaim(rawClaims, "nbf"); hasNbf && now.Before(time.Unix(nbf, 0)) {
-		return nil, errors.New("token is not yet valid")
-	}
+	expiry, _ := claims.GetExpirationTime()
 
 	return &auth.Claims{
-		Subject:  firstNonEmpty(stringClaim(rawClaims, "oid"), stringClaim(rawClaims, "sub")),
+		Subject:  firstNonEmpty(stringClaim(claims, "oid"), stringClaim(claims, "sub")),
 		Realm:    cfg.Realm,
-		Email:    firstNonEmpty(stringClaim(rawClaims, "preferred_username"), stringClaim(rawClaims, "email"), stringClaim(rawClaims, "upn")),
-		Name:     stringClaim(rawClaims, "name"),
-		TenantID: stringClaim(rawClaims, "tid"),
-		Roles:    stringSliceClaim(rawClaims, "roles"),
-		Expiry:   expiry,
-		Raw:      rawClaims,
+		Email:    firstNonEmpty(stringClaim(claims, "preferred_username"), stringClaim(claims, "email"), stringClaim(claims, "upn")),
+		Name:     stringClaim(claims, "name"),
+		TenantID: stringClaim(claims, "tid"),
+		Roles:    stringSliceClaim(claims, "roles"),
+		Expiry:   expiry.Time,
+		Raw:      claims,
 	}, nil
 }
 
@@ -144,6 +127,10 @@ func (p *provider) ValidateToken(ctx context.Context, cfg *auth.ProviderConfig, 
 func (p *provider) Login(ctx context.Context, cfg *auth.ProviderConfig, creds auth.Credentials) (*auth.TokenSet, error) {
 	if creds.Username == "" || creds.Password == "" {
 		return nil, errors.New("username and password are both required")
+	}
+
+	if cfg.TenantID == "" || cfg.ClientID == "" {
+		return nil, fmt.Errorf("realm '%s' is missing its tenantId or clientId", cfg.Realm)
 	}
 
 	scope := cfg.Scope
@@ -204,10 +191,10 @@ func (p *provider) Login(ctx context.Context, cfg *auth.ProviderConfig, creds au
 }
 
 // ------------------------------------------------------------------------------------------------
-// Small helpers for reading values out of a raw, untyped claims map
+// Small helpers for reading values out of a jwt.MapClaims
 // ------------------------------------------------------------------------------------------------
 
-func stringClaim(claims map[string]any, name string) string {
+func stringClaim(claims jwt.MapClaims, name string) string {
 	if s, ok := claims[name].(string); ok {
 		return s
 	}
@@ -215,15 +202,7 @@ func stringClaim(claims map[string]any, name string) string {
 	return ""
 }
 
-func numberClaim(claims map[string]any, name string) (int64, bool) {
-	if n, ok := claims[name].(float64); ok {
-		return int64(n), true
-	}
-
-	return 0, false
-}
-
-func stringSliceClaim(claims map[string]any, name string) []string {
+func stringSliceClaim(claims jwt.MapClaims, name string) []string {
 	raw, ok := claims[name].([]any)
 	if !ok {
 		return nil
@@ -247,27 +226,6 @@ func firstNonEmpty(values ...string) string {
 	}
 
 	return ""
-}
-
-// audienceMatches checks a JWT "aud" claim against the expected audience - the spec allows "aud"
-// to be either a single string or an array of strings.
-func audienceMatches(aud any, expected string) bool {
-	if expected == "" {
-		return false
-	}
-
-	switch v := aud.(type) {
-	case string:
-		return v == expected
-	case []any:
-		for _, item := range v {
-			if s, ok := item.(string); ok && s == expected {
-				return true
-			}
-		}
-	}
-
-	return false
 }
 
 // firstLine trims Microsoft's verbose, multi-line error descriptions down to their first line.

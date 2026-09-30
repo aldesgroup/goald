@@ -70,7 +70,8 @@ Key pieces:
 | `goald.Login(...)` | `9-auth-provider.go` | Called from a login endpoint's handler to exchange credentials for a token set |
 | `goald.RegisterUserResolver` | `9-auth-user.go` | Plugs in your app's logic to turn `Claims` into 1 of your `IUser` business objects |
 | `WebContext.GetCurrentUser()` / `BloContext.GetCurrentUser()` | `8-web-context.go` | Where your endpoint/BLO code reads back "who's calling" |
-| `features/auth/azuread` | `features/auth/azuread` | The shipped Entra ID / Entra External ID implementation (stdlib only, no SDK dependency) |
+| `features/auth/azuread` | `features/auth/azuread` | The shipped Entra ID / Entra External ID implementation, using `github.com/golang-jwt/jwt/v5` + `github.com/MicahParks/keyfunc` for JWT/JWKS handling |
+| `features/auth/devauth` | `features/auth/devauth` | A no-network, no-real-IdP provider for local dev & tests - any username/password logs in |
 | `features/accessmgt` (`LoginCredentials`, `AuthToken`, upgraded `User`) | `features/accessmgt` | The reference login endpoints + the `User` fields used to link an external identity |
 
 Authentication is **entirely opt-in**: a server with no `Auth` section configured behaves exactly
@@ -141,8 +142,8 @@ A few important details this diagram encodes:
 - **Realm discovery is automatic**: an incoming token doesn't need to say which realm it's for -
   each configured provider is tried in turn, and a mismatched issuer/audience just means "try the
   next one". This is cheap (no network call needed to reject a token whose `iss` doesn't match).
-- **JWKS keys are cached per issuer** for 1 hour, and refreshed early if a `kid` isn't found in the
-  cache (handles Microsoft's periodic signing key rotation) - see `features/auth/azuread/jwt.go`.
+- **JWKS keys are fetched & auto-refreshed per issuer** by `github.com/MicahParks/keyfunc`, which
+  also handles an unknown `kid` by refreshing early (key rotation) - see `features/auth/azuread/jwt.go`.
 - **The `User` lookup only happens once, lazily**, the first time `GetCurrentUser()` is called
   during a request - not systematically on every authenticated call.
 - Both realms reuse the *exact same* `azuread` implementation; only their `*auth.ProviderConfig`
@@ -174,6 +175,51 @@ base:
             # authority: "https://<your-custom-domain>"
             # issuer:    "https://<your-custom-domain>/v2.0"
 ```
+
+Behind a gateway that keeps `Authorization` for its own service-to-service token (e.g. Azure APIM
+with a managed identity in front of ACA Easy Auth), have the gateway copy the caller's token into
+another header and tell Goald where to find it. It defaults to `Authorization`:
+
+```yaml
+base:
+    authtokenheader: X-User-Authorization
+```
+
+Any realm setting, secrets included, can also come from the environment, which then wins over the
+config file: `AUTH_<REALM>_<SETTING>` with `TENANT_ID`, `CLIENT_ID`, `CLIENT_SECRET`, `AUDIENCE`,
+`SCOPE`, `AUTHORITY` or `ISSUER` (e.g. `AUTH_CUSTOMER_CLIENT_ID`), plus `AUTH_TOKEN_HEADER`. A realm
+still has to be declared in the file, at least with its `type`.
+
+## Local development
+
+Running against real Entra tenants from a laptop means real test-user credentials, network
+dependency on Microsoft, and often Conditional Access/MFA rejecting the Resource Owner Password
+grant outright. For local dev (and automated tests), use the shipped `devauth` provider instead -
+no network call, no real IdP, any non-empty username/password logs in:
+
+```yaml
+base:
+    auth:
+        colleague:
+            type: devauth
+        customer:
+            type: devauth
+```
+
+```go
+import _ "github.com/aldesgroup/goald/features/auth/devauth"
+```
+
+`devauth` mints its own signed (HS256) token, so it exercises the *same* app-level code paths
+(`goald.Login`, the auth gate, `UserResolverFunc`, `GetCurrentUser()`) as `azuread` does in
+dev/qua/prd - only the actual identity backend differs. The password field doubles as a
+comma-separated role list (e.g. password `admin,support`), so you can test authorization logic
+for different roles without needing real accounts. Never set `type: devauth` outside local dev or
+tests - there's no real credential check behind it.
+
+Both `azuread` and `devauth` can be blank-imported at once (registering a provider does nothing by
+itself - only the `type:` configured per realm decides which one actually gets used), so
+`main.go` doesn't need to change between environments, only the config file does.
 
 Then wire the implementation in, and register a resolver for your own `User`-like business object,
 typically in your app's `main.go`:
@@ -367,25 +413,26 @@ type IAuthProvider interface {
 }
 ```
 
-To plug in a different identity backend (Auth0, Keycloak, a homegrown DB-backed login, a fake
-provider for integration tests...), implement this interface and register it, e.g.:
+To plug in a different identity backend (Auth0, Keycloak, a homegrown DB-backed login...),
+implement this interface and register it - `features/auth/devauth` is a complete, real example
+already shipped for local dev/tests, following this same shape:
 
 ```go
 package devauth
 
 func init() {
-    goald.RegisterAuthProvider(&devProvider{})
+    goald.RegisterAuthProvider(&provider{})
 }
 
 const ProviderType auth.ProviderType = "devauth"
 
-func (*devProvider) ProviderType() auth.ProviderType { return ProviderType }
+func (*provider) ProviderType() auth.ProviderType { return ProviderType }
 
-func (*devProvider) Login(ctx context.Context, cfg *auth.ProviderConfig, creds auth.Credentials) (*auth.TokenSet, error) {
+func (*provider) Login(ctx context.Context, cfg *auth.ProviderConfig, creds auth.Credentials) (*auth.TokenSet, error) {
     // e.g. check creds against a local table, mint your own signed token, etc.
 }
 
-func (*devProvider) ValidateToken(ctx context.Context, cfg *auth.ProviderConfig, rawToken string) (*auth.Claims, error) {
+func (*provider) ValidateToken(ctx context.Context, cfg *auth.ProviderConfig, rawToken string) (*auth.Claims, error) {
     // e.g. verify your own token format/signature, return the resulting Claims
 }
 ```

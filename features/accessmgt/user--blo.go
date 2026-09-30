@@ -12,5 +12,5 @@ func (thisUser *User) GetUsername() string {
 
 // GetMemberships implements [goald.IUser].
 func (thisUser *User) GetMemberships() []goald.IUserGroup {
-	panic("unimplemented")
+	return thisUser.MemberOf
 }

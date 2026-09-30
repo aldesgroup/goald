@@ -50,10 +50,11 @@ type serverConfig struct {
 		// tech props
 		resolvedLogLevel slog.Level
 	}
-	DBServers   map[string]*dbconn.DbServerConfig
-	Auth        map[string]*auth.ProviderConfig // authentication realms, e.g. "colleague" / "customer" -> their provider config; entirely optional
-	DataLoaders map[string]map[string]string
-	Version     string
+	DBServers       map[string]*dbconn.DbServerConfig
+	Auth            map[string]*auth.ProviderConfig // authentication realms, e.g. "colleague" / "customer" -> their provider config; entirely optional
+	AuthTokenHeader string                          // header carrying the user's bearer token when a gateway keeps "Authorization" for its own token; defaults to "Authorization"
+	DataLoaders     map[string]map[string]string
+	Version         string
 
 	// technical props
 	resolvedEnvType core.EnvType
@@ -143,7 +144,8 @@ func readAndCheckConfig(fromPath string) IServerConfig {
 	}
 
 	// controlling the auth realms, if any - entirely optional; provider-specific requirements
-	// (e.g. azuread's TenantID / ClientID) are checked when the provider is resolved at startup
+	// (e.g. azuread's TenantID / ClientID) are checked when the provider is used
+	applyAuthEnvOverrides(config)
 	for realmID, providerCfg := range config.Auth {
 		if providerCfg.Type == "" {
 			core.PanicMsg("Auth realm '%s' has no provider type defined", realmID)
@@ -155,4 +157,31 @@ func readAndCheckConfig(fromPath string) IServerConfig {
 
 func (thisConf *serverConfig) base() *serverConfig {
 	return thisConf
+}
+
+// applyAuthEnvOverrides lets a deployment inject auth settings, secrets included, through env vars:
+// AUTH_TOKEN_HEADER, and AUTH_<REALM>_<SETTING> for each realm declared in the config file.
+func applyAuthEnvOverrides(config *serverConfig) {
+	if value := os.Getenv("AUTH_TOKEN_HEADER"); value != "" {
+		config.AuthTokenHeader = value
+	}
+
+	for realmID, providerCfg := range config.Auth {
+		prefix := "AUTH_" + strings.ToUpper(realmID) + "_"
+		settings := map[string]*string{
+			"TENANT_ID":     &providerCfg.TenantID,
+			"CLIENT_ID":     &providerCfg.ClientID,
+			"CLIENT_SECRET": &providerCfg.ClientSecret,
+			"AUDIENCE":      &providerCfg.Audience,
+			"SCOPE":         &providerCfg.Scope,
+			"AUTHORITY":     &providerCfg.Authority,
+			"ISSUER":        &providerCfg.Issuer,
+		}
+
+		for suffix, target := range settings {
+			if value := os.Getenv(prefix + suffix); value != "" {
+				*target = value
+			}
+		}
+	}
 }

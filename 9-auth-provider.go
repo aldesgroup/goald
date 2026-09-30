@@ -129,14 +129,19 @@ func (thisServer *server) authenticateRequest(req *http.Request) (*auth.Claims, 
 		return nil, nil
 	}
 
-	authHeader := req.Header.Get("Authorization")
+	tokenHeader := thisServer.config.base().AuthTokenHeader
+	if tokenHeader == "" {
+		tokenHeader = "Authorization"
+	}
+
+	authHeader := req.Header.Get(tokenHeader)
 	if authHeader == "" {
-		return nil, Error("Missing 'Authorization' header")
+		return nil, Error("Missing '%s' header", tokenHeader)
 	}
 
 	const bearerPrefix = "Bearer "
 	if !strings.HasPrefix(authHeader, bearerPrefix) {
-		return nil, Error("The 'Authorization' header must use the 'Bearer' scheme")
+		return nil, Error("The '%s' header must use the 'Bearer' scheme", tokenHeader)
 	}
 
 	rawToken := strings.TrimSpace(strings.TrimPrefix(authHeader, bearerPrefix))
