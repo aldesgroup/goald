@@ -10,7 +10,6 @@ package devauth
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -49,7 +48,7 @@ func (*provider) ProviderType() auth.ProviderType {
 // username/password, no real credential check involved.
 func (*provider) Login(ctx context.Context, cfg *auth.ProviderConfig, creds auth.Credentials) (*auth.TokenSet, error) {
 	if creds.Username == "" || creds.Password == "" {
-		return nil, errors.New("username and password are both required")
+		return nil, fmt.Errorf("%w: username and password are both required", auth.ErrInvalidCredentials)
 	}
 
 	now := time.Now()
@@ -57,6 +56,7 @@ func (*provider) Login(ctx context.Context, cfg *auth.ProviderConfig, creds auth
 		"iss":   devIssuer,
 		"sub":   "dev-" + creds.Username,
 		"aud":   cfg.Audience,
+		"realm": string(cfg.Realm),
 		"email": creds.Username,
 		"name":  displayNameFor(creds.Username),
 		"roles": rolesFromPassword(creds.Password),
@@ -92,6 +92,11 @@ func (*provider) ValidateToken(ctx context.Context, cfg *auth.ProviderConfig, ra
 		return signingKey, nil
 	}, opts...); err != nil {
 		return nil, fmt.Errorf("invalid dev token: %w", err)
+	}
+
+	// each realm only accepts the tokens it minted itself
+	if realm, _ := claims["realm"].(string); realm != string(cfg.Realm) {
+		return nil, fmt.Errorf("dev token was issued for realm '%s', not '%s'", realm, cfg.Realm)
 	}
 
 	expiry, _ := claims.GetExpirationTime()

@@ -8,8 +8,10 @@ package goald
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 
@@ -29,7 +31,8 @@ type IAuthProvider interface {
 	ProviderType() auth.ProviderType
 
 	// Login exchanges a set of credentials for a token set. Mainly meant for first-party/trusted
-	// clients and automated testing - see docs/authentication.md.
+	// clients and automated testing - see docs/authentication.md. When the backend rejects the
+	// credentials themselves, the returned error must wrap auth.ErrInvalidCredentials.
 	Login(ctx context.Context, cfg *auth.ProviderConfig, creds auth.Credentials) (*auth.TokenSet, error)
 
 	// ValidateToken validates a bearer token (signature, issuer, audience, expiry...), returning
@@ -119,6 +122,64 @@ func Login(webCtx WebContext, realm auth.Realm, username, password string) (*aut
 	return resolved.impl.Login(context.Background(), resolved.cfg, auth.Credentials{Username: username, Password: password})
 }
 
+// orderedAuthProviders returns the resolved providers by ascending LoginOrder, then realm name,
+// so that anything trying several realms in turn behaves the same way on every run.
+func (thisServer *server) orderedAuthProviders() []*resolvedAuthProvider {
+	ordered := make([]*resolvedAuthProvider, 0, len(thisServer.authProviders))
+	for _, resolved := range thisServer.authProviders {
+		ordered = append(ordered, resolved)
+	}
+
+	sort.Slice(ordered, func(i, j int) bool {
+		if ordered[i].cfg.LoginOrder != ordered[j].cfg.LoginOrder {
+			return ordered[i].cfg.LoginOrder < ordered[j].cfg.LoginOrder
+		}
+
+		return ordered[i].cfg.Realm < ordered[j].cfg.Realm
+	})
+
+	return ordered
+}
+
+// LoginAny tries the given credentials against every configured realm, in LoginOrder, and returns
+// the first token set obtained along with the realm that issued it. When no realm accepts them,
+// the error wraps auth.ErrInvalidCredentials if every realm rejected the credentials themselves;
+// otherwise it's the first other failure met (e.g. an unreachable or misconfigured identity provider).
+func LoginAny(webCtx WebContext, username, password string) (*auth.TokenSet, auth.Realm, error) {
+	ctxImpl, ok := webCtx.(*webContextImpl)
+	if !ok {
+		return nil, "", Error("LoginAny() can only be called from a real HTTP request context")
+	}
+
+	if len(ctxImpl.server.authProviders) == 0 {
+		return nil, "", Error("No authentication realm is configured")
+	}
+
+	creds := auth.Credentials{Username: username, Password: password}
+
+	var firstOtherErr error
+	for _, resolved := range ctxImpl.server.orderedAuthProviders() {
+		tokenSet, err := resolved.impl.Login(context.Background(), resolved.cfg, creds)
+		if err == nil {
+			return tokenSet, resolved.cfg.Realm, nil
+		}
+
+		if !errors.Is(err, auth.ErrInvalidCredentials) {
+			ctxImpl.Warn(fmt.Sprintf("Login against realm '%s' failed: %s", resolved.cfg.Realm, err))
+
+			if firstOtherErr == nil {
+				firstOtherErr = err
+			}
+		}
+	}
+
+	if firstOtherErr != nil {
+		return nil, "", firstOtherErr
+	}
+
+	return nil, "", auth.ErrInvalidCredentials
+}
+
 // authenticateRequest extracts the bearer token from the incoming request, and tries every
 // configured realm's provider until one of them accepts it - the token itself carries enough
 // information (issuer, audience...) for a provider to quickly reject a token that isn't its own.
@@ -150,7 +211,7 @@ func (thisServer *server) authenticateRequest(req *http.Request) (*auth.Claims, 
 	}
 
 	var lastErr error
-	for _, resolved := range thisServer.authProviders {
+	for _, resolved := range thisServer.orderedAuthProviders() {
 		claims, err := resolved.impl.ValidateToken(req.Context(), resolved.cfg, rawToken)
 		if err == nil {
 			return claims, nil

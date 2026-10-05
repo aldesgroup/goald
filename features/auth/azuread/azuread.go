@@ -1,6 +1,6 @@
 // ------------------------------------------------------------------------------------------------
 // A goald.IAuthProvider implementation backed by Microsoft Entra ID, usable both for a workforce
-// tenant (colleagues) and for an Entra External ID / CIAM tenant (customers) - see
+// tenant (internal users) and for an Entra External ID / CIAM tenant (external users) - see
 // docs/authentication.md for the full picture, the Azure setup steps, and curl examples.
 //
 //   - ValidateToken verifies an incoming bearer token's signature (RS256) and standard claims
@@ -16,7 +16,6 @@ package azuread
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -126,7 +125,7 @@ func (p *provider) ValidateToken(ctx context.Context, cfg *auth.ProviderConfig, 
 // Login implements [goald.IAuthProvider].
 func (p *provider) Login(ctx context.Context, cfg *auth.ProviderConfig, creds auth.Credentials) (*auth.TokenSet, error) {
 	if creds.Username == "" || creds.Password == "" {
-		return nil, errors.New("username and password are both required")
+		return nil, fmt.Errorf("%w: username and password are both required", auth.ErrInvalidCredentials)
 	}
 
 	if cfg.TenantID == "" || cfg.ClientID == "" {
@@ -174,6 +173,11 @@ func (p *provider) Login(ctx context.Context, cfg *auth.ProviderConfig, creds au
 			Description string `json:"error_description"`
 		}
 		_ = json.Unmarshal(bodyBytes, &errBody)
+
+		// Entra answers invalid_grant for a wrong password as well as for an unknown user
+		if errBody.Error == "invalid_grant" {
+			return nil, fmt.Errorf("%w: %s", auth.ErrInvalidCredentials, firstLine(errBody.Description))
+		}
 
 		if errBody.Error != "" {
 			return nil, fmt.Errorf("login failed: %s (%s)", errBody.Error, firstLine(errBody.Description))

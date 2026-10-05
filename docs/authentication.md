@@ -1,11 +1,15 @@
-# Authentication in Goald: Entra ID (colleagues) + Entra External ID (customers)
+# Authentication in Goald: Entra ID (internal users) + Entra External ID (external users)
 
 Goald authenticates API callers through a small, pluggable interface (`goald.IAuthProvider`). Out
 of the box it ships an implementation backed by **Microsoft Entra ID**, used twice, for 2 separate
 **realms**:
 
-- `colleague` — your internal staff, backed by a normal Entra ID (workforce) tenant.
-- `customer` — your external customers, backed by a Microsoft **Entra External ID** (CIAM) tenant.
+- `internal` — your internal users (staff), backed by a normal Entra ID (workforce) tenant.
+- `external` — your external users (customers, partners...), backed by a Microsoft **Entra External ID** (CIAM) tenant.
+
+Realm names are free-form: they're just the keys of the `auth` config section (`internal` and
+`external` are the names used by the shipped login endpoints and examples). Use whatever fits your
+business.
 
 Both realms can be active at once, each with its own tenant/app registration, and each realm can
 even use a *different* provider implementation if you ever need to (Auth0, a homegrown DB-backed
@@ -45,7 +49,7 @@ flowchart LR
     end
 
     subgraph app["your application"]
-        CFG["config: Auth.colleague / Auth.customer"]
+        CFG["config: Auth.internal / Auth.external"]
         USR["your IUser business object(s)"]
     end
 
@@ -83,7 +87,7 @@ realm, every endpoint (except those marked `.Public()`) requires a valid bearer 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor U as User (colleague or customer)
+    actor U as User (internal or external)
     participant C as Client (browser/app/curl)
     participant API as Goald API
     participant IDP as Microsoft Entra ID / Entra External ID
@@ -92,7 +96,7 @@ sequenceDiagram
     rect rgb(235, 245, 255)
     Note over C,IDP: Step 1 - Logging in (trusted/test clients only - see Security notes)
     U->>C: enters username & password
-    C->>API: POST /rest/authtoken/login/colleague (or /customer)<br/>{ "username", "password" }
+    C->>API: POST /rest/authtoken/login (or /login/internal, /login/external)<br/>{ "username", "password" }
     API->>API: ep.isPublic() == true -> auth gate skipped for THIS call
     API->>API: goald.Login(webCtx, realm, username, password)
     API->>API: look up the realm's resolved provider (impl + *auth.ProviderConfig)
@@ -158,19 +162,21 @@ entry per realm. The map key becomes the realm (`auth.Realm`) unless you set `re
 base:
     # ...
     auth:
-        colleague:
+        internal:
             type: azuread
-            tenantId: "<COLLEAGUE_TENANT_ID>"
-            clientId: "<COLLEAGUE_API_CLIENT_ID>"
-            audience: "<COLLEAGUE_API_CLIENT_ID>"       # the API app's client ID (the "aud" claim)
-            scope: "api://<COLLEAGUE_API_CLIENT_ID>/access_as_user offline_access"
+            loginOrder: 1                                # tried first by the unified login endpoint
+            tenantId: "<INTERNAL_TENANT_ID>"
+            clientId: "<INTERNAL_API_CLIENT_ID>"
+            audience: "<INTERNAL_API_CLIENT_ID>"        # the API app's client ID (the "aud" claim)
+            scope: "api://<INTERNAL_API_CLIENT_ID>/access_as_user offline_access"
 
-        customer:
+        external:
             type: azuread
-            tenantId: "<CUSTOMER_TENANT_ID>"
-            clientId: "<CUSTOMER_API_CLIENT_ID>"
-            audience: "<CUSTOMER_API_CLIENT_ID>"
-            scope: "api://<CUSTOMER_API_CLIENT_ID>/access_as_user offline_access"
+            loginOrder: 2
+            tenantId: "<EXTERNAL_TENANT_ID>"
+            clientId: "<EXTERNAL_API_CLIENT_ID>"
+            audience: "<EXTERNAL_API_CLIENT_ID>"
+            scope: "api://<EXTERNAL_API_CLIENT_ID>/access_as_user offline_access"
             # only needed for a CIAM tenant using a custom domain instead of the default *.ciamlogin.com:
             # authority: "https://<your-custom-domain>"
             # issuer:    "https://<your-custom-domain>/v2.0"
@@ -187,7 +193,7 @@ base:
 
 Any realm setting, secrets included, can also come from the environment, which then wins over the
 config file: `AUTH_<REALM>_<SETTING>` with `TENANT_ID`, `CLIENT_ID`, `CLIENT_SECRET`, `AUDIENCE`,
-`SCOPE`, `AUTHORITY` or `ISSUER` (e.g. `AUTH_CUSTOMER_CLIENT_ID`), plus `AUTH_TOKEN_HEADER`. A realm
+`SCOPE`, `AUTHORITY` or `ISSUER` (e.g. `AUTH_EXTERNAL_CLIENT_ID`), plus `AUTH_TOKEN_HEADER`. A realm
 still has to be declared in the file, at least with its `type`.
 
 ## Local development
@@ -200,9 +206,9 @@ no network call, no real IdP, any non-empty username/password logs in:
 ```yaml
 base:
     auth:
-        colleague:
+        internal:
             type: devauth
-        customer:
+        external:
             type: devauth
 ```
 
@@ -232,7 +238,7 @@ import (
 
 func init() {
     g.RegisterUserResolver(func(bloCtx g.BloContext, claims *auth.Claims) (g.IUser, error) {
-        // look your own User (or Employee/Customer...) up by ExternalID / Email, or provision it -
+        // look your own User (or StaffMember/Customer...) up by ExternalID / Email, or provision it -
         // see "The User business object" below for the fields Goald adds for you.
         return myapp.FindOrCreateUserFromClaims(bloCtx, claims)
     })
@@ -251,6 +257,7 @@ func init() {
 | `clientSecret` | no | Only for confidential-client scenarios; leave empty for a public/test client |
 | `authority` | no | Overrides the token endpoint base; auto-derived as `https://login.microsoftonline.com/<tenantId>` |
 | `issuer` | no | Overrides the expected `iss` / OIDC discovery base; auto-derived as `<authority>/v2.0` |
+| `loginOrder` | no | Order in which the unified login (and token validation) tries realms: ascending `loginOrder`, then realm name |
 
 ## Setting things up in Azure
 
@@ -259,8 +266,8 @@ public-client app registration to test/log in with (e.g. from curl or a CLI).
 
 ### Option A: Terraform
 
-See [deploy/entra-id](../deploy/entra-id) — `versions.tf`, `variables.tf`, `colleague.tf`,
-`customer.tf`, `outputs.tf`. It provisions both realms' app registrations, exposes the
+See [deploy/entra-id](../deploy/entra-id) — `versions.tf`, `variables.tf`, `internal.tf`,
+`external.tf`, `outputs.tf`. It provisions both realms' app registrations, exposes the
 `access_as_user` scope, and pre-consents the public/test client for it so curl-based logins work
 immediately, with no manual "Grant admin consent" click.
 
@@ -268,13 +275,13 @@ immediately, with no manual "Grant admin consent" click.
 cd deploy/entra-id
 terraform init
 terraform apply \
-  -var="colleague_tenant_id=<COLLEAGUE_TENANT_ID>" \
-  -var="customer_tenant_id=<CUSTOMER_TENANT_ID>"
+  -var="internal_tenant_id=<INTERNAL_TENANT_ID>" \
+  -var="external_tenant_id=<EXTERNAL_TENANT_ID>"
 ```
 
 You must be authenticated against **both** tenants for a single `terraform apply` to succeed (e.g.
 via `az login` with an account/service principal that has access to each). If that's impractical,
-split `colleague.tf` / `customer.tf` into 2 separate root modules/state files and apply them
+split `internal.tf` / `external.tf` into 2 separate root modules/state files and apply them
 separately.
 
 Terraform can't (yet) configure the CIAM tenant's **user flow** (the sign-up/sign-in experience,
@@ -282,11 +289,11 @@ local-account policy, password strength, etc.) - that part is still manual, see 
 
 ### Option B: Azure Portal, step by step
 
-Repeat this for **each** realm (once in your workforce tenant for `colleague`, once in your Entra
-External ID tenant for `customer`):
+Repeat this for **each** realm (once in your workforce tenant for `internal`, once in your Entra
+External ID tenant for `external`):
 
 1. **Create the API app registration** — *Entra ID admin center* → *App registrations* → *New
-   registration* → name it (e.g. "Goald API - Colleagues") → *Register*.
+   registration* → name it (e.g. "Goald API - Internal") → *Register*.
 2. **Expose an API** — open the new app → *Expose an API* → *Add a scope*:
    - Accept the suggested Application ID URI (`api://<client-id>`), or set your own.
    - Scope name: `access_as_user`. Who can consent: *Admins and users*. Fill in the 4
@@ -294,7 +301,7 @@ External ID tenant for `customer`):
 3. **Note the IDs** — from the app's *Overview* page, copy the **Application (client) ID** and the
    **Directory (tenant) ID**. These become `clientId`/`audience` and `tenantId` in the config.
 4. **Create the public/test client app registration** — *New registration* again (e.g. "Goald CLI
-   - Colleagues"), no redirect URI needed for pure ROPC testing (add `http://localhost` under a
+   - Internal"), no redirect URI needed for pure ROPC testing (add `http://localhost` under a
    *Public client/native* platform if you also want to try interactive flows with it).
 5. **Allow public client flows** — on the CLI app's *Authentication* blade, set *"Allow public
    client flows"* to **Yes**. This is what enables the Resource Owner Password Credentials grant.
@@ -302,7 +309,7 @@ External ID tenant for `customer`):
    permission* → *My APIs* → the API app from step 1 → *Delegated permissions* → check
    `access_as_user` → *Add permissions* → then click **Grant admin consent** so curl-based logins
    don't stop on a consent screen.
-7. *(customer realm / CIAM only)* — under *External Identities* → *User flows*, create a
+7. *(external realm / CIAM only)* — under *External Identities* → *User flows*, create a
    **Sign up and sign in** user flow with the *Email with password* local account method, and
    associate both app registrations with it.
 8. *(optional, MFA/conditional access)* — note that ROPC cannot satisfy MFA or most Conditional
@@ -315,9 +322,9 @@ External ID tenant for `customer`):
 Set some shell variables first (values from Terraform's outputs, or the portal, or your config file):
 
 ```bash
-export TENANT_ID=<COLLEAGUE_TENANT_ID>
-export API_CLIENT_ID=<COLLEAGUE_API_CLIENT_ID>
-export CLI_CLIENT_ID=<COLLEAGUE_CLI_CLIENT_ID>
+export TENANT_ID=<INTERNAL_TENANT_ID>
+export API_CLIENT_ID=<INTERNAL_API_CLIENT_ID>
+export CLI_CLIENT_ID=<INTERNAL_CLI_CLIENT_ID>
 export GOALD_URL=http://localhost:8080
 ```
 
@@ -333,10 +340,10 @@ curl -s -X POST "https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/toke
   --data-urlencode "password=<PASSWORD>"
 ```
 
-**2. Logging in through the Goald API** (colleague realm):
+**2. Logging in through the Goald API** (unified login: tries each realm in `loginOrder`, then by name):
 
 ```bash
-curl -s -X POST "${GOALD_URL}/rest/authtoken/login/colleague" \
+curl -s -X POST "${GOALD_URL}/rest/authtoken/login" \
   -H "Content-Type: application/json" \
   -d '{
         "username": "alice@yourtenant.onmicrosoft.com",
@@ -351,7 +358,8 @@ curl -s -X POST "${GOALD_URL}/rest/authtoken/login/colleague" \
 		"tokenType": "Bearer",
 		"expiresIn": 3600,
 		"refreshToken": "0.AX...",
-		"idToken": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIs..."
+		"idToken": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIs...",
+		"realm": "internal"
 	},
 	"statusCode": 200,
 	"status": "OK",
@@ -360,12 +368,18 @@ curl -s -X POST "${GOALD_URL}/rest/authtoken/login/colleague" \
 }
 ```
 
-...and the same for the customer realm, against `/rest/authtoken/login/customer`.
+The `realm` field says which realm accepted the credentials. Whatever the reason a login fails
+(unknown user, wrong password, ...), the unified endpoint answers the same `401 Login failed`, so
+it can't be used to find out which realm an account lives in; it only answers `503` when no realm
+could be reached or is misconfigured. If the same username exists in several realms, the first one
+in `loginOrder` wins.
+
+To target a realm explicitly, use `/rest/authtoken/login/internal` or `/rest/authtoken/login/external`.
 
 **3. Calling a protected endpoint with the access token:**
 
 ```bash
-ACCESS_TOKEN=$(curl -s -X POST "${GOALD_URL}/rest/authtoken/login/colleague" \
+ACCESS_TOKEN=$(curl -s -X POST "${GOALD_URL}/rest/authtoken/login" \
   -H "Content-Type: application/json" \
   -d '{"username":"alice@yourtenant.onmicrosoft.com","password":"<PASSWORD>"}' \
   | jq -r '.object.accessToken')
@@ -391,7 +405,7 @@ curl -s -i "${GOALD_URL}/rest/user/42"
 | Field | Purpose |
 |---|---|
 | `ExternalID` | The `oid` claim - the caller's stable, unique ID within its identity provider |
-| `Realm` | Which population this user belongs to: `"colleague"`, `"customer"`, or `"local"` |
+| `Realm` | Which population this user belongs to: `"internal"`, `"external"`, or `"local"` |
 
 Your `UserResolverFunc` (see [Configuring Goald](#configuring-goald)) is where you decide how to
 look a user up (typically: by `ExternalID` first, falling back to `Email` to link a

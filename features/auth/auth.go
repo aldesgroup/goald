@@ -1,22 +1,30 @@
 // ------------------------------------------------------------------------------------------------
 // Shared types for Goald's pluggable authentication.
 //
-// A Realm identifies a population of callers (e.g. colleagues vs. customers). Each realm is served
+// A Realm identifies a population of callers (e.g. internal vs. external users). Each realm is served
 // by its own configured provider (see goald.IAuthProvider), so a single Goald server can
 // authenticate against several identity backends at once - typically 1 Microsoft Entra ID
-// (workforce) tenant for colleagues, and 1 Microsoft Entra External ID (CIAM) tenant for customers.
+// (workforce) tenant for internal users, and 1 Microsoft Entra External ID (CIAM) tenant for external ones.
 // ------------------------------------------------------------------------------------------------
 package auth
 
-import "time"
+import (
+	"errors"
+	"time"
+)
+
+// ErrInvalidCredentials is what a provider's Login() must wrap when the identity backend rejects the
+// credentials themselves (as opposed to being unreachable or misconfigured), so a login spanning
+// several realms knows it can safely try the next one.
+var ErrInvalidCredentials = errors.New("invalid credentials")
 
 // Realm identifies a population of callers, each of which can be served by a different,
 // independently configured identity provider.
 type Realm string
 
 const (
-	RealmColleague Realm = "colleague" // internal staff, typically backed by a Microsoft Entra ID (workforce) tenant
-	RealmCustomer  Realm = "customer"  // external customers, typically backed by a Microsoft Entra External ID (CIAM) tenant
+	RealmInternal Realm = "internal" // internal users, typically backed by a Microsoft Entra ID (workforce) tenant
+	RealmExternal Realm = "external" // external users, typically backed by a Microsoft Entra External ID (CIAM) tenant
 )
 
 // ProviderType identifies which goald.IAuthProvider implementation should serve a given realm,
@@ -37,6 +45,7 @@ type ProviderConfig struct {
 	Scope        string       // the scope(s) to request when logging in, e.g. "api://<client-id>/.default"
 	Issuer       string       // overrides the expected "iss" claim & OIDC discovery base; auto-derived from TenantID when empty
 	Authority    string       // overrides the OAuth2 authority (token endpoint base); auto-derived from TenantID when empty
+	LoginOrder   int          // when logging in without naming a realm, realms are tried by ascending LoginOrder, then by name
 }
 
 // Credentials is a generic username/password pair, used for the direct (resource-owner) login flow.

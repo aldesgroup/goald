@@ -13,6 +13,7 @@ type AuthToken struct {
 	ExpiresIn    int64  `json:"expiresIn,omitempty"    io:"o*" desc:"the number of seconds until the access token expires"`
 	RefreshToken string `json:"refreshToken,omitempty" io:"o*" desc:"a token that can be used to obtain a new access token without logging in again, if any"`
 	IDToken      string `json:"idToken,omitempty"      io:"o*" desc:"an OpenID Connect ID token identifying the caller, if any"`
+	Realm        string `json:"realm,omitempty"        io:"o*" desc:"the realm whose identity provider issued this token"`
 }
 
 func init() {

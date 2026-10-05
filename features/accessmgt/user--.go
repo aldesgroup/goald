@@ -14,7 +14,7 @@ type User struct {
 	FirstName  string             `json:"firstName,omitempty"  io:"i*" desc:"the %s's first name"`
 	LastName   string             `json:"lastName,omitempty"   io:"i*" desc:"the %s's last name"`
 	ExternalID string             `json:"externalId,omitempty" io:"in" desc:"the unique identifier ('oid' claim) of this %s in its external identity provider, if any"`
-	Realm      string             `json:"realm,omitempty"      io:"in" desc:"which population this %s belongs to: 'colleague', 'customer', or 'local'"`
+	Realm      string             `json:"realm,omitempty"      io:"in" desc:"which population this %s belongs to: 'internal', 'external', or 'local'"`
 	MemberOf   []goald.IUserGroup `json:"memberOf,omitempty"   io:"in" desc:"the list of user groups the %s is a member of"`
 }
 

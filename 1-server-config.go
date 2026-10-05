@@ -51,7 +51,7 @@ type serverConfig struct {
 		resolvedLogLevel slog.Level
 	}
 	DBServers       map[string]*dbconn.DbServerConfig
-	Auth            map[string]*auth.ProviderConfig // authentication realms, e.g. "colleague" / "customer" -> their provider config; entirely optional
+	Auth            map[string]*auth.ProviderConfig // authentication realms, e.g. "internal" / "external" -> their provider config; entirely optional
 	AuthTokenHeader string                          // header carrying the user's bearer token when a gateway keeps "Authorization" for its own token; defaults to "Authorization"
 	DataLoaders     map[string]map[string]string
 	Version         string

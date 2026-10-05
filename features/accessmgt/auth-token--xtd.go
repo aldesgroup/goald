@@ -2,7 +2,7 @@
 package accessmgt
 
 import (
-	"github.com/aldesgroup/corego"
+	core "github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald"
 	"github.com/aldesgroup/goald/features/utils"
 )
@@ -50,6 +50,7 @@ func (bo *AuthToken) Clone(withFields, withRelationships bool) goald.IBusinessOb
 		clone.ExpiresIn = bo.ExpiresIn
 		clone.IDToken = bo.IDToken
 		clone.Modification = bo.Modification
+		clone.Realm = bo.Realm
 		clone.RefreshToken = bo.RefreshToken
 		clone.TokenType = bo.TokenType
 	}
@@ -89,6 +90,8 @@ func (bo *AuthToken) GetValueAsString(propertyName string) string {
 		return bo.IDToken
 	case "Modification":
 		return core.DateToString(bo.Modification)
+	case "Realm":
+		return bo.Realm
 	case "RefreshToken":
 		return bo.RefreshToken
 	case "TokenType":
@@ -113,6 +116,8 @@ func (bo *AuthToken) SetValueAsString(propertyName string, valueAsString string)
 		bo.IDToken = valueAsString
 	case "Modification":
 		bo.Modification = core.StringToDate(valueAsString, "Modification")
+	case "Realm":
+		bo.Realm = valueAsString
 	case "RefreshToken":
 		bo.RefreshToken = valueAsString
 	case "TokenType":

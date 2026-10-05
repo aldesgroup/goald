@@ -15,6 +15,7 @@ type AuthTokenModel struct {
 	expiresIn    *g.BigIntField
 	refreshToken *g.StringField
 	idToken      *g.StringField
+	realm        *g.StringField
 }
 
 // this is the main way to refer to the AuthToken model in the applicative code
@@ -36,6 +37,7 @@ func NewAuthTokenModel() *AuthTokenModel {
 	thisModel.expiresIn = g.AddBigIntField(thisModel, "AuthToken", "ExpiresIn", false)
 	thisModel.refreshToken = g.AddStringField(thisModel, "AuthToken", "RefreshToken", false)
 	thisModel.idToken = g.AddStringField(thisModel, "AuthToken", "IDToken", false)
+	thisModel.realm = g.AddStringField(thisModel, "AuthToken", "Realm", false)
 
 	return thisModel
 }
@@ -70,4 +72,8 @@ func (A *AuthTokenModel) RefreshToken() *g.StringField {
 
 func (A *AuthTokenModel) IDToken() *g.StringField {
 	return A.idToken
+}
+
+func (A *AuthTokenModel) Realm() *g.StringField {
+	return A.realm
 }

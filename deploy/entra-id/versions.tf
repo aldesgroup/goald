@@ -1,6 +1,6 @@
 // ------------------------------------------------------------------------------------------------
-// Terraform providers required to provision the Entra ID (colleagues) and Entra External ID
-// (customers) app registrations used by Goald's authentication feature.
+// Terraform providers required to provision the Entra ID (internal users) and Entra External ID
+// (external users) app registrations used by Goald's authentication feature.
 //
 // Usage: see docs/authentication.md for the full picture. In short:
 //   terraform init
@@ -10,7 +10,7 @@
 // `az login` with a user/service principal that has access to each tenant, or by setting
 // ARM_* / AZURE_* environment variables per provider alias). If that's not practical, split this
 // into 2 separate `terraform apply` runs (one per tenant), commenting out the other tenant's
-// resources, or move colleague.tf / customer.tf into 2 separate Terraform root modules.
+// resources, or move internal.tf / external.tf into 2 separate Terraform root modules.
 // ------------------------------------------------------------------------------------------------
 
 terraform {
@@ -28,14 +28,14 @@ terraform {
   }
 }
 
-# the Entra ID (workforce) tenant, where your colleagues live
+# the Entra ID (workforce) tenant, where your internal users live
 provider "azuread" {
-  alias     = "colleague"
-  tenant_id = var.colleague_tenant_id
+  alias     = "internal"
+  tenant_id = var.internal_tenant_id
 }
 
-# the Entra External ID (CIAM) tenant, where your customers live
+# the Entra External ID (CIAM) tenant, where your external users live
 provider "azuread" {
-  alias     = "customer"
-  tenant_id = var.customer_tenant_id
+  alias     = "external"
+  tenant_id = var.external_tenant_id
 }

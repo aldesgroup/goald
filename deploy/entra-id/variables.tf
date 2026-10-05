@@ -1,10 +1,10 @@
-variable "colleague_tenant_id" {
-  description = "Tenant ID (GUID) of the Microsoft Entra ID (workforce) tenant used to authenticate colleagues."
+variable "internal_tenant_id" {
+  description = "Tenant ID (GUID) of the Microsoft Entra ID (workforce) tenant used to authenticate internal users."
   type        = string
 }
 
-variable "customer_tenant_id" {
-  description = "Tenant ID (GUID) of the Microsoft Entra External ID (CIAM) tenant used to authenticate customers."
+variable "external_tenant_id" {
+  description = "Tenant ID (GUID) of the Microsoft Entra External ID (CIAM) tenant used to authenticate external users."
   type        = string
 }
 
