@@ -18,6 +18,10 @@ import (
 // several realms knows it can safely try the next one.
 var ErrInvalidCredentials = errors.New("invalid credentials")
 
+// ErrPasswordLoginUnsupported means that no realm concerned offers a username/password login: users
+// of such realms must sign in at their identity provider, and hand over the resulting bearer token.
+var ErrPasswordLoginUnsupported = errors.New("password login is not supported; sign in at the identity provider instead")
+
 // Realm identifies a population of callers, each of which can be served by a different,
 // independently configured identity provider.
 type Realm string
@@ -36,22 +40,18 @@ type ProviderType string
 // A single provider implementation is typically instantiated once, but used for several realms at
 // once, each with its own ProviderConfig (e.g. 2 different Entra tenants).
 type ProviderConfig struct {
-	Type         ProviderType // which IAuthProvider implementation to use, e.g. "azuread"
-	Realm        Realm        // which realm this config is for; defaults to the config's map key when empty
-	TenantID     string       // the Entra tenant ID (a GUID), for both workforce and External ID tenants
-	ClientID     string       // the application (client) ID of the app registration representing this API
-	ClientSecret string       // only needed for confidential-client flows; keep this out of source control
-	Audience     string       // the expected "aud" claim on incoming access tokens, e.g. "api://<client-id>"
-	Scope        string       // the scope(s) to request when logging in, e.g. "api://<client-id>/.default"
-	Issuer       string       // overrides the expected "iss" claim & OIDC discovery base; auto-derived from TenantID when empty
-	Authority    string       // overrides the OAuth2 authority (token endpoint base); auto-derived from TenantID when empty
-	LoginOrder   int          // when logging in without naming a realm, realms are tried by ascending LoginOrder, then by name
+	Type       ProviderType // which IAuthProvider implementation to use, e.g. "azuread"
+	Realm      Realm        // which realm this config is for; defaults to the config's map key when empty
+	TenantID   string       // the Entra tenant ID (a GUID), for both workforce and External ID tenants
+	Audience   string       // the expected "aud" claim on incoming access tokens, typically the API app registration's client ID or "api://<client-id>"
+	Issuer     string       // overrides the expected "iss" claim & OIDC discovery base; auto-derived from TenantID when empty
+	Authority  string       // overrides the OAuth2 authority; auto-derived from TenantID when empty
+	LoginOrder int          // realms are tried in ascending LoginOrder, then by name, when a token or password login isn't tied to a known realm
 }
 
-// Credentials is a generic username/password pair, used for the direct (resource-owner) login flow.
-// This flow is mainly meant for first-party/trusted clients and automated testing (see docs/authentication.md);
-// interactive, browser-based apps should instead authenticate directly against the identity
-// provider and only ever hand this API a bearer token.
+// Credentials is a generic username/password pair, only used by providers offering a direct password
+// login (see goald.IPasswordLoginProvider), i.e. local dev & tests. Real users should sign in at the
+// identity provider and only ever hand this API a bearer token.
 type Credentials struct {
 	Username string
 	Password string

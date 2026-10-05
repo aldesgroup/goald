@@ -144,7 +144,7 @@ func readAndCheckConfig(fromPath string) IServerConfig {
 	}
 
 	// controlling the auth realms, if any - entirely optional; provider-specific requirements
-	// (e.g. azuread's TenantID / ClientID) are checked when the provider is used
+	// (e.g. azuread's TenantID / Audience) are checked when the provider is used
 	applyAuthEnvOverrides(config)
 	for realmID, providerCfg := range config.Auth {
 		if providerCfg.Type == "" {
@@ -159,7 +159,7 @@ func (thisConf *serverConfig) base() *serverConfig {
 	return thisConf
 }
 
-// applyAuthEnvOverrides lets a deployment inject auth settings, secrets included, through env vars:
+// applyAuthEnvOverrides lets a deployment inject auth settings through env vars:
 // AUTH_TOKEN_HEADER, and AUTH_<REALM>_<SETTING> for each realm declared in the config file.
 func applyAuthEnvOverrides(config *serverConfig) {
 	if value := os.Getenv("AUTH_TOKEN_HEADER"); value != "" {
@@ -169,13 +169,10 @@ func applyAuthEnvOverrides(config *serverConfig) {
 	for realmID, providerCfg := range config.Auth {
 		prefix := "AUTH_" + strings.ToUpper(realmID) + "_"
 		settings := map[string]*string{
-			"TENANT_ID":     &providerCfg.TenantID,
-			"CLIENT_ID":     &providerCfg.ClientID,
-			"CLIENT_SECRET": &providerCfg.ClientSecret,
-			"AUDIENCE":      &providerCfg.Audience,
-			"SCOPE":         &providerCfg.Scope,
-			"AUTHORITY":     &providerCfg.Authority,
-			"ISSUER":        &providerCfg.Issuer,
+			"TENANT_ID": &providerCfg.TenantID,
+			"AUDIENCE":  &providerCfg.Audience,
+			"AUTHORITY": &providerCfg.Authority,
+			"ISSUER":    &providerCfg.Issuer,
 		}
 
 		for suffix, target := range settings {

@@ -1,7 +1,8 @@
 // ------------------------------------------------------------------------------------------------
-// The login endpoints: 1 that tries every realm in turn, and 1 per realm, each delegating to that
-// realm's configured auth provider (see docs/authentication.md for the full picture, curl
-// examples, and a sequence diagram).
+// The password login endpoints, only served by realms whose provider supports it (i.e. "devauth",
+// for local dev & tests): 1 that tries every such realm in turn, and 1 per realm. Real identity
+// providers answer 501, since their users sign in at the provider itself (authorization code + PKCE)
+// and hand over the resulting bearer token - see docs/authentication.md.
 // ------------------------------------------------------------------------------------------------
 package server
 
@@ -14,7 +15,7 @@ import (
 	"github.com/aldesgroup/goald/features/hstatus"
 )
 
-var Auth = g.NewEndpointGroup("Authentication", "Logging in as an internal or an external user, to obtain an access token")
+var Auth = g.NewEndpointGroup("Authentication", "Password login for local dev & tests; real users sign in at their identity provider")
 
 func init() {
 	g.PostOneGetOne(handleLogin, nil).
@@ -22,7 +23,7 @@ func init() {
 		At("login").
 		Public().
 		Label("Login").
-		Description("Logs a user in against the first realm accepting their credentials, returning an access token and that realm").
+		Description("Dev & tests only: logs a user in against the first realm accepting their credentials, returning an access token and that realm").
 		TrimBodyLogging(1)
 
 	g.PostOneGetOne(handleLoginInternal, nil).
@@ -30,7 +31,7 @@ func init() {
 		At("login/internal").
 		Public().
 		Label("Internal login").
-		Description("Logs an internal user in against the Entra ID (workforce) tenant, returning an access token").
+		Description("Dev & tests only: logs an internal user in, returning an access token").
 		TrimBodyLogging(1)
 
 	g.PostOneGetOne(handleLoginExternal, nil).
@@ -38,7 +39,7 @@ func init() {
 		At("login/external").
 		Public().
 		Label("External login").
-		Description("Logs an external user in against the Entra External ID (CIAM) tenant, returning an access token").
+		Description("Dev & tests only: logs an external user in, returning an access token").
 		TrimBodyLogging(1)
 }
 
@@ -48,6 +49,10 @@ func handleLogin(webCtx g.WebContext, creds *accessmgt.LoginCredentials) (*acces
 		// same answer whichever realm(s) rejected the credentials, so it can't reveal where an account lives
 		if errors.Is(err, auth.ErrInvalidCredentials) {
 			return nil, hstatus.Unauthorized, "Login failed"
+		}
+
+		if errors.Is(err, auth.ErrPasswordLoginUnsupported) {
+			return nil, hstatus.NotImplemented, auth.ErrPasswordLoginUnsupported.Error()
 		}
 
 		return nil, hstatus.ServiceUnavailable, "Login is currently unavailable"
@@ -67,6 +72,10 @@ func handleLoginExternal(webCtx g.WebContext, creds *accessmgt.LoginCredentials)
 func doLogin(webCtx g.WebContext, realm auth.Realm, creds *accessmgt.LoginCredentials) (*accessmgt.AuthToken, hstatus.Code, string) {
 	tokenSet, err := g.Login(webCtx, realm, creds.Username, creds.Password)
 	if err != nil {
+		if errors.Is(err, auth.ErrPasswordLoginUnsupported) {
+			return nil, hstatus.NotImplemented, auth.ErrPasswordLoginUnsupported.Error()
+		}
+
 		return nil, hstatus.Unauthorized, g.ErrorC(err, "Login failed").Error()
 	}
 

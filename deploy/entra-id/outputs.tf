@@ -7,7 +7,7 @@ output "internal_tenant_id" {
 }
 
 output "internal_api_client_id" {
-  description = "Use this as Auth.internal.clientId and (once logged in) as the 'aud' to expect - Auth.internal.audience."
+  description = "Use this as Auth.internal.audience (the expected 'aud' claim)."
   value       = azuread_application.internal_api.client_id
 }
 
@@ -25,7 +25,7 @@ output "external_tenant_id" {
 }
 
 output "external_api_client_id" {
-  description = "Use this as Auth.external.clientId and (once logged in) as the 'aud' to expect - Auth.external.audience."
+  description = "Use this as Auth.external.audience (the expected 'aud' claim)."
   value       = azuread_application.external_api.client_id
 }
 

@@ -15,7 +15,7 @@ variable "app_display_name_prefix" {
 }
 
 variable "cli_public_client_redirect_uris" {
-  description = "Redirect URIs allowed for the public/CLI test clients (only relevant if you also exercise interactive/browser flows against them)."
+  description = "Redirect URIs allowed for the public/CLI test clients, where the authorization code + PKCE flow sends users back."
   type        = list(string)
   default     = ["http://localhost"]
 }

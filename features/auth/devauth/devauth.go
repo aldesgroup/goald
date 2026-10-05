@@ -4,7 +4,8 @@
 // password field doubles as a comma-separated list of roles, e.g. password "admin,support" grants
 // both roles, so you can exercise authorization logic without a real IdP - see docs/authentication.md.
 //
-// NEVER select "devauth" as a realm's provider type outside local dev / tests.
+// NEVER select "devauth" as a realm's provider type outside local dev / tests. It's the only shipped
+// provider with a password login (goald.IPasswordLoginProvider).
 // ------------------------------------------------------------------------------------------------
 package devauth
 
@@ -44,7 +45,7 @@ func (*provider) ProviderType() auth.ProviderType {
 	return ProviderType
 }
 
-// Login implements [goald.IAuthProvider] - mints a locally-signed token for any non-empty
+// Login implements [goald.IPasswordLoginProvider] - mints a locally-signed token for any non-empty
 // username/password, no real credential check involved.
 func (*provider) Login(ctx context.Context, cfg *auth.ProviderConfig, creds auth.Credentials) (*auth.TokenSet, error) {
 	if creds.Username == "" || creds.Password == "" {

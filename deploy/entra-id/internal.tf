@@ -3,8 +3,8 @@
 //
 // Creates:
 //  - the "API" app registration representing this Goald backend, exposing 1 delegated scope
-//  - a public-client "CLI" app registration, pre-consented for that scope, so you can test the
-//    whole login flow right away with curl (Resource Owner Password Credentials grant)
+//  - a public-client "CLI" app registration, pre-consented for that scope, to sign in with the
+//    authorization code + PKCE flow (e.g. through MSAL) when testing - no password grant involved
 // ------------------------------------------------------------------------------------------------
 
 data "azuread_client_config" "internal" {
@@ -47,16 +47,15 @@ resource "azuread_application_permission_scope" "internal_access_as_user" {
   user_consent_display_name  = "Access the Goald API"
 }
 
-# --- A public-client app registration, for testing the login flow (ROPC via curl) ------------
+# --- A public-client app registration, for testing the sign-in flow (auth code + PKCE) -------
 
 resource "azuread_application" "internal_cli" {
   provider     = azuread.internal
   display_name = "${var.app_display_name_prefix} CLI - Internal (testing)"
   owners       = [data.azuread_client_config.internal.object_id]
 
-  # this is what the Azure portal calls "Allow public client flows" - required for the Resource
-  # Owner Password Credentials (ROPC) grant used by curl / goald.Login()
-  fallback_public_client_enabled = true
+  # no password (ROPC) grant: users sign in on Microsoft's own page
+  fallback_public_client_enabled = false
 
   public_client {
     redirect_uris = var.cli_public_client_redirect_uris
@@ -78,7 +77,7 @@ resource "azuread_service_principal" "internal_cli" {
   owners    = [data.azuread_client_config.internal.object_id]
 }
 
-# admin-consenting the CLI app for the API's scope, so ROPC logins never hit an interactive consent screen
+# admin-consenting the CLI app for the API's scope, so sign-ins never hit an interactive consent screen
 resource "azuread_service_principal_delegated_permission_grant" "internal_cli_consent" {
   provider                             = azuread.internal
   service_principal_object_id          = azuread_service_principal.internal_cli.object_id

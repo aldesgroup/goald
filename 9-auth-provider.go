@@ -23,21 +23,27 @@ import (
 // The interface any identity backend must implement - e.g. Microsoft Entra ID, Auth0, a custom
 // homegrown DB-backed login, a fake provider for tests, etc. A single implementation instance is
 // shared by every realm configured with the same provider Type; realm-specific settings (tenant,
-// client, audience...) are passed in through the *auth.ProviderConfig argument on each call.
+// audience...) are passed in through the *auth.ProviderConfig argument on each call.
+//
+// Real users are expected to sign in at the identity provider itself (e.g. authorization code +
+// PKCE), and to hand Goald the resulting bearer token: that's all ValidateToken needs.
 // ------------------------------------------------------------------------------------------------
 
 type IAuthProvider interface {
 	// ProviderType identifies this implementation, e.g. "azuread"; must match the "type" configured for a realm.
 	ProviderType() auth.ProviderType
 
-	// Login exchanges a set of credentials for a token set. Mainly meant for first-party/trusted
-	// clients and automated testing - see docs/authentication.md. When the backend rejects the
-	// credentials themselves, the returned error must wrap auth.ErrInvalidCredentials.
-	Login(ctx context.Context, cfg *auth.ProviderConfig, creds auth.Credentials) (*auth.TokenSet, error)
-
 	// ValidateToken validates a bearer token (signature, issuer, audience, expiry...), returning
 	// the caller's normalized claims.
 	ValidateToken(ctx context.Context, cfg *auth.ProviderConfig, rawToken string) (*auth.Claims, error)
+}
+
+// IPasswordLoginProvider is optionally implemented by providers able to exchange a username and
+// password for a token set, which only makes sense for local dev & tests (e.g. "devauth"), never
+// for a real identity provider. When the backend rejects the credentials themselves, the returned
+// error must wrap auth.ErrInvalidCredentials.
+type IPasswordLoginProvider interface {
+	Login(ctx context.Context, cfg *auth.ProviderConfig, creds auth.Credentials) (*auth.TokenSet, error)
 }
 
 // ------------------------------------------------------------------------------------------------
@@ -106,8 +112,9 @@ func (thisServer *server) resolveAuthProviders() {
 // ------------------------------------------------------------------------------------------------
 
 // Login exchanges a set of credentials for a token set, using whichever provider is configured for
-// the given realm. Meant to be called from a custom "login" endpoint's handler - see
-// features/accessmgt/server for a working example.
+// the given realm - which must support password login (see IPasswordLoginProvider), otherwise the
+// error wraps auth.ErrPasswordLoginUnsupported. Meant to be called from a custom "login" endpoint's
+// handler - see features/accessmgt/server for a working example.
 func Login(webCtx WebContext, realm auth.Realm, username, password string) (*auth.TokenSet, error) {
 	ctxImpl, ok := webCtx.(*webContextImpl)
 	if !ok {
@@ -119,7 +126,12 @@ func Login(webCtx WebContext, realm auth.Realm, username, password string) (*aut
 		return nil, Error("No auth provider configured for realm '%s'", realm)
 	}
 
-	return resolved.impl.Login(context.Background(), resolved.cfg, auth.Credentials{Username: username, Password: password})
+	passwordProvider, ok := resolved.impl.(IPasswordLoginProvider)
+	if !ok {
+		return nil, fmt.Errorf("realm '%s': %w", realm, auth.ErrPasswordLoginUnsupported)
+	}
+
+	return passwordProvider.Login(context.Background(), resolved.cfg, auth.Credentials{Username: username, Password: password})
 }
 
 // orderedAuthProviders returns the resolved providers by ascending LoginOrder, then realm name,
@@ -141,10 +153,11 @@ func (thisServer *server) orderedAuthProviders() []*resolvedAuthProvider {
 	return ordered
 }
 
-// LoginAny tries the given credentials against every configured realm, in LoginOrder, and returns
-// the first token set obtained along with the realm that issued it. When no realm accepts them,
-// the error wraps auth.ErrInvalidCredentials if every realm rejected the credentials themselves;
-// otherwise it's the first other failure met (e.g. an unreachable or misconfigured identity provider).
+// LoginAny tries the given credentials against every configured realm supporting password login,
+// in LoginOrder, and returns the first token set obtained along with the realm that issued it. When
+// no realm accepts them, the error wraps auth.ErrInvalidCredentials if every realm rejected the
+// credentials themselves; otherwise it's the first other failure met (e.g. a misconfigured provider).
+// If no realm supports password login at all, the error wraps auth.ErrPasswordLoginUnsupported.
 func LoginAny(webCtx WebContext, username, password string) (*auth.TokenSet, auth.Realm, error) {
 	ctxImpl, ok := webCtx.(*webContextImpl)
 	if !ok {
@@ -157,9 +170,17 @@ func LoginAny(webCtx WebContext, username, password string) (*auth.TokenSet, aut
 
 	creds := auth.Credentials{Username: username, Password: password}
 
+	tried := 0
 	var firstOtherErr error
 	for _, resolved := range ctxImpl.server.orderedAuthProviders() {
-		tokenSet, err := resolved.impl.Login(context.Background(), resolved.cfg, creds)
+		passwordProvider, ok := resolved.impl.(IPasswordLoginProvider)
+		if !ok {
+			continue
+		}
+
+		tried++
+
+		tokenSet, err := passwordProvider.Login(context.Background(), resolved.cfg, creds)
 		if err == nil {
 			return tokenSet, resolved.cfg.Realm, nil
 		}
@@ -171,6 +192,10 @@ func LoginAny(webCtx WebContext, username, password string) (*auth.TokenSet, aut
 				firstOtherErr = err
 			}
 		}
+	}
+
+	if tried == 0 {
+		return nil, "", auth.ErrPasswordLoginUnsupported
 	}
 
 	if firstOtherErr != nil {

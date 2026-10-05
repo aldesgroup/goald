@@ -1,25 +1,19 @@
 // ------------------------------------------------------------------------------------------------
 // A goald.IAuthProvider implementation backed by Microsoft Entra ID, usable both for a workforce
 // tenant (internal users) and for an Entra External ID / CIAM tenant (external users) - see
-// docs/authentication.md for the full picture, the Azure setup steps, and curl examples.
+// docs/authentication.md for the full picture and the Azure setup steps.
 //
-//   - ValidateToken verifies an incoming bearer token's signature (RS256) and standard claims
-//     (issuer, audience, expiry) against the tenant's published JSON Web Key Set.
-//   - Login exchanges a username/password for a token set, using the OAuth2 Resource Owner
-//     Password Credentials grant. This requires the app registration to allow public client flows,
-//     and is mainly intended for first-party/trusted clients and automated testing: interactive
-//     apps should instead redirect users to Microsoft's own login page (authorization code + PKCE).
-//
+// It only validates bearer tokens: ValidateToken verifies a token's signature (RS256) and standard
+// claims (issuer, audience, expiry) against the tenant's published JSON Web Key Set. Users sign in
+// at Microsoft itself (authorization code + PKCE, e.g. with MSAL), and the app hands this API the
+// resulting access token - there's deliberately no password login here.
 // ------------------------------------------------------------------------------------------------
 package azuread
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 
@@ -34,14 +28,12 @@ const ProviderType auth.ProviderType = "azuread"
 
 func init() {
 	goald.RegisterAuthProvider(&provider{
-		keyfuncs:   newKeyfuncCache(&http.Client{Timeout: 10 * time.Second}),
-		httpClient: &http.Client{Timeout: 10 * time.Second},
+		keyfuncs: newKeyfuncCache(&http.Client{Timeout: 10 * time.Second}),
 	})
 }
 
 type provider struct {
-	keyfuncs   *keyfuncCache
-	httpClient *http.Client
+	keyfuncs *keyfuncCache
 }
 
 // ProviderType implements [goald.IAuthProvider].
@@ -119,82 +111,6 @@ func (p *provider) ValidateToken(ctx context.Context, cfg *auth.ProviderConfig, 
 }
 
 // ------------------------------------------------------------------------------------------------
-// Logging in with a username & password (OAuth2 Resource Owner Password Credentials grant)
-// ------------------------------------------------------------------------------------------------
-
-// Login implements [goald.IAuthProvider].
-func (p *provider) Login(ctx context.Context, cfg *auth.ProviderConfig, creds auth.Credentials) (*auth.TokenSet, error) {
-	if creds.Username == "" || creds.Password == "" {
-		return nil, fmt.Errorf("%w: username and password are both required", auth.ErrInvalidCredentials)
-	}
-
-	if cfg.TenantID == "" || cfg.ClientID == "" {
-		return nil, fmt.Errorf("realm '%s' is missing its tenantId or clientId", cfg.Realm)
-	}
-
-	scope := cfg.Scope
-	if scope == "" {
-		scope = "openid profile offline_access"
-	}
-
-	form := url.Values{
-		"grant_type": {"password"},
-		"client_id":  {cfg.ClientID},
-		"username":   {creds.Username},
-		"password":   {creds.Password},
-		"scope":      {scope},
-	}
-	if cfg.ClientSecret != "" {
-		form.Set("client_secret", cfg.ClientSecret)
-	}
-
-	tokenURL := p.authority(cfg) + "/oauth2/v2.0/token"
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, tokenURL, strings.NewReader(form.Encode()))
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-
-	resp, err := p.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("could not reach the identity provider: %w", err)
-	}
-	defer resp.Body.Close()
-
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("could not read the identity provider's response: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		var errBody struct {
-			Error       string `json:"error"`
-			Description string `json:"error_description"`
-		}
-		_ = json.Unmarshal(bodyBytes, &errBody)
-
-		// Entra answers invalid_grant for a wrong password as well as for an unknown user
-		if errBody.Error == "invalid_grant" {
-			return nil, fmt.Errorf("%w: %s", auth.ErrInvalidCredentials, firstLine(errBody.Description))
-		}
-
-		if errBody.Error != "" {
-			return nil, fmt.Errorf("login failed: %s (%s)", errBody.Error, firstLine(errBody.Description))
-		}
-
-		return nil, fmt.Errorf("login failed with status %d", resp.StatusCode)
-	}
-
-	var tokenSet auth.TokenSet
-	if err := json.Unmarshal(bodyBytes, &tokenSet); err != nil {
-		return nil, fmt.Errorf("could not parse the identity provider's token response: %w", err)
-	}
-
-	return &tokenSet, nil
-}
-
-// ------------------------------------------------------------------------------------------------
 // Small helpers for reading values out of a jwt.MapClaims
 // ------------------------------------------------------------------------------------------------
 
@@ -230,12 +146,4 @@ func firstNonEmpty(values ...string) string {
 	}
 
 	return ""
-}
-
-// firstLine trims Microsoft's verbose, multi-line error descriptions down to their first line.
-func firstLine(s string) string {
-	line, _, _ := strings.Cut(s, "\r\n")
-	line, _, _ = strings.Cut(line, "\n")
-
-	return line
 }

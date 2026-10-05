@@ -47,16 +47,15 @@ resource "azuread_application_permission_scope" "external_access_as_user" {
   user_consent_display_name  = "Access the Goald API"
 }
 
-# --- A public-client app registration, for testing the login flow (ROPC via curl) ------------
+# --- A public-client app registration, for testing the sign-in flow (auth code + PKCE) -------
 
 resource "azuread_application" "external_cli" {
   provider     = azuread.external
   display_name = "${var.app_display_name_prefix} CLI - External (testing)"
   owners       = [data.azuread_client_config.external.object_id]
 
-  # this is what the Azure portal calls "Allow public client flows" - required for the Resource
-  # Owner Password Credentials (ROPC) grant used by curl / goald.Login()
-  fallback_public_client_enabled = true
+  # no password (ROPC) grant: users sign in on Microsoft's own page
+  fallback_public_client_enabled = false
 
   public_client {
     redirect_uris = var.cli_public_client_redirect_uris
@@ -78,7 +77,7 @@ resource "azuread_service_principal" "external_cli" {
   owners    = [data.azuread_client_config.external.object_id]
 }
 
-# admin-consenting the CLI app for the API's scope, so ROPC logins never hit an interactive consent screen
+# admin-consenting the CLI app for the API's scope, so sign-ins never hit an interactive consent screen
 resource "azuread_service_principal_delegated_permission_grant" "external_cli_consent" {
   provider                             = azuread.external
   service_principal_object_id          = azuread_service_principal.external_cli.object_id
