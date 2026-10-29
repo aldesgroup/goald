@@ -9,8 +9,8 @@ import (
 
 func init() {
 	g.In("goald").
-		Register(source.ForUser("features/accessmgt", "2026-09-29T17:41:44+02:00")).
-		Register(source.ForUserGroup("features/accessmgt", "2026-09-29T17:41:44+02:00")).
-		Register(source.ForLoginCredentials("features/accessmgt", "2026-09-29T00:00:00+02:00")).
-		Register(source.ForAuthToken("features/accessmgt", "2026-09-29T00:00:00+02:00"))
+		Register(source.ForAuthToken("features/accessmgt", "2026-10-05T14:24:33+02:00")).
+		Register(source.ForLoginCredentials("features/accessmgt", "2026-09-30T16:54:17+02:00")).
+		Register(source.ForUser("features/accessmgt", "2026-10-05T14:24:33+02:00")).
+		Register(source.ForUserGroup("features/accessmgt", "2026-09-30T16:40:09+02:00"))
 }

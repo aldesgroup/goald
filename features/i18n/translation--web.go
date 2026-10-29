@@ -2,6 +2,7 @@ package i18n
 
 import (
 	"fmt"
+	"strings"
 
 	g "github.com/aldesgroup/goald"
 	"github.com/aldesgroup/goald/_include/i18n/model"
@@ -27,13 +28,16 @@ func listTranslations(webCtx g.WebContext, params *TranslationQuery) ([]*Transla
 		return nil, hstatus.OK, ""
 	}
 
+	// transforming the namespace to remove the '/', that have been replaced by '_' in the file names
+	params.Namespace = strings.ReplaceAll(params.Namespace, "/", "_")
+
 	// getting the translations for the right language
 	foundTranslations, errGet := getTranslations(webCtx.GetBloContext(), langStr, params.Namespace, params.Key)
 	if errGet != nil {
 		return nil, hstatus.InternalServerError, fmt.Sprintf("Error while searching for translations: %s", errGet)
 	}
 	if len(foundTranslations) == 0 {
-		return nil, hstatus.NotFound, fmt.Sprintf("No translation found for lang = %s / namespace = %s / key = %s",
+		return nil, hstatus.NotFound, fmt.Sprintf("No translation found for lang = '%s' - namespace = '%s' - key = '%s'",
 			langStr, params.Namespace, params.Key)
 	}
 

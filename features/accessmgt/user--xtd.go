@@ -215,6 +215,9 @@ func (bo *User) IsModelValid() error {
 	if err := goald.CheckStringSize(bo.Email, 64, 0); err != nil {
 		return goald.ErrorC(err, "Invalid value for 'Email'")
 	}
+	if err := goald.CheckStringSize(bo.ExternalID, 64, 0); err != nil {
+		return goald.ErrorC(err, "Invalid value for 'ExternalID'")
+	}
 	if bo.FirstName == "" {
 		return goald.Error("'FirstName' is mandatory and must have a non-zero value")
 	}
@@ -226,6 +229,12 @@ func (bo *User) IsModelValid() error {
 	}
 	if err := goald.CheckStringSize(bo.LastName, 26, 0); err != nil {
 		return goald.ErrorC(err, "Invalid value for 'LastName'")
+	}
+	if err := goald.CheckStringSize(bo.Password, 64, 0); err != nil {
+		return goald.ErrorC(err, "Invalid value for 'Password'")
+	}
+	if err := goald.CheckStringSize(bo.Realm, 16, 0); err != nil {
+		return goald.ErrorC(err, "Invalid value for 'Realm'")
 	}
 
 	return nil

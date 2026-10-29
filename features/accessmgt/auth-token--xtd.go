@@ -2,7 +2,7 @@
 package accessmgt
 
 import (
-	core "github.com/aldesgroup/corego"
+	"github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald"
 	"github.com/aldesgroup/goald/features/utils"
 )
@@ -131,6 +131,7 @@ func (bo *AuthToken) SetValueAsString(propertyName string, valueAsString string)
 // Explicit relationship access
 // ------------------------------------------------------------------------------------------------
 
+
 // ------------------------------------------------------------------------------------------------
 // Generic relationship access
 // ------------------------------------------------------------------------------------------------
@@ -191,6 +192,7 @@ func (bo *AuthToken) GetMultipleRelationshipValue(relationshipName string) ([]go
 
 // checking a business object's general validity, without using reflection
 func (bo *AuthToken) IsModelValid() error {
+
 	return nil
 }
 

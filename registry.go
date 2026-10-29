@@ -3,5 +3,5 @@ package goald
 
 func init() {
 	In("goald").
-		Register(ForSearchParamValues(".", "2026-09-29T17:41:44+02:00"))
+		Register(ForSearchParamValues(".", "2026-09-30T16:53:08+02:00"))
 }

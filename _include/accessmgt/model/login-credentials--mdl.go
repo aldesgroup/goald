@@ -16,6 +16,13 @@ type LoginCredentialsModel struct {
 
 // this is the main way to refer to the LoginCredentials model in the applicative code
 func LoginCredentials() *LoginCredentialsModel {
+	loginCredentialsOnce.Do(func() {
+		loginCredentials = NewLoginCredentialsModel()
+
+		// this helps dynamically access to the LoginCredentials model
+		g.RegisterModel("LoginCredentials", loginCredentials)
+	})
+
 	return loginCredentials
 }
 
@@ -36,15 +43,10 @@ func NewLoginCredentialsModel() *LoginCredentialsModel {
 
 // making sure the LoginCredentials model exists at app startup
 func init() {
-	loginCredentialsOnce.Do(func() {
-		loginCredentials = NewLoginCredentialsModel()
-	})
-
-	// this helps dynamically access to the LoginCredentials model
-	g.RegisterModel("LoginCredentials", loginCredentials)
+	LoginCredentials()
 }
 
-// accessing all the LoginCredentials model's properties and relationships
+// accessing all the LoginCredentials model's properties and relation	ships
 
 func (L *LoginCredentialsModel) Username() *g.StringField {
 	return L.username

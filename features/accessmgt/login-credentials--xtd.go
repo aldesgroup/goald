@@ -111,6 +111,7 @@ func (bo *LoginCredentials) SetValueAsString(propertyName string, valueAsString 
 // Explicit relationship access
 // ------------------------------------------------------------------------------------------------
 
+
 // ------------------------------------------------------------------------------------------------
 // Generic relationship access
 // ------------------------------------------------------------------------------------------------
@@ -171,11 +172,11 @@ func (bo *LoginCredentials) GetMultipleRelationshipValue(relationshipName string
 
 // checking a business object's general validity, without using reflection
 func (bo *LoginCredentials) IsModelValid() error {
-	if bo.Username == "" {
-		return goald.Error("'Username' is mandatory and must have a non-zero value")
-	}
 	if bo.Password == "" {
 		return goald.Error("'Password' is mandatory and must have a non-zero value")
+	}
+	if bo.Username == "" {
+		return goald.Error("'Username' is mandatory and must have a non-zero value")
 	}
 
 	return nil

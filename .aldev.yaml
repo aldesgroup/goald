@@ -1,7 +1,6 @@
 appname: goald
 lib:
     srcdir: .
-    # config: main/config.yaml
     bindir: bin
 codeswaps:
     - from: "."

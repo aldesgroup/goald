@@ -166,11 +166,16 @@ func (thisServer *server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// w.Header().Set("Access-Control-Allow-Origin", "*")
 	// TODO do better / probably through the config
 	if thisServer.IsLocal() || thisServer.IsSandbox() {
-		w.Header().Add("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+
+		// answering the CORS preflight right here: it never needs to reach the router
+		if req.Method == http.MethodOptions && req.Header.Get("Access-Control-Request-Method") != "" {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 	}
-	// w.Header().Add("Access-Control-Allow-Methods", "DELETE, POST, GET, OPTIONS")
-	// w.Header().Add("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
-	// w.Header().Add("Access-Control-Allow-Headers", "Aept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
 
 	// add protection :https://medium.com/@rahulreza920/go-1-25-is-released-faster-smarter-and-safer-9c97ff8b493d
 

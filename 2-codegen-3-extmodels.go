@@ -32,6 +32,7 @@ const (
 // TODO maybe do not collocate everything on the server... let's change the receiver here
 
 func (thisServer *server) generateAllExternalModels(destdir string, regen bool, isWebapp bool) {
+
 	// the enum files to generate
 	enums := map[string]IEnum{}
 

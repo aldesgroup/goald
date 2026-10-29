@@ -20,6 +20,13 @@ type AuthTokenModel struct {
 
 // this is the main way to refer to the AuthToken model in the applicative code
 func AuthToken() *AuthTokenModel {
+	authTokenOnce.Do(func() {
+		authToken = NewAuthTokenModel()
+
+		// this helps dynamically access to the AuthToken model
+		g.RegisterModel("AuthToken", authToken)
+	})
+
 	return authToken
 }
 
@@ -44,15 +51,10 @@ func NewAuthTokenModel() *AuthTokenModel {
 
 // making sure the AuthToken model exists at app startup
 func init() {
-	authTokenOnce.Do(func() {
-		authToken = NewAuthTokenModel()
-	})
-
-	// this helps dynamically access to the AuthToken model
-	g.RegisterModel("AuthToken", authToken)
+	AuthToken()
 }
 
-// accessing all the AuthToken model's properties and relationships
+// accessing all the AuthToken model's properties and relation	ships
 
 func (A *AuthTokenModel) AccessToken() *g.StringField {
 	return A.accessToken
