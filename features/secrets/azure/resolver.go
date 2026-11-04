@@ -44,12 +44,9 @@ func (thisResolver *azureSecretsResolver) ResolveSecret(name string) string {
 		cred, errCred := azidentity.NewDefaultAzureCredential(nil)
 		core.PanicMsgIfErr(errCred, "No Azure credential available")
 
-		kvClient, errClient := azsecrets.NewClient(vaultURL, cred, nil)
+		var errClient error
+		thisResolver.kvClient, errClient = azsecrets.NewClient(vaultURL, cred, nil)
 		core.PanicMsgIfErr(errClient, "Could not create the Key Vault client")
-
-		resolver = &azureSecretsResolver{
-			kvClient: kvClient,
-		}
 	})
 
 	// using the initialized resolver to get the secret
