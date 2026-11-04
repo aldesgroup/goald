@@ -57,7 +57,7 @@ func NewServer() ServerContext {
 	flag.Parse()
 
 	// reading the config file
-	serverConfig := readAndCheckConfig(confPath)
+	serverConfig := readAndCheckConfig(confPath, cgParams.codegen == 0)
 	loggerConfig := serverConfig.base().Logging
 
 	// new instance ID for the server

@@ -1,11 +1,13 @@
 package main
 
-import g "github.com/aldesgroup/goald"
+import (
+	g "github.com/aldesgroup/goald"
+)
 
 func init() {
 	g.RegisterConfig(&goaldConfig{
 		IBaseConfig: g.NewBaseConfig(),
-	})
+	}, nil)
 }
 
 type goaldConfig struct {

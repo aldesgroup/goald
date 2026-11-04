@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"os"
+	"path"
 	"strings"
 
 	core "github.com/aldesgroup/corego"
@@ -66,14 +67,15 @@ type serverConfig struct {
 
 var configObj IServerConfig
 
-func RegisterConfig(cfgObj IServerConfig) {
+func RegisterConfig(cfgObj IServerConfig, resolver ISecretResolver) {
 	// doing this only once
 	if configObj == nil {
 		configObj = cfgObj
+		secretResolver = resolver
 	}
 }
 
-func readAndCheckConfig(fromPath string) IServerConfig {
+func readAndCheckConfig(fromPath string, resolveSecretValues bool) IServerConfig {
 	// Do we have a configuration object ready?
 	if configObj == nil {
 		core.PanicMsg("No configuration object (implementing IServerConfig) has been registered!")
@@ -87,41 +89,48 @@ func readAndCheckConfig(fromPath string) IServerConfig {
 	jsonBytes, errJson := yaml.YAMLToJSON(yamlBytes)
 	core.PanicMsgIfErr(errJson, "Could not convert YAML to JSON '%s'", fromPath)
 
-	// Unmarshalling the YAML file
-	core.PanicMsgIfErr(json.Unmarshal(jsonBytes, configObj),
-		"Could not unmarshal the config file at path '%s'", fromPath)
+	// resolving the "secret:XXX" references before unmarshalling
+	if resolveSecretValues {
+		var tree any
+		core.PanicMsgIfErr(json.Unmarshal(jsonBytes, &tree), "Could not parse the config file at path '%s'", fromPath)
+		jsonBytes, errJson = json.Marshal(resolveSecrets(tree, path.Base(fromPath) == "conf-local.yaml"))
+		core.PanicMsgIfErr(errJson, "Could not re-encode the config file at path '%s'", fromPath)
+	}
 
-	// controlling the common config
-	config := configObj.base()
+	// Unmarshalling the YAML file
+	core.PanicMsgIfErr(json.Unmarshal(jsonBytes, configObj), "Could not unmarshal the config file at path '%s'", fromPath)
+
+	// controlling the base config
+	baseConfig := configObj.base()
 
 	// Parsing the env type
-	config.resolvedEnvType = core.EnvTypeValFrom(config.EnvType)
+	baseConfig.resolvedEnvType = core.EnvTypeValFrom(baseConfig.EnvType)
 
 	// Parsing the log level
-	core.PanicMsgIf(config.Logging == nil, "No \"Logging\" section configured!")
-	config.Logging.resolvedLogLevel = slog.LevelInfo
-	switch strings.ToUpper(config.Logging.Level) {
+	core.PanicMsgIf(baseConfig.Logging == nil, "No \"Logging\" section configured!")
+	baseConfig.Logging.resolvedLogLevel = slog.LevelInfo
+	switch strings.ToUpper(baseConfig.Logging.Level) {
 	case "TRACE":
-		config.Logging.resolvedLogLevel = logging.LevelTrace
+		baseConfig.Logging.resolvedLogLevel = logging.LevelTrace
 	case slog.LevelDebug.String():
-		config.Logging.resolvedLogLevel = slog.LevelDebug
+		baseConfig.Logging.resolvedLogLevel = slog.LevelDebug
 	case slog.LevelInfo.String():
-		config.Logging.resolvedLogLevel = slog.LevelInfo
+		baseConfig.Logging.resolvedLogLevel = slog.LevelInfo
 	case slog.LevelWarn.String():
-		config.Logging.resolvedLogLevel = slog.LevelWarn
+		baseConfig.Logging.resolvedLogLevel = slog.LevelWarn
 	case slog.LevelError.String():
-		config.Logging.resolvedLogLevel = slog.LevelError
+		baseConfig.Logging.resolvedLogLevel = slog.LevelError
 	default:
-		core.PanicMsg("Invalid log level '%s' in config file", config.Logging.Level)
+		core.PanicMsg("Invalid log level '%s' in config file", baseConfig.Logging.Level)
 	}
 
 	// Checking the logging type
-	if !core.InSlice([]logging.LoggingType{logging.LoggingTypeTEXT, logging.LoggingTypeJSON}, config.Logging.Type) {
-		core.PanicMsg("Invalid logging type '%s' in config file", config.Logging.Type)
+	if !core.InSlice([]logging.LoggingType{logging.LoggingTypeTEXT, logging.LoggingTypeJSON}, baseConfig.Logging.Type) {
+		core.PanicMsg("Invalid logging type '%s' in config file", baseConfig.Logging.Type)
 	}
 
 	// controlling the DB servers
-	for dbID, dbServer := range config.DBServers {
+	for dbID, dbServer := range baseConfig.DBServers {
 		if dbServer.Type == "" {
 			core.PanicMsg("DB server '%s' has no type defined", dbID)
 		}
@@ -145,8 +154,8 @@ func readAndCheckConfig(fromPath string) IServerConfig {
 
 	// controlling the auth realms, if any - entirely optional; provider-specific requirements
 	// (e.g. azuread's TenantID / Audience) are checked when the provider is used
-	applyAuthEnvOverrides(config)
-	for realmID, providerCfg := range config.Auth {
+	applyAuthEnvOverrides(baseConfig)
+	for realmID, providerCfg := range baseConfig.Auth {
 		if providerCfg.Type == "" {
 			core.PanicMsg("Auth realm '%s' has no provider type defined", realmID)
 		}
@@ -158,6 +167,52 @@ func readAndCheckConfig(fromPath string) IServerConfig {
 func (thisConf *serverConfig) base() *serverConfig {
 	return thisConf
 }
+
+// ------------------------------------------------------------------------------------------------
+// Secret resolver definition & main secret resolution function
+// ------------------------------------------------------------------------------------------------
+
+const secretPrefix = "secret:"
+
+var secretResolver ISecretResolver
+
+type ISecretResolver interface {
+	ResolveSecret(name string) string
+}
+
+// resolveSecrets replaces, in place, every string value starting with "secret:" by its resolved value
+func resolveSecrets(node any, isLocal bool) any {
+	switch typed := node.(type) {
+	case map[string]any:
+		for key, value := range typed {
+			typed[key] = resolveSecrets(value, isLocal)
+		}
+	case []any:
+		for i, value := range typed {
+			typed[i] = resolveSecrets(value, isLocal)
+		}
+	case string:
+		if name, found := strings.CutPrefix(typed, secretPrefix); found {
+			// in local mode, we read the secret from the environment variable
+			if isLocal {
+				resolved := os.Getenv(name)
+				if resolved == "" {
+					core.PanicMsg("The value for secret '%s' in the .env.local file is empty!", name)
+				}
+				return resolved
+			}
+
+			// otherwise, we resolve it using the secret resolver
+			return secretResolver.ResolveSecret(name)
+		}
+	}
+
+	return node
+}
+
+// ------------------------------------------------------------------------------------------------
+// Auth handling - for now
+// ------------------------------------------------------------------------------------------------
 
 // applyAuthEnvOverrides lets a deployment inject auth settings through env vars:
 // AUTH_TOKEN_HEADER, and AUTH_<REALM>_<SETTING> for each realm declared in the config file.
