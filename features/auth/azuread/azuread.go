@@ -1,12 +1,13 @@
 // ------------------------------------------------------------------------------------------------
-// A goald.IAuthProvider implementation backed by Microsoft Entra ID, usable both for a workforce
-// tenant (internal users) and for an Entra External ID / CIAM tenant (external users) - see
+// A goald.IAuthProvider implementation backed by Microsoft Entra ID, usable for a workforce tenant
+// as well as for an Entra External ID / CIAM tenant; each realm points to 1 tenant - see
 // docs/authentication.md for the full picture and the Azure setup steps.
 //
 // It only validates bearer tokens: ValidateToken verifies a token's signature (RS256) and standard
 // claims (issuer, audience, expiry) against the tenant's published JSON Web Key Set. Users sign in
 // at Microsoft itself (authorization code + PKCE, e.g. with MSAL), and the app hands this API the
-// resulting access token - there's deliberately no password login here.
+// resulting access token - there's deliberately no password login here. App-only tokens, from
+// external callers using the client credentials flow, are recognized too: see Claims.IsApp & ClientID.
 // ------------------------------------------------------------------------------------------------
 package azuread
 
@@ -75,36 +76,59 @@ func (p *provider) issuer(cfg *auth.ProviderConfig) string {
 // matching and expiry are all delegated to github.com/golang-jwt/jwt/v5, using a jwt.Keyfunc
 // backed by the issuer's JWKS (github.com/MicahParks/keyfunc) - we just map the resulting claims.
 func (p *provider) ValidateToken(ctx context.Context, cfg *auth.ProviderConfig, rawToken string) (*auth.Claims, error) {
+	// print the raw and decoded token for debugging purposes
+	// fmt.Println("Raw token:", rawToken)
+	// if segments := strings.Split(rawToken, "."); len(segments) == 3 {
+	// 	decoded, _ := base64.RawURLEncoding.DecodeString(segments[1])
+	// 	fmt.Println("Decoded token:", string(decoded))
+	// }
+
+	// a realm can't validate anything without knowing its tenant and its own audience
 	if cfg.TenantID == "" || cfg.Audience == "" {
 		return nil, fmt.Errorf("realm '%s' is missing its tenantId or audience", cfg.Realm)
 	}
 
 	issuer := p.issuer(cfg)
 
-	kf, err := p.keyfuncs.get(ctx, issuer)
-	if err != nil {
-		return nil, fmt.Errorf("could not get the signing keys: %w", err)
+	// the signing keys are fetched from the issuer's JWKS, and cached per issuer
+	kf, errKeys := p.keyfuncs.get(ctx, issuer)
+	if errKeys != nil {
+		return nil, fmt.Errorf("could not get the signing keys: %w", errKeys)
 	}
 
+	// checks the signature first, then the issuer, audience and expiry; fills in claims
 	claims := jwt.MapClaims{}
-	if _, err := jwt.ParseWithClaims(rawToken, claims, kf.Keyfunc,
+	if _, errParse := jwt.ParseWithClaims(rawToken, claims, kf.Keyfunc,
 		jwt.WithValidMethods([]string{"RS256"}),
 		jwt.WithIssuer(issuer),
 		jwt.WithAudience(cfg.Audience),
 		jwt.WithExpirationRequired(),
-	); err != nil {
-		return nil, fmt.Errorf("invalid token: %w", err)
+	); errParse != nil {
+		return nil, fmt.Errorf("invalid token: %w", errParse)
 	}
 
-	expiry, _ := claims.GetExpirationTime()
+	// can't fail on a token that passed the checks above, short of a non-numeric "exp"
+	expiry, expErr := claims.GetExpirationTime()
+	if expErr != nil {
+		return nil, fmt.Errorf("invalid expiration time: %w", expErr)
+	}
 
+	roles := stringSliceClaim(claims, "roles")
+
+	// app-only tokens carry app roles but no delegated scopes; "idtyp" is only there if configured as an optional claim
+	_, hasScopes := claims["scp"]
+	isApp := stringClaim(claims, "idtyp") == "app" || (stringClaim(claims, "idtyp") == "" && !hasScopes && len(roles) > 0)
+
+	// normalizing the claims, whichever token version or tenant type they come from
 	return &auth.Claims{
 		Subject:  firstNonEmpty(stringClaim(claims, "oid"), stringClaim(claims, "sub")),
 		Realm:    cfg.Realm,
+		IsApp:    isApp,
+		ClientID: firstNonEmpty(stringClaim(claims, "azp"), stringClaim(claims, "appid")),
 		Email:    firstNonEmpty(stringClaim(claims, "preferred_username"), stringClaim(claims, "email"), stringClaim(claims, "upn")),
 		Name:     stringClaim(claims, "name"),
 		TenantID: stringClaim(claims, "tid"),
-		Roles:    stringSliceClaim(claims, "roles"),
+		Roles:    roles,
 		Expiry:   expiry.Time,
 		Raw:      claims,
 	}, nil

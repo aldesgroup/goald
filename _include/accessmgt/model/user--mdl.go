@@ -15,7 +15,6 @@ type UserModel struct {
 	firstName  *g.StringField
 	lastName   *g.StringField
 	externalId *g.StringField
-	realm      *g.StringField
 	memberOf   *g.Relationship
 }
 
@@ -45,7 +44,6 @@ func NewUserModel() *UserModel {
 	thisModel.firstName = g.AddStringField(thisModel, "User", "FirstName", false)
 	thisModel.lastName = g.AddStringField(thisModel, "User", "LastName", false)
 	thisModel.externalId = g.AddStringField(thisModel, "User", "ExternalID", false)
-	thisModel.realm = g.AddStringField(thisModel, "User", "Realm", false)
 	thisModel.memberOf = g.AddPolyRelationship(thisModel, "User", "MemberOf", true)
 
 	return thisModel
@@ -76,10 +74,6 @@ func (U *UserModel) LastName() *g.StringField {
 
 func (U *UserModel) ExternalID() *g.StringField {
 	return U.externalId
-}
-
-func (U *UserModel) Realm() *g.StringField {
-	return U.realm
 }
 
 func (U *UserModel) MemberOf() *g.Relationship {

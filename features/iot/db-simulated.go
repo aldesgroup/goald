@@ -11,45 +11,45 @@ import (
 // TODO remove this ultimately
 // ----------------------------------------------------------------------------
 
-type User struct {
-	goald.BusinessObject
+// type User struct {
+// 	goald.BusinessObject
 
-	UserFullName string
-}
+// 	UserFullName string
+// }
 
-func (thisUser *User) GetUsername() string {
-	return thisUser.UserFullName
-}
+// func (thisUser *User) GetUsername() string {
+// 	return thisUser.UserFullName
+// }
 
-// GetMemberships implements [goald.IUser].
-func (thisUser *User) GetMemberships() []goald.IUserGroup {
-	panic("unimplemented")
-}
+// // GetMemberships implements [goald.IUser].
+// func (thisUser *User) GetMemberships() []goald.IUserGroup {
+// 	panic("unimplemented")
+// }
 
-var users = []goald.IUser{
-	newUser(125, "John Doe"),
-	newUser(233, "Jane Doe"),
-	newUser(984, "Peter Smith"),
-}
+// var users = []goald.IUser{
+// 	newUser(125, "John Doe"),
+// 	newUser(233, "Jane Doe"),
+// 	newUser(984, "Peter Smith"),
+// }
 
-func newUser(id int, fullname string) (usr *User) {
-	usr = &User{}
-	usr.ID = goald.BObjID(id)
-	usr.UserFullName = fullname
+// func newUser(id int, fullname string) (usr *User) {
+// 	usr = &User{}
+// 	usr.ID = goald.BObjID(id)
+// 	usr.UserFullName = fullname
 
-	return
-}
+// 	return
+// }
 
-// TODO remove once we have an ORM
-func GetUser(id int) goald.IUser {
-	for _, usr := range users {
-		if int(usr.GetID()) == id {
-			return usr
-		}
-	}
+// // TODO remove once we have an ORM
+// func GetUser(id int) goald.IUser {
+// 	for _, usr := range users {
+// 		if int(usr.GetID()) == id {
+// 			return usr
+// 		}
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
 
 // ----------------------------------------------------------------------------
 // Link Device <-> User

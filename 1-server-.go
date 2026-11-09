@@ -84,7 +84,7 @@ func NewServer() ServerContext {
 		}
 	}
 
-	// resolving the configured authentication providers, if any (e.g. Entra ID for internal and/or external users)
+	// resolving the configured authentication providers, if any (e.g. Microsoft Entra ID)
 	server.resolveAuthProviders()
 
 	// running the app in code generation mode, i.e. no server started here - should only be used by devs

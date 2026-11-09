@@ -255,6 +255,11 @@ func newEndpoint[InputOrParamsType, ResourceType IBusinessObject](
 func (thisEndpoint *endpoint[ResourceType]) At(actionPath string) *endpoint[ResourceType] {
 	thisEndpoint.actionPath = actionPath
 
+	// if the action path does not end with /, add it
+	if !strings.HasSuffix(thisEndpoint.actionPath, "/") {
+		thisEndpoint.actionPath += "/"
+	}
+
 	return thisEndpoint
 }
 
@@ -322,7 +327,7 @@ func (thisEndpoint *endpoint[ResourceType]) InGroup(group *EndpointGroup) *endpo
 }
 
 // Marking this endpoint as callable without authentication, e.g. a login endpoint or a public health check
-func (thisEndpoint *endpoint[ResourceType]) Public() *endpoint[ResourceType] {
+func (thisEndpoint *endpoint[ResourceType]) SetPublic() *endpoint[ResourceType] {
 	thisEndpoint.public = true
 
 	return thisEndpoint

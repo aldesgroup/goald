@@ -16,7 +16,8 @@ func init() {
 		InGroup(GenericEPs).
 		TargetWith(model.Translation().Lang()).
 		Label("List translations").
-		Description("Returns the translations for the given route")
+		Description("Returns the translations for the given route").
+		SetPublic()
 }
 
 func listTranslations(webCtx g.WebContext, params *TranslationQuery) ([]*Translation, hstatus.Code, string) {

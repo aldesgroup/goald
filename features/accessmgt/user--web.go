@@ -7,8 +7,10 @@ import (
 
 func init() {
 	goald.GetOne(handleGetCurrentUser, nil).
+		At("current").
 		Label("Get the current user").
-		Description("Retrieve the user information from the currently connected user")
+		Description("Retrieve the user information from the currently connected user").
+		InGroup(groupAUTH)
 }
 
 func handleGetCurrentUser(webCtx goald.WebContext) (*User, hstatus.Code, string) {

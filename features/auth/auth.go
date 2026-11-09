@@ -1,10 +1,9 @@
 // ------------------------------------------------------------------------------------------------
 // Shared types for Goald's pluggable authentication.
 //
-// A Realm identifies a population of callers (e.g. internal vs. external users). Each realm is served
-// by its own configured provider (see goald.IAuthProvider), so a single Goald server can
-// authenticate against several identity backends at once - typically 1 Microsoft Entra ID
-// (workforce) tenant for internal users, and 1 Microsoft Entra External ID (CIAM) tenant for external ones.
+// A Realm identifies a population of callers. Each realm is served by its own configured provider
+// (see goald.IAuthProvider), so a single Goald server can authenticate against several identity
+// backends at once; most apps only need the one RealmDefault.
 // ------------------------------------------------------------------------------------------------
 package auth
 
@@ -26,10 +25,8 @@ var ErrPasswordLoginUnsupported = errors.New("password login is not supported; s
 // independently configured identity provider.
 type Realm string
 
-const (
-	RealmInternal Realm = "internal" // internal users, typically backed by a Microsoft Entra ID (workforce) tenant
-	RealmExternal Realm = "external" // external users, typically backed by a Microsoft Entra External ID (CIAM) tenant
-)
+// RealmDefault is the conventional name for the single realm of an app with only 1 identity backend.
+const RealmDefault Realm = "default"
 
 // ProviderType identifies which goald.IAuthProvider implementation should serve a given realm,
 // e.g. "azuread". This lets an application swap in a different implementation (a different IDP, a
@@ -40,13 +37,14 @@ type ProviderType string
 // A single provider implementation is typically instantiated once, but used for several realms at
 // once, each with its own ProviderConfig (e.g. 2 different Entra tenants).
 type ProviderConfig struct {
-	Type       ProviderType // which IAuthProvider implementation to use, e.g. "azuread"
-	Realm      Realm        // which realm this config is for; defaults to the config's map key when empty
-	TenantID   string       // the Entra tenant ID (a GUID), for both workforce and External ID tenants
-	Audience   string       // the expected "aud" claim on incoming access tokens, typically the API app registration's client ID or "api://<client-id>"
-	Issuer     string       // overrides the expected "iss" claim & OIDC discovery base; auto-derived from TenantID when empty
-	Authority  string       // overrides the OAuth2 authority; auto-derived from TenantID when empty
-	LoginOrder int          // realms are tried in ascending LoginOrder, then by name, when a token or password login isn't tied to a known realm
+	Type           ProviderType // which IAuthProvider implementation to use, e.g. "azuread"
+	Realm          Realm        // which realm this config is for; defaults to the config's map key when empty
+	TenantID       string       // the Entra tenant ID (a GUID), for both workforce and External ID tenants
+	Audience       string       // the expected "aud" claim on incoming access tokens, typically the API app registration's client ID or "api://<client-id>"
+	Issuer         string       // overrides the expected "iss" claim & OIDC discovery base; auto-derived from TenantID when empty
+	Authority      string       // overrides the OAuth2 authority; auto-derived from TenantID when empty
+	LoginOrder     int          // realms are tried in ascending LoginOrder, then by name, when a token or password login isn't tied to a known realm
+	AllowedClients []string     // client IDs (e.g. Entra's "azp") of the external callers allowed to use app-only tokens; none are allowed when empty
 }
 
 // Credentials is a generic username/password pair, only used by providers offering a direct password
@@ -70,6 +68,8 @@ type TokenSet struct {
 type Claims struct {
 	Subject  string         // the stable, unique identifier of the caller within its identity provider (e.g. Entra's "oid")
 	Realm    Realm          // which realm this caller was authenticated against
+	IsApp    bool           // true for an app-only token (an external caller), false for a signed-in person
+	ClientID string         // the ID of the client app the token was issued to, if any (e.g. Entra's "azp")
 	Email    string         // the caller's email / preferred username, if any
 	Name     string         // the caller's display name, if any
 	TenantID string         // the identity provider's tenant ID, if any

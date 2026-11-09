@@ -1,8 +1,6 @@
 package goald
 
 import (
-	"fmt"
-
 	"github.com/aldesgroup/goald/features/auth"
 )
 
@@ -68,23 +66,23 @@ func (thisWebCtx *webContextImpl) GetCurrentUser() IUser {
 		return nil
 	}
 
-	if !thisWebCtx.currentUserResolved {
-		thisWebCtx.currentUserResolved = true
+	// if !thisWebCtx.currentUserResolved {
+	// 	thisWebCtx.currentUserResolved = true
 
-		resolver := getUserResolver()
-		if resolver == nil {
-			thisWebCtx.Warn("An authenticated request came in, but no user resolver is registered (see RegisterUserResolver)")
-			return nil
-		}
+	// 	resolver := getUserResolver()
+	// 	if resolver == nil {
+	// 		thisWebCtx.Warn("An authenticated request came in, but no user resolver is registered (see RegisterUserResolver)")
+	// 		return nil
+	// 	}
 
-		user, err := resolver(thisWebCtx.GetBloContext(), thisWebCtx.authClaims)
-		if err != nil {
-			thisWebCtx.Error(false, fmt.Sprintf("Could not resolve the current user: %s", err))
-			return nil
-		}
+	// 	user, err := resolver(thisWebCtx.GetBloContext(), thisWebCtx.authClaims)
+	// 	if err != nil {
+	// 		thisWebCtx.Error(false, fmt.Sprintf("Could not resolve the current user: %s", err))
+	// 		return nil
+	// 	}
 
-		thisWebCtx.currentUser = user
-	}
+	// 	thisWebCtx.currentUser = user
+	// }
 
 	return thisWebCtx.currentUser
 }

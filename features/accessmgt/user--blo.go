@@ -6,8 +6,8 @@ import "github.com/aldesgroup/goald"
 var _ goald.IUser = (*User)(nil)
 
 // Implementing goald.IUser interface for the User business object
-func (thisUser *User) GetUsername() string {
-	return thisUser.Email
+func (thisUser *User) GetUniqueAuthID() string {
+	return thisUser.ExternalID
 }
 
 // GetMemberships implements [goald.IUser].

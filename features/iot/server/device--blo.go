@@ -57,36 +57,38 @@ func getDevice(serial string) *iot.Device {
 // ----------------------------------------------------------------------------
 
 func doLinkDevice(bloContext g.BloContext, model, serial string, userID int) (*iot.Device, error) {
-	// does this user exist?
-	user := iot.GetUser(userID)
-	if user == nil {
-		return nil, g.Error("No user found with id '%d'", userID)
-	}
+	// // does this user exist?
+	// user := iot.GetUser(userID)
+	// if user == nil {
+	// 	return nil, g.Error("No user found with id '%d'", userID)
+	// }
 
-	// controlling the serial & the model
-	// TODO we'll have to somehow plugin some stuff here, prolly coming from emerald
-	if model != "SENSAIR" {
-		return &iot.Device{Status: iot.DeviceStatusFORBIDDEN}, nil
-	}
-	if len(serial) != 13 {
-		return &iot.Device{Status: iot.DeviceStatusBADxDEVICExSERIAL}, nil
-	}
+	// // controlling the serial & the model
+	// // TODO we'll have to somehow plugin some stuff here, prolly coming from emerald
+	// if model != "SENSAIR" {
+	// 	return &iot.Device{Status: iot.DeviceStatusFORBIDDEN}, nil
+	// }
+	// if len(serial) != 13 {
+	// 	return &iot.Device{Status: iot.DeviceStatusBADxDEVICExSERIAL}, nil
+	// }
 
-	// retrieving the device from the DB (mocked, for now)
-	device := getDevice(serial)
-	if device != nil {
-		println(device.Status == iot.DeviceStatusLINKED)
-		println(device.IsUserAssociated(user))
-		if device.Status == iot.DeviceStatusLINKED && device.IsUserAssociated(user) {
-			device.Status = iot.DeviceStatusALREADYxLINKED
-			// TODO then save this
-		}
+	// // retrieving the device from the DB (mocked, for now)
+	// device := getDevice(serial)
+	// if device != nil {
+	// 	println(device.Status == iot.DeviceStatusLINKED)
+	// 	println(device.IsUserAssociated(user))
+	// 	if device.Status == iot.DeviceStatusLINKED && device.IsUserAssociated(user) {
+	// 		device.Status = iot.DeviceStatusALREADYxLINKED
+	// 		// TODO then save this
+	// 	}
 
-		return device, nil
-	}
+	// 	return device, nil
+	// }
 
-	// creating a new device since we didn't have this one yet
-	device = addDevice(model, serial, user)
+	// // creating a new device since we didn't have this one yet
+	// device = addDevice(model, serial, user)
 
-	return device, nil
+	// return device, nil
+
+	return nil, nil
 }
