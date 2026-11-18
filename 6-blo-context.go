@@ -27,6 +27,7 @@ type BloContext interface {
 type baseBloContextImpl struct {
 	currentTx          *sql.Tx    // the transaction currently bearing all the changes that we want to bring to the DB
 	currentTxClientsNb int        // the current number of "clients" currently relyong on the current transaction
+	currentTxFailed    bool       // true if one of the clients of the current transaction has failed, so that it must be rolled back
 	mx                 sync.Mutex // safely handling the changes on the current transaction
 	boCache            *BObjCache // the cache of business objects associated with this context
 }
@@ -59,6 +60,8 @@ func (baseBloCtx *baseBloContextImpl) BeginTransaction(model IBusinessObjectMode
 }
 
 // EndTransaction implements [BloContext].
+// Each call to BeginTransaction must be matched by a call to EndTransaction; the transaction is only really
+// terminated when its last client leaves: it is then committed, unless one client has failed, in which case it's rolled back.
 func (baseBloCtx *baseBloContextImpl) EndTransaction(previousErr error) error {
 	// not messing around with concurrent routines
 	baseBloCtx.mx.Lock()
@@ -69,37 +72,45 @@ func (baseBloCtx *baseBloContextImpl) EndTransaction(previousErr error) error {
 		return Error("Could not end a BI transaction, since there is none in the context")
 	}
 
-	// ok now we're sure there's a transaction going on ! Whatever happens, we try to remove it at the end
-	defer func() {
-		// in any case, there's one less client
-		baseBloCtx.currentTxClientsNb--
-
-		// if there's no client left that uses the current transaction let's remove it
-		if baseBloCtx.currentTxClientsNb == 0 {
-			baseBloCtx.currentTx = nil
-		}
-	}()
-
-	// if at least one of the operations that occurred during this transaction has failed, we have to rollback
+	// if at least one of the operations that occurred during this transaction has failed, we'll have to rollback
 	if previousErr != nil {
-		if errRb := baseBloCtx.currentTx.Rollback(); errRb != nil {
+		baseBloCtx.currentTxFailed = true
+	}
+
+	// in any case, there's one less client
+	baseBloCtx.currentTxClientsNb--
+
+	// other clients are still relying on the transaction, so it's up to the last one to terminate it
+	if baseBloCtx.currentTxClientsNb > 0 {
+		if previousErr != nil {
+			return ErrorC(previousErr, "One operation during the current transaction has failed, it will be rolled back")
+		}
+		return nil
+	}
+
+	// we're the last client: whatever happens, we remove the transaction at the end
+	tx, failed := baseBloCtx.currentTx, baseBloCtx.currentTxFailed
+	baseBloCtx.currentTx, baseBloCtx.currentTxFailed, baseBloCtx.currentTxClientsNb = nil, false, 0
+
+	if failed {
+		if errRb := tx.Rollback(); errRb != nil {
 			return ErrorC(errRb, "Have to roll back current transaction, because one operation during it has failed (%s),"+
 				" but rolling back the transaction has also failed", previousErr)
 		}
 
-		return ErrorC(previousErr, "Have to roll back current transaction, because one operation during it has failed")
+		if previousErr != nil {
+			return ErrorC(previousErr, "Have to roll back current transaction, because one operation during it has failed")
+		}
+		return Error("Rolled back the current transaction, because one operation during it has failed")
 	}
 
-	// we can commit the transaction only if we are the only client (left) of it
-	if baseBloCtx.currentTxClientsNb == 1 {
-		if txErr := baseBloCtx.currentTx.Commit(); txErr != nil {
-			// rolling the transaction back since we could not commit it
-			if errRb := baseBloCtx.currentTx.Rollback(); errRb != nil {
-				return ErrorC(errRb, "Have to roll back current transaction, since committing it has failed, but rolling back the transaction has also failed")
-			}
-
-			return ErrorC(txErr, "Have to roll back current transaction, since committing it has failed")
+	if txErr := tx.Commit(); txErr != nil {
+		// rolling the transaction back since we could not commit it
+		if errRb := tx.Rollback(); errRb != nil {
+			return ErrorC(errRb, "Have to roll back current transaction, since committing it has failed, but rolling back the transaction has also failed")
 		}
+
+		return ErrorC(txErr, "Have to roll back current transaction, since committing it has failed")
 	}
 
 	return nil

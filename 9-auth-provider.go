@@ -84,18 +84,22 @@ type resolvedAuthProvider struct {
 // resolved. Authentication stays entirely opt-in: a server with no "Auth" section configured at
 // all behaves exactly as before, with no gate whatsoever on its endpoints.
 func (thisServer *server) resolveAuthProviders() {
+	if thisServer.config.base().AuthDisabled {
+		return
+	}
+
 	// if auth needed?
-	authNeeded := false
+	var epWithAuthNeeded iEndpoint
 	for _, ep := range restRegistry.endpoints {
 		if !ep.isPublic() {
-			authNeeded = true
+			epWithAuthNeeded = ep
 			break
 		}
 	}
 
 	// exiting if auth is not configured and yet needed
-	core.PanicMsgIf(authNeeded && len(thisServer.config.base().AuthProviders) == 0,
-		"Authentication is required by some endpoints, but no auth providers are configured")
+	core.PanicMsgIf(epWithAuthNeeded != nil && len(thisServer.config.base().AuthProviders) == 0,
+		"Authentication is required by some endpoints (eg '%s'), but no auth providers are configured", epWithAuthNeeded.getPathAsString())
 
 	// configuring and attaching the resolved auth providers to the server instance
 	for realmID, cfg := range thisServer.config.base().AuthProviders {
@@ -104,9 +108,8 @@ func (thisServer *server) resolveAuthProviders() {
 			"Did you add a blank import for the right package, e.g. _ \"github.com/aldesgroup/goald/features/auth/azuread\"?",
 			cfg.Type, realmID)
 
-		if cfg.Realm == "" {
-			cfg.Realm = auth.Realm(realmID)
-		}
+		// the realm is the map key in the config
+		cfg.Realm = auth.Realm(realmID)
 
 		thisServer.authProviders[cfg.Realm] = &resolvedAuthProvider{impl: impl, cfg: cfg}
 		thisServer.Info(fmt.Sprintf("Authentication realm '%s' is served by provider '%s'", cfg.Realm, cfg.Type))

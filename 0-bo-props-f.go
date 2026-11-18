@@ -99,8 +99,8 @@ func (sf *StringField) SetSize(size int, atLeast ...int) *field {
 // CheckStringSize checks that the given string value's length (in characters) is between
 // atLeast and size (inclusive). size <= 0 means there's no maximum length constraint, and
 // atLeast <= 0 means there's no minimum length constraint.
-func CheckStringSize(value string, size int, atLeast int) error {
-	length := utf8.RuneCountInString(value)
+func CheckStringSize[T ~string](value T, size int, atLeast int) error {
+	length := utf8.RuneCountInString(string(value))
 
 	if size > 0 && length > size {
 		return Error("Value '%s' is too long (%d character(s), max %d)", value, length, size)

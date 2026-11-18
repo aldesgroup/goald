@@ -211,6 +211,8 @@ func (thisGen *daoGenerator) generateOneDAO(srcdir string, dbType string, model 
 	content += "\n"
 	content += thisGen.generateExecUpdateQuery(model)
 	content += "\n\n"
+	// content += thisGen.generateExecUpsertQuery(model)
+	// content += "\n\n"
 	content += thisGen.generateExecDeleteQuery(model)
 	content += "\n\n"
 	content += thisGen.generateExecDeleteLinksQueries(model)
@@ -718,7 +720,7 @@ func (thisDAO *%[1]sDAO) ExecUpdateQuery(bObjs ...goald.IBusinessObject) error {
 		Columns:     `+bq+`%[5]s`+bq+`,
 		ColumnTypes: []string{%[8]s},
 		NbCols:      %[7]d,
-		MaskPattern: userGroupUpdateMask,
+		MaskPattern: %[2]sUpdateMask,
 		BObjs:       bObjs,
 		FillRow: func(bObj goald.IBusinessObject, args []any, base int) {
 			// casting the business object to its actual type
@@ -737,6 +739,46 @@ func (thisDAO *%[1]sDAO) ExecUpdateQuery(bObjs ...goald.IBusinessObject) error {
 		columnTypes,               // 8
 	)
 }
+
+// // ------------------------------------------------------------------------------------------------
+// // Generating the CRUD(S) methods - the UPSERT part -- NOT USED FOR NOW
+// // ------------------------------------------------------------------------------------------------
+
+// func (thisGen *daoGenerator) generateExecUpsertQuery(model IBusinessObjectModel) string {
+
+// 	columns, _, argAssignments, _, nbCols := thisGen.getColumnsAndInsertData(model, "\t\t\t", true)
+// 	varName := core.PascalToCamel(string(model.GetName()))
+
+// 	return fmt.Sprintf(`
+// // ------------------------------------------------------------------------------------------------
+// // Upserting
+// // ------------------------------------------------------------------------------------------------
+
+// // ExecUpsertQuery implements [goald.IBusinessObjectDAO].
+// func (thisDAO *%[1]sDAO) ExecUpsertQuery(conflictColumns string, bObjs ...goald.IBusinessObject) (map[int]goald.UpsertedRow, error) {
+// 	return thisDAO.ExecBatchUpsert(&goald.ExecUpsertContext{
+// 		Table:           %[2]sDB + `+bq+`.%[4]s`+bq+`,
+// 		Columns:         `+bq+`%[5]s`+bq+`,
+// 		ConflictColumns: conflictColumns,
+// 		NbCols:          %[7]d,
+// 		MaskPattern:     %[2]sCreateMask,
+// 		BObjs:           bObjs,
+// 		FillRow: func(bObj goald.IBusinessObject, args []any, base int) {
+// 			// casting the business object to its actual type
+// 			%[2]s := bObj.(*%[3]s.%[1]s)
+
+// %[6]s		},
+// 	})
+// }`,
+// 		model.GetName(),           // 1
+// 		varName,                   // 2
+// 		model.getSrcPathName(),    // 3
+// 		model.getTableName(false), // 4
+// 		columns,                   // 5
+// 		argAssignments,            // 6
+// 		nbCols,                    // 7
+// 	)
+// }
 
 // ------------------------------------------------------------------------------------------------
 // Generating the CRUD(S) methods - the DELETE part
@@ -1153,7 +1195,12 @@ func (thisGen *daoGenerator) generateScanRowFunc(model IBusinessObjectModel, ext
 		case propertyTypeSTRING:
 			declarations = append(declarations, propVarName+" string")
 			scanTargets = append(scanTargets, "&"+propVarName)
-			assignments = append(assignments, fmt.Sprintf("%s.%s = %s", varName, fieldName, propVarName))
+			// the field can be of a named string type (e.g. utils.CountryCode), which requires a conversion
+			if namedTypeExpr := getNonBuiltInFieldType(model.getType(), fieldName, extraImports); namedTypeExpr != "" {
+				assignments = append(assignments, fmt.Sprintf("%s.%s = %s(%s)", varName, fieldName, namedTypeExpr, propVarName))
+			} else {
+				assignments = append(assignments, fmt.Sprintf("%s.%s = %s", varName, fieldName, propVarName))
+			}
 
 		case propertyTypeINT:
 			declarations = append(declarations, propVarName+" int")

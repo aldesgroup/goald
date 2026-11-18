@@ -5,6 +5,8 @@
 package goald
 
 import (
+	"errors"
+	"fmt"
 	"slices"
 
 	core "github.com/aldesgroup/corego"
@@ -58,23 +60,33 @@ func CreateBusinessObjects[BOTYPE IBusinessObject](bloCtx BloContext, bObjs ...B
 	}
 
 	// let's make sure the transaction is always ended, even if a panic occurs below,
-	// so that we never leave a dangling transaction / corrupt the BloContext's tx state
+	// so that we never leave a dangling transaction / corrupt the BloContext's tx state;
+	// every call to BeginTransaction must be matched by a call to EndTransaction, even when
+	// the transaction was started by an outer call (the actual commit happens in the outermost one)
 	if beginTransactionHere {
 		bloCtx.Trace("New transaction started here!")
-		defer func() {
-			if r := recover(); r != nil {
-				bloCtx.Trace("Recovered from panic while creating object(s): %v", r)
-				errEnd := bloCtx.EndTransaction(Error("Recovered from panic while creating object(s): %v", r))
-				panic(errEnd)
-			}
-
-			if errEnd := bloCtx.EndTransaction(createErr); errEnd != nil {
-				createErr = ErrorC(errEnd, "Could not create object since the current transaction could not be terminated")
-			} else {
-				bloCtx.Trace("Transaction ended here!")
-			}
-		}()
 	}
+	defer func() {
+		if r := recover(); r != nil {
+			bloCtx.Trace("Recovered from panic while creating object(s): %v", r)
+			errEnd := bloCtx.EndTransaction(Error("Recovered from panic while creating object(s): %v", r))
+			panic(errEnd)
+		}
+
+		errEnd := bloCtx.EndTransaction(createErr)
+		if beginTransactionHere {
+			if createErr != nil {
+				bloCtx.Trace("Transaction ended here, and rolled back!")
+			} else if errEnd == nil {
+				bloCtx.Trace("Transaction ended here, and committed!")
+			}
+		}
+
+		// when the operation has already failed, errEnd just wraps that same error, so we keep the original one
+		if errEnd != nil && createErr == nil {
+			createErr = ErrorC(errEnd, "Could not create object since the current transaction could not be terminated")
+		}
+	}()
 
 	// let's try to create the given entity
 	createErr = doCreateBusinessObjects(bloCtx, model, bObjs...)
@@ -358,23 +370,33 @@ func UpdateBusinessObjects[BOTYPE IBusinessObject](bloCtx BloContext, bObjs ...B
 	}
 
 	// let's make sure the transaction is always ended, even if a panic occurs below,
-	// so that we never leave a dangling transaction / corrupt the BloContext's tx state
+	// so that we never leave a dangling transaction / corrupt the BloContext's tx state;
+	// every call to BeginTransaction must be matched by a call to EndTransaction, even when
+	// the transaction was started by an outer call (the actual commit happens in the outermost one)
 	if beginTransactionHere {
 		bloCtx.Trace("New transaction started here!")
-		defer func() {
-			if r := recover(); r != nil {
-				bloCtx.Trace("Recovered from panic while updating object(s): %v", r)
-				errEnd := bloCtx.EndTransaction(Error("Recovered from panic while updating object(s): %v", r))
-				panic(errEnd)
-			}
-
-			if errEnd := bloCtx.EndTransaction(updateErr); errEnd != nil {
-				updateErr = ErrorC(errEnd, "Could not update object since the current transaction could not be terminated")
-			} else {
-				bloCtx.Trace("Transaction ended here!")
-			}
-		}()
 	}
+	defer func() {
+		if r := recover(); r != nil {
+			bloCtx.Trace("Recovered from panic while updating object(s): %v", r)
+			errEnd := bloCtx.EndTransaction(Error("Recovered from panic while updating object(s): %v", r))
+			panic(errEnd)
+		}
+
+		errEnd := bloCtx.EndTransaction(updateErr)
+		if beginTransactionHere {
+			if updateErr != nil {
+				bloCtx.Trace("Transaction ended here, and rolled back!")
+			} else if errEnd == nil {
+				bloCtx.Trace("Transaction ended here, and committed!")
+			}
+		}
+
+		// when the operation has already failed, errEnd just wraps that same error, so we keep the original one
+		if errEnd != nil && updateErr == nil {
+			updateErr = ErrorC(errEnd, "Could not update object since the current transaction could not be terminated")
+		}
+	}()
 
 	// let's try to update the given entity
 	updateErr = doUpdateBusinessObjects(bloCtx, model, bObjs...)
@@ -516,3 +538,207 @@ func doUpdateBusinessObjectLinks[BOTYPE IBusinessObject](dao IBusinessObjectDAO,
 
 	return nil
 }
+
+// ----------------------------------------------------------------------------
+// Derived CRUD functions
+// ----------------------------------------------------------------------------
+
+// SearchBusinessObject searches for a single business object matching the given query and search parameters.
+func SearchBusinessObject(bloCtx BloContext, query IQuery, values ISearchParamValues, loadingConf ILoadingConfig) (IBusinessObject, error) {
+	// Searching the company in the DB
+	result, errSearch := SearchBusinessObjects(bloCtx, query, values, loadingConf)
+	if errSearch != nil {
+		return nil, errSearch
+	}
+
+	// This should not happen
+	if len(result) > 1 {
+		return nil, fmt.Errorf("Multiple instances found for the given query")
+	}
+
+	// If 1 BO found, return it
+	if len(result) == 1 {
+		return result[0], nil
+	}
+
+	// If no BO found, return nil
+	return nil, nil
+}
+
+// CreateOrGet tries to create the given business object, and if it already exists (duplicate entry), it returns the existing one based on the search query and values.
+// The query and its values MUST be able to uniquely identify the existing business object in case of a duplicate entry.
+func CreateOrGet(bloCtx BloContext, bObj IBusinessObject, query IQuery, values ISearchParamValues, loadingConf ILoadingConfig) (IBusinessObject, error) {
+	modelName := string(bObj.GetModelName())
+
+	// trying to create the business object if it doesn't already exist
+	bloCtx.Debug("Trying to create a new " + modelName)
+	errCreate := CreateBusinessObjects(bloCtx, bObj)
+
+	// no error? it means the business object was successfully created, so we can just return it
+	if errCreate == nil {
+		bloCtx.Debug("Successfully created a new " + modelName)
+		return bObj, nil
+	}
+
+	// if we have a duplicate here, we just return the existing business object, using the search query & query values
+	if errors.Is(errCreate, DbErrorDUPLICATExENTRY) {
+		bloCtx.Debug("Duplicate entry for " + modelName + ", fetching existing one")
+		existing, errSearch := SearchBusinessObject(bloCtx, query, values, loadingConf)
+		if errSearch != nil {
+			bloCtx.Error(false, "Failed to search for existing "+modelName+": %v", errSearch)
+			return nil, errSearch
+		}
+
+		// nothing found: the duplicate was on another unique key than the one the query covers, or the row got deleted since
+		if existing == nil {
+			bloCtx.Error(false, "No existing "+modelName+" found for duplicate entry")
+			return nil, errCreate
+		}
+
+		bloCtx.Debug("Found existing " + modelName + " for duplicate entry")
+		return existing, nil
+	}
+
+	// any other error should be returned as is
+	bloCtx.Error(false, "Failed to create a new "+modelName+": %v", errCreate)
+	return nil, errCreate
+}
+
+// ----------------------------------------------------------------------------
+// NOTE: code below is untested, and unwanted for now
+// ----------------------------------------------------------------------------
+
+// // UpsertBusinessObjects inserts the given business objects, or updates the already existing ones: a business object already
+// // exists if the DB has one with the same values for the given properties, which must be a unique key of the model - either a
+// // UNIQUE property, or a unique combination of properties.
+// // WARNING: all the business objects must be of the same type (same model), this does not handle polymorphism
+// // WARNING: the multi-valued relationships and the dependent children are not handled yet, and neither are the post-insert /
+// // post-update hooks, since we can't tell which of the two happened
+// func UpsertBusinessObjects[BOTYPE IBusinessObject](bloCtx BloContext, uniqueKey []IBusinessObjectProperty, bObjs ...BOTYPE) (upsertErr error) {
+// 	if len(bObjs) == 0 {
+// 		return nil
+// 	}
+
+// 	// we know the BOs here are all of the same model
+// 	model := bObjs[0].getModel(bObjs[0])
+
+// 	// let's start a transaction if none is already started
+// 	beginTransactionHere, errBegin := bloCtx.BeginTransaction(model)
+// 	if errBegin != nil {
+// 		return ErrorC(errBegin, "Could not upsert object since a transaction could not be started")
+// 	}
+
+// 	// let's make sure the transaction is always ended, even if a panic occurs below,
+// 	// so that we never leave a dangling transaction / corrupt the BloContext's tx state
+// 	if beginTransactionHere {
+// 		bloCtx.Trace("New transaction started here!")
+// 		defer func() {
+// 			if r := recover(); r != nil {
+// 				bloCtx.Trace("Recovered from panic while upserting object(s): %v", r)
+// 				errEnd := bloCtx.EndTransaction(Error("Recovered from panic while upserting object(s): %v", r))
+// 				panic(errEnd)
+// 			}
+
+// 			if errEnd := bloCtx.EndTransaction(upsertErr); errEnd != nil {
+// 				upsertErr = ErrorC(errEnd, "Could not upsert object since the current transaction could not be terminated")
+// 			} else {
+// 				bloCtx.Trace("Transaction ended here!")
+// 			}
+// 		}()
+// 	}
+
+// 	// let's try to upsert the given entity
+// 	upsertErr = doUpsertBusinessObjects(bloCtx, model, uniqueKey, bObjs...)
+
+// 	return
+// }
+
+// // doUpsertBusinessObjects does the actual insert or update of business objects in the database
+// func doUpsertBusinessObjects[BOTYPE IBusinessObject](bloCtx BloContext, model IBusinessObjectModel, uniqueKey []IBusinessObjectProperty, bObjs ...BOTYPE) error {
+// 	if len(bObjs) == 0 {
+// 		return nil
+// 	}
+
+// 	// the unique key is what tells the DB whether a business object already exists
+// 	conflictColumns, errKey := getUniqueKeyColumns(model, uniqueKey)
+// 	if errKey != nil {
+// 		return ErrorC(errKey, "Could not upsert '%s' objects", model.GetName())
+// 	}
+
+// 	// refusing what we can't persist yet, rather than silently ignoring it
+// 	if len(model.getRelationshipsWithRequiredBackref()) > 0 {
+// 		return Error("Could not upsert '%s' objects since they have dependent children", model.GetName())
+// 	}
+// 	for _, relationship := range core.GetSortedValues(model.getRelationships()) {
+// 		if !relationship.IsMultiple() {
+// 			continue
+// 		}
+// 		for _, bObj := range bObjs {
+// 			targets, errGet := bObj.GetMultipleRelationshipValue(relationship.GetName())
+// 			if errGet != nil {
+// 				return errGet
+// 			}
+// 			if len(targets) > 0 {
+// 				return Error("Could not upsert '%s' objects since '%s' is a multi-valued relationship with values", model.GetName(), relationship.GetName())
+// 			}
+// 		}
+// 	}
+
+// 	// we need this type conversion later on, let's do it now since we're iterating over the given business objects anyway
+// 	iBObjs := make([]IBusinessObject, len(bObjs))
+
+// 	// performing some checks on the given business objects
+// 	for i, bObj := range bObjs {
+// 		// the business object should not have an ID already, since the unique key is what identifies it here
+// 		if bObj.GetID() > 0 {
+// 			return Error("Could not upsert object since it already has an ID (%d)", bObj.GetID())
+// 		}
+
+// 		// do we have stuff to perform on the business object before inserting it ?
+// 		if err := bObj.ChangeBeforeInsert(bloCtx); err != nil {
+// 			return ErrorC(err, "Could not upsert object since the pre-insert got an error")
+// 		}
+
+// 		// check of the validity regarding the model constraints
+// 		if err := bObj.IsModelValid(); err != nil {
+// 			return ErrorC(err, "Could not upsert object since it is not valid regarding its model constraints")
+// 		}
+
+// 		// check of "functional / business" validity
+// 		if err := bObj.IsValid(bloCtx); err != nil {
+// 			return ErrorC(err, "Could not upsert object since it is not valid")
+// 		}
+
+// 		// setting some tracking info; the modification is set as well, as it's what an update will need
+// 		creation := core.Now()
+// 		modification := *creation
+// 		bObj.setPreID(i + 1) // used later on for DB ID consolidation
+// 		bObj.setCreation(creation)
+// 		bObj.setModification(&modification)
+
+// 		// adding the business object to the interface slice
+// 		iBObjs[i] = bObj
+// 	}
+
+// 	// we need the DAO for the given BO type here
+// 	dao := bloCtx.daoFor(model.GetName())
+
+// 	// executing the upsert request, which should result in all the BOs getting an ID
+// 	rowToUpsertedMap, errUpsert := dao.ExecUpsertQuery(conflictColumns, iBObjs...)
+// 	if errUpsert != nil {
+// 		return ErrorC(errUpsert, "Error while performing upsert query for '%s'", dao.getModel().GetName())
+// 	}
+
+// 	// consolidating what the DB holds back into the business objects
+// 	for _, bObj := range bObjs {
+// 		upserted, found := rowToUpsertedMap[bObj.GetPreID()]
+// 		if !found {
+// 			return Error("Could not find the row of the upserted '%s' object with pre-ID %d", model.GetName(), bObj.GetPreID())
+// 		}
+
+// 		bObj.setID(upserted.ID)
+// 		bObj.setCreation(upserted.Creation) // not the one set above if the row already existed
+// 	}
+
+// 	return nil
+// }

@@ -52,8 +52,9 @@ type serverConfig struct {
 		resolvedLogLevel slog.Level
 	}
 	DBServers       map[string]*dbconn.DbServerConfig
-	AuthProviders   map[string]*auth.ProviderConfig // authentication realms, e.g. "default" -> its provider config; entirely optional
-	AuthTokenHeader string                          // header carrying the user's bearer token when a gateway keeps "Authorization" for its own token; defaults to "Authorization"
+	AuthDisabled    bool                                // whether authentication is disabled entirely; used for libraries mainly
+	AuthProviders   map[auth.Realm]*auth.ProviderConfig // authentication realms, e.g. "default" -> its provider config; entirely optional
+	AuthTokenHeader string                              // header carrying the user's bearer token when a gateway keeps "Authorization" for its own token; defaults to "Authorization"
 	DataLoaders     map[string]map[string]string
 	Version         string
 

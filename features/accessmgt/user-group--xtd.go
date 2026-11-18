@@ -53,6 +53,7 @@ func (bo *UserGroup) Clone(withFields, withRelationships bool) goald.IBusinessOb
 
 	if withRelationships {
 		clone.Members = bo.Members
+		clone.Permissions = bo.Permissions
 	}
 
 	return clone
@@ -116,6 +117,11 @@ func (bo *UserGroup) AddAndReturnMembers(added goald.IUser) goald.IUser {
 	return added
 }
 
+func (bo *UserGroup) AddAndReturnPermissions(added goald.IPermission) goald.IPermission {
+	bo.Permissions = append(bo.Permissions, added)
+	return added
+}
+
 // ------------------------------------------------------------------------------------------------
 // Generic relationship access
 // ------------------------------------------------------------------------------------------------
@@ -144,6 +150,13 @@ func (bo *UserGroup) AddRelationshipValue(relationshipName string, value goald.I
 		}
 		bo.Members = append(bo.Members, targetValue)
 		return nil
+	case "Permissions":
+		targetValue, ok := value.(goald.IPermission)
+		if !ok {
+			return goald.Error("Expected a value of type 'goald.IPermission' for 'UserGroup.Permissions', got %T", value)
+		}
+		bo.Permissions = append(bo.Permissions, targetValue)
+		return nil
 	}
 
 	return goald.Error("[AddRelationshipValue] Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
@@ -154,6 +167,9 @@ func (bo *UserGroup) ClearRelationshipValue(relationshipName string) error {
 	switch relationshipName {
 	case "Members":
 		bo.Members = []goald.IUser{}
+		return nil
+	case "Permissions":
+		bo.Permissions = []goald.IPermission{}
 		return nil
 	}
 
@@ -178,6 +194,15 @@ func (bo *UserGroup) GetMultipleRelationshipValue(relationshipName string) ([]go
 			members[i] = target
 		}
 		return members, nil
+	case "Permissions":
+		permissions := make([]goald.IBusinessObject, len(bo.Permissions))
+		for i, target := range bo.Permissions {
+			if err := target.SetRelationshipValue("Owner", bo); err != nil { // ensuring the unique backref is set
+				return nil, err
+			}
+			permissions[i] = target
+		}
+		return permissions, nil
 	}
 
 	return nil, goald.Error("[GetMultipleRelationshipValue] Unknown or non-multi-valued relationship: %T.%s", bo, relationshipName)
@@ -226,11 +251,18 @@ func (bo *UserGroup) DiffWith(other goald.IBusinessObject, forLinks map[string]b
 
 // removing any cycles from the business object, without using reflection
 func (bo *UserGroup) RemoveCycles() {
+	for _, target := range bo.Permissions {
+		core.PanicIfErr(target.SetRelationshipValue("Owner", nil))
+	}
 }
 
 // setting the models names on all the business objects associated with this one
 func (bo *UserGroup) SetModelNames() {
 	for _, target := range bo.Members {
+		target.SetMdl(target.GetModelName())
+		target.SetModelNames()
+	}
+	for _, target := range bo.Permissions {
 		target.SetMdl(target.GetModelName())
 		target.SetModelNames()
 	}

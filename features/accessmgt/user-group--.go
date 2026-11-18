@@ -7,7 +7,7 @@ import (
 )
 
 type UserGroup struct {
-	goald.BusinessObject
+	PermissionOwner
 	Name        string        `json:"name,omitempty"        io:"i*" desc:"the user group's name"`
 	Description string        `json:"description,omitempty" io:"in" desc:"the user group's description"`
 	Members     []goald.IUser `json:"members,omitempty"     io:"in" desc:"the user group's members"`

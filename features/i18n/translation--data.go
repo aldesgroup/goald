@@ -45,7 +45,7 @@ func (ctx *fileLoadingWorkerCtx) namespace() string {
 // Main data loading function & utils
 // ------------------------------------------------------------------------------------------------
 
-func loadTranslations(ctx g.BloContext, params map[string]string) error {
+func loadTranslations(ctx g.AppContext, params map[string]string) error {
 	// checking the parameters
 	if params == nil {
 		return g.Error("No 'loadTranslations' data loader item in the config!")

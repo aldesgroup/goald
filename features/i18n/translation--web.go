@@ -22,7 +22,7 @@ func init() {
 
 func listTranslations(webCtx g.WebContext, params *TranslationQuery) ([]*Translation, hstatus.Code, string) {
 	// getting the targeted language
-	langStr := webCtx.GetResourceRefOrID()
+	langStr := webCtx.GetResourceRefOrIDs()[0]
 
 	// not translating english - FOR NOW // TODO refine
 	if langStr == "en" {

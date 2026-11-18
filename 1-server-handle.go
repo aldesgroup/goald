@@ -99,14 +99,14 @@ func (thisReqCtx *httpRequestContext) serve(ep iEndpoint, w http.ResponseWriter,
 	thisReqCtx.Info(fmt.Sprintf("Serving %s (%s)", ep.getPathAsString(), ep.getLabel())) // TODO change
 
 	// initialising the web context that's going to be passed to the applicative handler
-	var targetRefOrID string
-	if ep.getIDProp() != nil {
-		targetRefOrID = params.ByName(ep.getIDProp().GetName())
+	var targetRefOrIDs []string
+	for _, idProp := range ep.getIDProps() {
+		targetRefOrIDs = append(targetRefOrIDs, params.ByName(idProp.GetName()))
 	}
 
 	// prepping the context that's going to contain all the input data
 	// + some of the current endpoint's config
-	webCtx := newWebContext(thisReqCtx, ep, targetRefOrID)
+	webCtx := newWebContext(thisReqCtx, ep, targetRefOrIDs)
 
 	// prepping the response
 	resp := &response{Version: thisReqCtx.server.config.base().Version}
@@ -117,7 +117,9 @@ func (thisReqCtx *httpRequestContext) serve(ep iEndpoint, w http.ResponseWriter,
 	// checking auth, unless this endpoint was explicitly marked as public (e.g. a login endpoint);
 	// authenticateRequest() itself is a no-op (nil, nil) as long as no auth provider is configured,
 	// so this stays entirely backward-compatible for servers that haven't opted into authentication
-	if !ep.isPublic() {
+	// if !ep.isPublic()  {
+	// TODO roll it back some day
+	if !ep.isPublic() && !thisReqCtx.IsLocal() {
 		claims, errAuth := thisReqCtx.server.authenticateRequest(req)
 		if errAuth != nil {
 			resp.statusObj = hstatus.Unauthorized
@@ -127,6 +129,7 @@ func (thisReqCtx *httpRequestContext) serve(ep iEndpoint, w http.ResponseWriter,
 		}
 
 		webCtx.authClaims = claims
+
 	}
 
 	// checking the input

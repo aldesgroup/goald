@@ -17,7 +17,7 @@ import (
 )
 
 // the data loader type
-type dataLoader func(serverCtx BloContext, params map[string]string) error
+type dataLoader func(appCtx AppContext, params map[string]string) error
 
 // the main data loading function
 func (thisServer *server) loadData(migrationPhase bool) {

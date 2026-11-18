@@ -75,7 +75,7 @@ func (thisReq *outgoingHttpRequest) WithHeader(key, value string) *outgoingHttpR
 // Runs a prepared Rest HTTP request to an external service, and fills the given object with the response body
 func (thisReq *outgoingHttpRequest) GetResponseAs[ResponseType any](logger logging.ILogger, responseObj *ResponseType) (*ResponseType, hstatus.Code, error) {
 	// the object that's maybe being sent in the request body
-	var dataBuffer *bytes.Buffer
+	var dataBuffer io.Reader // an interface, to avoid passing a typed nil *bytes.Buffer to http.NewRequest
 	if thisReq.dataObj != nil {
 		dataBytes, errMarsh := json.Marshal(thisReq.dataObj)
 		if errMarsh != nil {
@@ -84,8 +84,7 @@ func (thisReq *outgoingHttpRequest) GetResponseAs[ResponseType any](logger loggi
 		dataBuffer = bytes.NewBuffer(dataBytes)
 
 		// a bit of logging
-		// TODO do better
-		if true {
+		if logger.IsVerbose() {
 			prettyJson, _ := json.MarshalIndent(thisReq.dataObj, "", "	")
 			logger.Debug(fmt.Sprintf("Sending this data: %s", string(prettyJson)))
 		}
@@ -132,8 +131,8 @@ func (thisReq *outgoingHttpRequest) GetResponseAs[ResponseType any](logger loggi
 		return nil, hstatus.InternalServerError, ErrorC(errRead, "Error while reading the response body")
 	}
 
-	// TODO better logging
-	if true {
+	// a bit of logging
+	if logger.IsVerbose() {
 		logger.Debug(fmt.Sprintf("Got this data: %s", string(respBody)))
 	}
 

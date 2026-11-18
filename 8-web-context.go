@@ -11,7 +11,8 @@ import (
 type WebContext interface {
 	restContext
 	GetBloContext() BloContext
-	GetResourceRefOrID() string
+	GetResourceRefOrIDs() []string
+	GetResourceLoadingConfig() ILoadingConfig
 }
 
 // default implementation for web context
@@ -19,7 +20,8 @@ type webContextImpl struct {
 	*httpRequestContext // wrapping one of the server's children handling 1 request
 	ep                  iEndpoint
 	resourceModel       IBusinessObjectModel
-	resourceRefOrID     string // the ID or ref, or whatever property value used to clearly identify a resource
+	resourceRefOrIDs    []string // the IDs or refs, or whatever property values used to clearly identify a resource
+	resourceLoadingConf ILoadingConfig
 	bloContext          BloContext
 	authClaims          *auth.Claims // the caller's claims, set once authenticateRequest() succeeds; nil for public endpoints or when auth isn't configured
 	currentUser         IUser        // the caller's IUser, lazily resolved from authClaims via the registered UserResolverFunc
@@ -30,12 +32,13 @@ type webContextImpl struct {
 var _ WebContext = (*webContextImpl)(nil)
 
 // constructors
-func newWebContext(reqCtx *httpRequestContext, ep iEndpoint, targetRefOrID string) *webContextImpl {
+func newWebContext(reqCtx *httpRequestContext, ep iEndpoint, targetRefOrIDs []string) *webContextImpl {
 	return &webContextImpl{
-		httpRequestContext: reqCtx,
-		ep:                 ep,
-		resourceModel:      ep.getResourceModel(),
-		resourceRefOrID:    targetRefOrID,
+		httpRequestContext:  reqCtx,
+		ep:                  ep,
+		resourceModel:       ep.getResourceModel(),
+		resourceRefOrIDs:    targetRefOrIDs,
+		resourceLoadingConf: ep.getLoadingConfig(),
 	}
 }
 
@@ -55,8 +58,12 @@ func (thisWebCtx *webContextImpl) getResourceModel() IBusinessObjectModel {
 	return thisWebCtx.resourceModel
 }
 
-func (thisWebCtx *webContextImpl) GetResourceRefOrID() string {
-	return thisWebCtx.resourceRefOrID
+func (thisWebCtx *webContextImpl) GetResourceRefOrIDs() []string {
+	return thisWebCtx.resourceRefOrIDs
+}
+
+func (thisWebCtx *webContextImpl) GetResourceLoadingConfig() ILoadingConfig {
+	return thisWebCtx.resourceLoadingConf
 }
 
 // GetCurrentUser implements [BloContext] & [restContext], lazily resolving the caller's IUser (if

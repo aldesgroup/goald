@@ -3,3 +3,4 @@ base:
     logging:
         level: debug
         type: text
+    authdisabled: true

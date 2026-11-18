@@ -14,3 +14,13 @@ func (thisUser *User) GetUniqueAuthID() string {
 func (thisUser *User) GetMemberships() []goald.IUserGroup {
 	return thisUser.MemberOf
 }
+
+// GetUserStatus implements [goald.IUser].
+func (thisUser *User) GetUserStatus() goald.UserStatus {
+	return thisUser.UserStatus
+}
+
+// GetProfiles implements [goald.IUser].
+func (thisUser *User) GetProfiles() []goald.IUserProfile {
+	return thisUser.Profiles
+}

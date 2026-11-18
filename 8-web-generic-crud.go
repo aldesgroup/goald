@@ -128,16 +128,16 @@ func GenericHandleRead[BOTYPE IBusinessObject](group *EndpointGroup, loadReadBOb
 		// new (anonym) handler function here
 		func(webCtx WebContext) (BOTYPE, hstatus.Code, string) {
 			// retrieving the ID from the URL path
-			idAsString := webCtx.GetResourceRefOrID()
+			idsAsString := webCtx.GetResourceRefOrIDs()
 
 			// checking the ID is valid
 			var zero BOTYPE
-			if idAsString == "" {
-				return zero, hstatus.BadRequest, fmt.Sprintf("Missing ID in request path for reading a '%s' instance", boModelName)
+			if len(idsAsString) != 1 || idsAsString[0] == "" {
+				return zero, hstatus.BadRequest, fmt.Sprintf("Missing unique ID in request path for reading a '%s' instance", boModelName)
 			}
-			id, errConv := strconv.ParseInt(idAsString, 10, 64)
+			id, errConv := strconv.ParseInt(idsAsString[0], 10, 64)
 			if errConv != nil {
-				return zero, hstatus.BadRequest, fmt.Sprintf("Invalid ID '%s' in request path for reading a '%s' instance: %s", idAsString, boModelName, errConv)
+				return zero, hstatus.BadRequest, fmt.Sprintf("Invalid ID or ref '%s' in request path for reading a '%s' instance: %s", idsAsString[0], boModelName, errConv)
 			}
 
 			// the expected output

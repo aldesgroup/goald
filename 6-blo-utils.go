@@ -64,6 +64,39 @@ func cloneBOsWithLoading[BOTYPE IBusinessObject](model IBusinessObjectModel, bOb
 	return
 }
 
+// // getUniqueKeyColumns checks that the given properties are a unique key of the given model - either a single UNIQUE field, or
+// // a declared unique combination of properties - and returns the corresponding comma-separated column list
+// func getUniqueKeyColumns(model IBusinessObjectModel, uniqueKey []IBusinessObjectProperty) (string, error) {
+// 	if len(uniqueKey) == 0 {
+// 		return "", fmt.Errorf("no unique key given")
+// 	}
+
+// 	names := make([]string, len(uniqueKey))
+// 	columns := make([]string, len(uniqueKey))
+// 	for i, prop := range uniqueKey {
+// 		names[i] = prop.GetName()
+// 		columns[i] = prop.getColumnName()
+// 	}
+
+// 	// UNIQUE constraints are only created for single fields so far, not for relationships
+// 	if len(uniqueKey) == 1 {
+// 		if _, isRelationship := uniqueKey[0].(*Relationship); !isRelationship && uniqueKey[0].isUnique() {
+// 			return columns[0], nil
+// 		}
+// 	}
+
+// 	// else the given properties must match one of the unique combinations, in any order
+// 	for _, combination := range model.getUniqueCombinations() {
+// 		if len(combination) == len(uniqueKey) && !slices.ContainsFunc(combination, func(prop IBusinessObjectProperty) bool {
+// 			return !slices.Contains(names, prop.GetName())
+// 		}) {
+// 			return strings.Join(columns, ", "), nil
+// 		}
+// 	}
+
+// 	return "", fmt.Errorf("(%s) is not a unique key of '%s'", strings.Join(names, ", "), model.GetName())
+// }
+
 // ------------------------------------------------------------------------------------------------
 // Loading configs
 // ------------------------------------------------------------------------------------------------

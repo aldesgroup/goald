@@ -44,7 +44,7 @@ func NewEndpointGroup(name string, description string) *EndpointGroup {
 type iEndpoint interface {
 	getMethod() string
 	getResourceModel() IBusinessObjectModel
-	getIDProp() IField
+	getIDProps() []IField
 	getOperationPath(includeIdOrRefName bool) string // e.g. /rest/document/reduce/:id if includeIdOrRefName = true, /rest/document/reduce otherwise
 	getPathAsString() string                         // e.g. GET /rest/document/reduce/:id
 	getLabel() string
@@ -77,7 +77,7 @@ type endpoint[ResourceType IBusinessObject] struct {
 	resourceModel          IBusinessObjectModel // the model of the objects reached through this endpoint
 	basePath               string               // the endpoint's base path, which is the lower-cased resource type name
 	actionPath             string               // do we need an additional path for a non-CRUD action, like "reduce" in: "GET /document/reduce/:id"
-	idProp                 IField               // if a specific BO is targeted, this has to be through one of its properties
+	idProps                []IField             // the properties used to identify a specific BO instance and must be provided in the request URL
 	label                  string               // short label to describe the endpoint
 	description            string               // a bit longer text to describe the endpoint
 	multipleOutput         bool                 // if true, then the endpoint delivers arrays of BOs, rather than a single one
@@ -116,8 +116,8 @@ func (ep *endpoint[ResourceType]) getResourceModel() IBusinessObjectModel {
 	return ep.resourceModel
 }
 
-func (ep *endpoint[ResourceType]) getIDProp() IField {
-	return ep.idProp
+func (ep *endpoint[ResourceType]) getIDProps() []IField {
+	return ep.idProps
 }
 
 func (ep *endpoint[ResourceType]) getOperationPath(includeIdOrRefName bool) string {
@@ -129,8 +129,10 @@ func (ep *endpoint[ResourceType]) getOperationPath(includeIdOrRefName bool) stri
 			operationPath += "/" + ep.actionPath
 		}
 	}
-	if ep.idProp != nil && includeIdOrRefName {
-		operationPath += "/:" + ep.idProp.GetName()
+	if includeIdOrRefName {
+		for _, idProp := range ep.idProps {
+			operationPath += "/:" + idProp.GetName()
+		}
 	}
 
 	return operationPath
@@ -264,8 +266,8 @@ func (thisEndpoint *endpoint[ResourceType]) At(actionPath string) *endpoint[Reso
 }
 
 // Allows to add a property value to the base path: /basepath[/additionalpath][/:targetedPropValue]
-func (thisEndpoint *endpoint[ResourceType]) TargetWith(idProp IField) *endpoint[ResourceType] {
-	thisEndpoint.idProp = idProp
+func (thisEndpoint *endpoint[ResourceType]) TargetWith(idProps ...IField) *endpoint[ResourceType] {
+	thisEndpoint.idProps = idProps
 
 	return thisEndpoint
 }

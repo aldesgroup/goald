@@ -187,7 +187,7 @@ func addEndpointToDoc(doc *openapi3.T, ep iEndpoint) error {
 	basePath := ep.getOperationPath(false)
 	openapiPath := basePath
 	operationID := strings.ToLower(ep.getMethod()) + basePath
-	if idProp := ep.getIDProp(); idProp != nil {
+	for _, idProp := range ep.getIDProps() {
 		openapiPath += "/{" + idProp.GetName() + "}"
 		operationID += "/" + idProp.GetName()
 	}
@@ -211,7 +211,7 @@ func addEndpointToDoc(doc *openapi3.T, ep iEndpoint) error {
 	}
 
 	// ---------- PATH PARAM ----------
-	if idProp := ep.getIDProp(); idProp != nil {
+	for _, idProp := range ep.getIDProps() {
 		op.Parameters = append(op.Parameters, &openapi3.ParameterRef{
 			Value: &openapi3.Parameter{
 				Name:        idProp.GetName(),
@@ -413,7 +413,15 @@ func schemaFromModel(doc *openapi3.T, model IBusinessObjectModel) *openapi3.Sche
 				model.GetName(), relationship.GetName())
 
 			// linking this relationship to the schema
-			if relationship.isPureOutput() {
+			if relationship.IsMultiple() {
+				schema.Properties[relationshipJSONName] = &openapi3.SchemaRef{
+					Value: &openapi3.Schema{
+						Type:     &openapi3.Types{"array"},
+						Items:    prop,
+						ReadOnly: relationship.isPureOutput(),
+					},
+				}
+			} else if relationship.isPureOutput() {
 				schema.Properties[relationshipJSONName] = &openapi3.SchemaRef{
 					Value: &openapi3.Schema{
 						ReadOnly: true,
@@ -445,6 +453,16 @@ func schemaFromModel(doc *openapi3.T, model IBusinessObjectModel) *openapi3.Sche
 				core.PanicMsgIfErr(errRef, "Error while getting schema ref for relationship '%s#%s'",
 					model.GetName(), relationship.GetName())
 				schema.Properties[relationshipJSONName].Value.OneOf = append(schema.Properties[relationshipJSONName].Value.OneOf, prop)
+			}
+
+			// a multiple polymorphic relationship is an array of such "one of" objects
+			if relationship.IsMultiple() {
+				schema.Properties[relationshipJSONName] = &openapi3.SchemaRef{
+					Value: &openapi3.Schema{
+						Type:  &openapi3.Types{"array"},
+						Items: schema.Properties[relationshipJSONName],
+					},
+				}
 			}
 
 			if relationship.isMandatoryInput() {

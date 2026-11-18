@@ -111,7 +111,7 @@ func (thisServer *server) generateExternalModel(destdir string, ep iEndpoint, us
 
 	// browsing the entity's properties to fill the get / set cases in the 2 switch
 	for _, field := range boFields {
-		code.addFieldIfNeeded(codeCtx, field)
+		code.addFieldIfNeeded(codeCtx, modelName, field)
 	}
 
 	// "unpacking" the code blocks to code lines
@@ -144,14 +144,14 @@ func (thisCode *codeFile) initFixedBlocks(modelName string, endpointPath string,
 		} else {
 			thisCode.addNewBlock("import { newField, newModel } from '~/vendor/goaldn';", true, "", false)
 		}
-		thisCode.addNewBlock("export const "+modelName+" = "+newModelNAME+"('"+endpointPath+"', {", true, newModelNAME, true).appendLine("});", true)
+		thisCode.addNewBlock("export const "+modelName+" = "+newModelNAME+"('"+endpointPath+"', {", true, modelName, true).appendLine("});", true)
 	}
 
 	return thisCode
 }
 
 // handling a field, adding it if not in the code already, flagging an enum for generation if it's an enum field
-func (thisCode *codeFile) addFieldIfNeeded(codeCtx *codeContext, field IField) {
+func (thisCode *codeFile) addFieldIfNeeded(codeCtx *codeContext, modelName string, field IField) {
 	// adding to the context, and the Model file content
 	if typeFamily := field.getPropertyType(); typeFamily != propertyTypeUNKNOWN && typeFamily != propertyTypeRELATIONSHIPxMONOM {
 		// not handling multiple properties for now - nor the ID field
@@ -202,8 +202,10 @@ func (thisCode *codeFile) addFieldIfNeeded(codeCtx *codeContext, field IField) {
 			}
 
 			// adding the field name to the model block if needed
-			if !thisCode.blockHasLineStartingWith(newModelNAME, field.GetName()+":") {
-				thisCode.insertLineIntoBlockBeforePrefix(newModelNAME, fmt.Sprintf("    %s,", field.GetName()), "}")
+			// (the model block's ID is the model's name; fields can be listed in shorthand - "Name," - or not - "Name: ...")
+			if !thisCode.blockHasLineStartingWith(modelName, field.GetName()+",") &&
+				!thisCode.blockHasLineStartingWith(modelName, field.GetName()+":") {
+				thisCode.insertLineIntoBlockBeforePrefix(modelName, fmt.Sprintf("    %s,", field.GetName()), "}")
 			}
 
 			// adding the field if needed
@@ -480,7 +482,7 @@ func (thisCode *codeFile) insertLineIntoBlockBeforePrefix(blockID string, newLin
 
 		// inserting the new line at the right position
 		if pos >= 0 {
-			block.lines = append(block.lines[:pos], append([]*codeLine{newCodeLine(newLine, true)}, block.lines[pos:]...)...)
+			block.lines = append(block.lines[:pos], append([]*codeLine{newCodeLine(newLine, true).with(strings.TrimSpace(newLine))}, block.lines[pos:]...)...)
 		} else {
 			thisCode.Error(false, fmt.Sprintf("Could not insert '%s' into block '%s' before '%s'. Block =", newLine, blockID, insertBeforePrefix))
 			for _, line := range block.lines {
@@ -514,9 +516,37 @@ func (thisCode *codeFile) insertLineIntoBlockBeforePrefix(blockID string, newLin
 func (thisCode *codeFile) updateLineIntoBlockWithPrefix(blockID string, newLine string, updateAtPrefix string, insertBeforePrefix string) {
 	if block := thisCode.blocksMap[blockID]; block != nil {
 		// if the line exists, we update it
-		for _, line := range block.lines {
+		for i, line := range block.lines {
 			if line != nil && strings.HasPrefix(line.content, updateAtPrefix) {
-				line.rawline = newLine
+				// the existing property may span several lines (e.g. after a code formatter ran on the file),
+				// so we find its last line, to replace it as a whole
+				last, depth := i, bracketDepth(line.content)
+				for last+1 < len(block.lines) && depth > 0 {
+					last++
+					if next := block.lines[last]; next != nil {
+						depth += bracketDepth(next.content)
+					}
+				}
+				if depth != 0 {
+					last = i // unbalanced brackets: not touching anything but the first line
+				}
+
+				// nothing to do if the property already has the desired value, whatever its formatting
+				existing := []string{}
+				for _, l := range block.lines[i : last+1] {
+					if l != nil {
+						existing = append(existing, l.content)
+					}
+				}
+				if normalizeProperty(strings.Join(existing, "")) == normalizeProperty(newLine) {
+					return
+				}
+
+				// replacing the property, keeping its indentation
+				trimmedLine := strings.TrimSpace(newLine)
+				line.rawline = line.rawline[:len(line.rawline)-len(strings.TrimLeft(line.rawline, " \t"))] + trimmedLine
+				line.content = trimmedLine
+				block.lines = append(block.lines[:i+1], block.lines[last+1:]...)
 				return
 			}
 		}
@@ -528,6 +558,30 @@ func (thisCode *codeFile) updateLineIntoBlockWithPrefix(blockID string, newLine 
 	} else {
 		thisCode.Error(false, "No block found with ID: "+blockID)
 	}
+}
+
+// how many more brackets are opened than closed in the given code
+func bracketDepth(code string) (depth int) {
+	for _, char := range code {
+		switch char {
+		case '(', '[', '{':
+			depth++
+		case ')', ']', '}':
+			depth--
+		}
+	}
+
+	return
+}
+
+// removing what does not matter when comparing 2 property declarations: whitespaces and trailing commas
+func normalizeProperty(code string) string {
+	code = strings.Join(strings.Fields(code), "")
+	code = strings.ReplaceAll(code, ",]", "]")
+	code = strings.ReplaceAll(code, ",)", ")")
+	code = strings.ReplaceAll(code, ",}", "}")
+
+	return strings.TrimSuffix(code, ",")
 }
 
 // tells if the targeted block does have a line with starts with the given prefix, or not
@@ -601,7 +655,10 @@ func (thisServer *server) parseCode(filepath string) (code *codeFile) {
 
 		case strings.HasPrefix(content, "import"):
 			// using the import alias as an ID
-			importID := core.IfThenElse(strings.HasPrefix(content, "import * as _"), extractBlockID(content, 12, "from"), "")
+			importID := ""
+			if strings.HasPrefix(content, "import * as _") {
+				importID = extractBlockID(content, 12, "from")
+			}
 			code.addNewBlock(rawline, true, importID, false)
 
 		// case strings.HasPrefix(content, "const") && strings.Contains(content, "fieldAtom("):
@@ -633,5 +690,15 @@ func (thisServer *server) parseCode(filepath string) (code *codeFile) {
 
 // building an ID from a line, starting from an index, and stopping at a given character
 func extractBlockID(content string, start int, end string) string {
-	return strings.TrimSpace(content[start:strings.Index(content, end)])
+	// no ID if the line is not formatted as expected, e.g. for a multi-line import, where "from" is on a later line
+	if start > len(content) {
+		return ""
+	}
+
+	endPos := strings.Index(content[start:], end)
+	if endPos < 0 {
+		return ""
+	}
+
+	return strings.TrimSpace(content[start : start+endPos])
 }

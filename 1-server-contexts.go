@@ -30,10 +30,9 @@ type restContext interface { // TODO keep ?
 }
 
 // ------------------------------------------------------------------------------------------------
-// ServerContext is a particular Business Logic Context used at app startup
-// Implemented by the `server` struct
+// ServerContext is a particular context used at app startup, implemented by the `server` struct
 // ------------------------------------------------------------------------------------------------
 type ServerContext interface {
-	BloContext
+	// BloContext
 	Start()
 }

@@ -8,13 +8,14 @@ import (
 
 // Provides a partial implementation of the User business object
 type User struct {
-	goald.BusinessObject
-	Email      string             `json:"email,omitempty"      io:"i*" desc:"the %s's email address, which serves as her/his username"`
-	Password   string             `json:"password,omitempty"   io:"in" desc:"the %s's password, for local accounts not backed by an external identity provider"`
-	FirstName  string             `json:"firstName,omitempty"  io:"i*" desc:"the %s's first name"`
-	LastName   string             `json:"lastName,omitempty"   io:"i*" desc:"the %s's last name"`
-	ExternalID string             `json:"externalId,omitempty" io:"in" desc:"the unique identifier ('oid' claim) of this %s in its external identity provider, if any"`
-	MemberOf   []goald.IUserGroup `json:"memberOf,omitempty"   io:"in" desc:"the list of user groups the %s is a member of"`
+	PermissionOwner
+	Email      string               `json:"email,omitempty"      io:"i*" desc:"the %s's email address, which serves as her/his username"`
+	FirstName  string               `json:"firstName,omitempty"  io:"i*" desc:"the %s's first name"`
+	LastName   string               `json:"lastName,omitempty"   io:"i*" desc:"the %s's last name"`
+	ExternalID string               `json:"externalId,omitempty" io:"in" desc:"the unique identifier ('oid' claim) of this %s in its external identity provider, if any"`
+	UserStatus goald.UserStatus     `json:"userStatus,omitempty" io:"o*" desc:"the status of the user"`
+	MemberOf   []goald.IUserGroup   `json:"memberOf,omitempty"   io:"in" desc:"the list of user groups the %s is a member of"`
+	Profiles   []goald.IUserProfile `json:"profiles,omitempty"   io:"in" desc:"the list of profiles associated with the %s"`
 }
 
 func init() {
@@ -28,10 +29,7 @@ func init() {
 	u.Email().SetSize(64)
 	u.Email().SetUnique()
 	u.Email().SetPersonal()
-	u.Password().SetSize(64)
-	u.Password().SetSecret()
-	u.Password().SetPersonal()
 	u.ExternalID().SetSize(64)
-	u.ExternalID().SetPersonal()
+	u.ExternalID().SetUnique()
 	u.MemberOf().SetSourceToTarget(model.UserGroup().Members())
 }

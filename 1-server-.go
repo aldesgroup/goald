@@ -12,7 +12,6 @@ import (
 	core "github.com/aldesgroup/corego"
 	"github.com/aldesgroup/goald/features/auth"
 	"github.com/aldesgroup/goald/features/logging"
-	"github.com/aldesgroup/goald/features/utils"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -221,34 +220,34 @@ func (thisServer *server) handleFor(ep iEndpoint) httprouter.Handle {
 // Making the server a Business Logic context
 // ------------------------------------------------------------------------------------------------
 
-var _ BloContext = (*server)(nil)
+// var _ BloContext = (*server)(nil)
 
-// BeginTransaction implements [ServerContext].
-func (thisServer *server) BeginTransaction(model IBusinessObjectModel) (bool, error) {
-	panic("unimplemented")
-}
+// // BeginTransaction implements [ServerContext].
+// func (thisServer *server) BeginTransaction(model IBusinessObjectModel) (bool, error) {
+// 	panic("unimplemented")
+// }
 
-// EndTransaction implements [ServerContext].
-func (thisServer *server) EndTransaction(err error) error {
-	panic("unimplemented")
-}
+// // EndTransaction implements [ServerContext].
+// func (thisServer *server) EndTransaction(err error) error {
+// 	panic("unimplemented")
+// }
 
-// IsTransactionStarted implements [ServerContext].
-func (thisServer *server) IsTransactionStarted() bool {
-	panic("unimplemented")
-}
+// // IsTransactionStarted implements [ServerContext].
+// func (thisServer *server) IsTransactionStarted() bool {
+// 	panic("unimplemented")
+// }
 
-// DaoFor implements [BloContext].
-func (thisServer *server) daoFor(modelName utils.ModelName) IBusinessObjectDAO {
-	panic("unimplemented")
-}
+// // DaoFor implements [BloContext].
+// func (thisServer *server) daoFor(modelName utils.ModelName) IBusinessObjectDAO {
+// 	panic("unimplemented")
+// }
 
-// bObjCache implements [BloContext].
-func (thisServer *server) bObjCache() *BObjCache {
-	panic("unimplemented")
-}
+// // bObjCache implements [BloContext].
+// func (thisServer *server) bObjCache() *BObjCache {
+// 	panic("unimplemented")
+// }
 
-// GetCurrentUser implements [BloContext] - there is no authenticated caller at the server/startup level.
-func (thisServer *server) GetCurrentUser() IUser {
-	return nil
-}
+// // GetCurrentUser implements [BloContext] - there is no authenticated caller at the server/startup level.
+// func (thisServer *server) GetCurrentUser() IUser {
+// 	return nil
+// }

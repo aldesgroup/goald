@@ -31,11 +31,12 @@ type IBusinessObjectDAO interface {
 	HandleDbError(err error) error
 
 	// these are the generic queries any DAO should be able to perform for its associated business object ModelName
-	ExecCreateQuery(bObjs ...IBusinessObject) (map[int]BObjID, error)                                            // executes the insert query for the given BOs, returning a map of the BO's rowID to the DB's ID
-	ExecCreateLinksQueries(bObjs ...IBusinessObject) error                                                       // executes the insert links queries for the given business objects
-	ExecReadQuery(bObjIDs []any, cache *BObjCache) error                                                         // executes the read query for the given business objects
-	ExecReadRelationshipQuery(bObjIDs []any, relName string, cache *BObjCache) ([]IBusinessObject, error)        // executes the read relationship query for the given business objects and a given relationship name
-	ExecUpdateQuery(bObjs ...IBusinessObject) error                                                              // executes the insert query for the given BOs, returning a map of the BO's rowID to the DB's ID
+	ExecCreateQuery(bObjs ...IBusinessObject) (map[int]BObjID, error)                                     // executes the insert query for the given BOs, returning a map of the BO's rowID to the DB's ID
+	ExecCreateLinksQueries(bObjs ...IBusinessObject) error                                                // executes the insert links queries for the given business objects
+	ExecReadQuery(bObjIDs []any, cache *BObjCache) error                                                  // executes the read query for the given business objects
+	ExecReadRelationshipQuery(bObjIDs []any, relName string, cache *BObjCache) ([]IBusinessObject, error) // executes the read relationship query for the given business objects and a given relationship name
+	ExecUpdateQuery(bObjs ...IBusinessObject) error                                                       // executes the insert query for the given BOs, returning a map of the BO's rowID to the DB's ID
+	// ExecUpsertQuery(conflictColumns string, bObjs ...IBusinessObject) (map[int]UpsertedRow, error)               // executes the insert-or-update query for the given BOs, detecting the existing ones with the given UNIQUE columns, returning a map of the BO's rowID to what the DB holds for its row
 	ExecDeleteLinksQueries(bObjs ...IBusinessObject) error                                                       // executes the delete links queries for the given business objects
 	ExecSearchQuery(queryName queryName, values ISearchParamValues, cache *BObjCache) ([]IBusinessObject, error) // executes the select query for the given query name and values, returning the resulting business objects
 }
@@ -123,6 +124,11 @@ func (baseDAO *BusinessObjectDAO) ExecUpdateQuery(bObjs ...IBusinessObject) erro
 	panic("unimplemented")
 }
 
+// // ExecUpsertQuery implements [IBusinessObjectDAO].
+// func (baseDAO *BusinessObjectDAO) ExecUpsertQuery(conflictColumns string, bObjs ...IBusinessObject) (map[int]UpsertedRow, error) {
+// 	panic("unimplemented")
+// }
+
 // ExecDeleteLinksQueries implements [IBusinessObjectDAO].
 func (baseDAO *BusinessObjectDAO) ExecDeleteLinksQueries(bObjs ...IBusinessObject) error {
 	panic("unimplemented")
@@ -151,10 +157,10 @@ func (baseDAO *BusinessObjectDAO) HandleDbError(err error) error {
 			if parts := strings.Split(content[len(prefixUK):], "__"); len(parts) == 2 {
 				modelName := core.SnakeToPascal(parts[0])
 				relationshipName := core.SnakeToCamel(parts[1])
-				return Error("%s: there's already a '%s' instance with the same '%s' value!", dbError, modelName, relationshipName)
+				return ErrorC(dbError, "There's already a '%s' instance with the same '%s' value!", modelName, relationshipName)
 			}
 		}
-		return ErrorC(err, "Duplicate entry detected!")
+		return Error("Duplicate entry detected! --==|| Cause: %w: %w", dbError, err)
 
 	case DbErrorMISSINGxVALUE:
 		if parts := strings.Split(content, "."); len(parts) == 2 {
@@ -165,23 +171,23 @@ func (baseDAO *BusinessObjectDAO) HandleDbError(err error) error {
 			} else {
 				columnName = core.SnakeToCamel(columnName)
 			}
-			return Error("%s: a '%s' instance cannot have its '%s' missing!", dbError, modelName, columnName)
+			return ErrorC(dbError, "A '%s' instance cannot have its '%s' missing!", modelName, columnName)
 		}
-		return ErrorC(err, "Missing value detected!")
+		return Error("Missing value detected! --==|| Cause: %w: %w", dbError, err)
 
 	case DbErrorINVALIDxENTRY:
 		if strings.HasPrefix(content, prefixFK) {
 			if parts := strings.Split(content[len(prefixFK):], "__"); len(parts) == 3 {
 				modelName := core.SnakeToPascal(parts[0])
 				relationshipName := core.SnakeToCamel(parts[1])
-				return Error("%s: this '%s' relationship associated with this '%s' instance does not seem to exist in the database!", dbError,
+				return ErrorC(dbError, "This '%s' relationship associated with this '%s' instance does not seem to exist in the database!",
 					relationshipName, modelName)
 			}
 		}
-		return ErrorC(err, "Invalid entry detected!")
+		return Error("Invalid entry detected! --==|| Cause: %w: %w", dbError, err)
 
 	default:
-		return ErrorC(err, "Unhandled DB error type (%d): %s", dbError, content)
+		return ErrorC(err, "Unhandled DB error type (%s): %s", dbError, content)
 	}
 }
 

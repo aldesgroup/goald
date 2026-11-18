@@ -323,7 +323,7 @@ func detectPropertyType(field reflection.GoaldField, iBopropertyType, enumproper
 	// detect if the field name starts with an uppercase letter, this should be allowed for non-handled property types
 	if unicode.IsUpper(rune(field.Name()[0])) {
 		panic(fmt.Sprintf("This exported property ('%s') should have a type handled by Goald. "+
-			"If this is a relationship, make sure you're using a pointer to it: *somepackage.SomeModel", field.Name()))
+			"If this is a relationship, make sure you're using a pointer to it (*somepackage.SomeModel) or an interface implementing IBusinessObject", field.Name()))
 	}
 
 	// this happens with technical fields !

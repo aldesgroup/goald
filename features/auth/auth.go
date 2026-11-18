@@ -25,9 +25,6 @@ var ErrPasswordLoginUnsupported = errors.New("password login is not supported; s
 // independently configured identity provider.
 type Realm string
 
-// RealmDefault is the conventional name for the single realm of an app with only 1 identity backend.
-const RealmDefault Realm = "default"
-
 // ProviderType identifies which goald.IAuthProvider implementation should serve a given realm,
 // e.g. "azuread". This lets an application swap in a different implementation (a different IDP, a
 // homegrown DB-backed login, a fake provider for tests, etc.) just by changing the configured type.

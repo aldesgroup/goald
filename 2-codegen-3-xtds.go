@@ -215,8 +215,8 @@ func (thisServer *server) generateAllObjectXTDs(srcdir, currentPath string, rege
 				// this file lives directly alongside the BO's own source file, within the BO's own package
 				xtdFilepath := path.Join(srcdir, model.getSrcPath(), strings.Replace(entry.Name(), boFILExSUFFIX, xtdFILExSUFFIX, 1))
 
-				// no xtd file for interfaces
-				if !model.isInterface() {
+				// no xtd file for interfaces, nor abstract business objects
+				if !model.isInterface() && !model.isAbstract() {
 
 					// generating the xtd file, if not existing yet, or too old
 					if regen || !core.FileExists(xtdFilepath) || core.EnsureModTime(xtdFilepath).Before(model.getLastBOMod()) {
@@ -259,7 +259,7 @@ func (thisGen *xtdGenerator) generateObjectXtdForModel(model IBusinessObjectMode
 	setModelNamesStatements := thisGen.buildUtilsSetModelNamesStatements(model)
 	diffedLinks := thisGen.buildUtilsDiffedLinks(model)
 
-	if importUtils {
+	if importUtils || strings.Contains(strings.Join(removeCyclesStatements, newline), "core.") {
 		importsMap["github.com/aldesgroup/corego"] = true
 	}
 
@@ -528,7 +528,14 @@ func (thisGen *xtdGenerator) buildGetMultiRelCase(relName string, relationship *
 	getMultiCase += newline + fmt.Sprintf("		for i, target := range bo.%s {", relName)
 	core.PanicMsgIf(relationship.relationType == 0, "Relationship '%s' should have a defined type", relationship.getKey())
 	if !relationship.isMultipleSource() && relationship.relationType != relationshipTypeONExWAY {
-		getMultiCase += newline + fmt.Sprintf("			target.%s = bo // ensuring the unique backref is set", relationship.getBackRefName())
+		if relationship.IsPolymorphic() {
+			// the targets are interfaces, so we can't access the backref field directly
+			getMultiCase += newline + fmt.Sprintf("			if err := target.SetRelationshipValue(\"%s\", bo); err != nil { // ensuring the unique backref is set", relationship.getBackRefName())
+			getMultiCase += newline + "				return nil, err"
+			getMultiCase += newline + "			}"
+		} else {
+			getMultiCase += newline + fmt.Sprintf("			target.%s = bo // ensuring the unique backref is set", relationship.getBackRefName())
+		}
 	}
 	getMultiCase += newline + fmt.Sprintf("			%s[i] = target", resultVar)
 	getMultiCase += newline + "		}"
@@ -538,18 +545,22 @@ func (thisGen *xtdGenerator) buildGetMultiRelCase(relName string, relationship *
 
 // building the statements for RemoveCycles(): for every multi-valued relationship whose targets hold a
 // single-valued backref pointing back to us (e.g. a PurchaseOrder's Items pointing back via OrderItem.PurchaseOrder),
-// we nil out that backref on each target, so that marshaling this BO to JSON doesn't loop forever; polymorphic
-// relationships are skipped, since the backref field then lives on an interface, not on a concrete type
+// we nil out that backref on each target, so that marshaling this BO to JSON doesn't loop forever; for polymorphic
+// relationships, the backref field lives on an interface, not on a concrete type, so it's reset via SetRelationshipValue
 func (thisGen *xtdGenerator) buildUtilsRemoveCyclesStatements(model IBusinessObjectModel) []string {
 	statements := []string{}
 
 	for _, relationship := range core.GetSortedValues(model.getRelationships()) {
-		if relationship.IsMultiple() && !relationship.IsPolymorphic() && len(relationship.backRefSlice) > 0 && !relationship.isMultipleSource() {
+		if relationship.IsMultiple() && len(relationship.backRefSlice) > 0 && !relationship.isMultipleSource() {
 			relName := relationship.GetName()
 			backRefName := relationship.getBackRefName()
 
 			statements = append(statements, fmt.Sprintf("	for _, target := range bo.%s {", relName))
-			statements = append(statements, fmt.Sprintf("		target.%s = nil", backRefName))
+			if relationship.IsPolymorphic() {
+				statements = append(statements, fmt.Sprintf("		core.PanicIfErr(target.SetRelationshipValue(\"%s\", nil))", backRefName))
+			} else {
+				statements = append(statements, fmt.Sprintf("		target.%s = nil", backRefName))
+			}
 			statements = append(statements, "	}")
 		} else if !relationship.IsMultiple() && len(relationship.backRefSlice) > 0 && relationship.isIndirectlyPersisted() {
 			relName := relationship.GetName()

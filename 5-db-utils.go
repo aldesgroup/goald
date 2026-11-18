@@ -6,35 +6,20 @@ import "github.com/aldesgroup/goald/features/logging"
 // DB errors
 // ----------------------------------------------------------------------------
 
-type DbError int
+// DbError is a string-based error type, so that its values can be constants, comparable in a switch or with errors.Is
+type DbError string
+
+// Error implements the error interface
+func (thisDbError DbError) Error() string {
+	return string(thisDbError)
+}
 
 const (
-	DbErrorUNIDENTIFIED    DbError = 0
-	DbErrorDUPLICATExENTRY DbError = 1
-	DbErrorINVALIDxENTRY   DbError = 2
-	DbErrorMISSINGxVALUE   DbError = 3
+	DbErrorUNIDENTIFIED    = DbError("unidentified error")
+	DbErrorDUPLICATExENTRY = DbError("duplicate entry error")
+	DbErrorINVALIDxENTRY   = DbError("invalid entry error")
+	DbErrorMISSINGxVALUE   = DbError("missing value error")
 )
-
-var dbErrors = map[int]string{
-	int(DbErrorUNIDENTIFIED):    "unidentified error",
-	int(DbErrorDUPLICATExENTRY): "duplicate entry error",
-	int(DbErrorINVALIDxENTRY):   "invalid entry error",
-	int(DbErrorMISSINGxVALUE):   "missing value error",
-}
-
-func (thisError DbError) String() string {
-	return dbErrors[int(thisError)]
-}
-
-// Val helps implement the IEnum interface
-func (thisError DbError) Val() int {
-	return int(thisError)
-}
-
-// Values helps implement the IEnum interface
-func (thisError DbError) Values() map[int]string {
-	return dbErrors
-}
 
 // ----------------------------------------------------------------------------
 // DB methods to quickly fetch stuff from the database

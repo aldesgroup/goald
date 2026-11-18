@@ -9,7 +9,7 @@ import (
 
 // static, reflect-free access to the definition of the UserGroup model
 type UserGroupModel struct {
-	g.IBusinessObjectModel
+	PermissionOwnerModel
 	name        *g.StringField
 	description *g.StringField
 	members     *g.Relationship
@@ -35,7 +35,7 @@ var (
 
 // fully describing each of this model's properties & relationships
 func NewUserGroupModel() *UserGroupModel {
-	thisModel := &UserGroupModel{IBusinessObjectModel: g.NewBusinessObjectModel()}
+	thisModel := &UserGroupModel{PermissionOwnerModel: *NewPermissionOwnerModel()}
 	thisModel.name = g.AddStringField(thisModel, "UserGroup", "Name", false)
 	thisModel.description = g.AddStringField(thisModel, "UserGroup", "Description", false)
 	thisModel.members = g.AddPolyRelationship(thisModel, "UserGroup", "Members", true)
